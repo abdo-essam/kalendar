@@ -18,120 +18,40 @@ package com.himanshoe.kalendar
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.himanshoe.kalendar.foundation.action.OnDaySelectionAction
 import com.himanshoe.kalendar.foundation.component.config.KalendarConfig
-import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
-import kotlinx.datetime.LocalDate
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.todayIn
-import kotlin.time.Clock
 
 /**
  * The main entry point for displaying a calendar.
  *
- * Choose a [KalendarType] to control the layout and navigation style. All visual and
- * behavioural options are consolidated in [KalendarConfig].
- *
- * Every [KalendarType] except [KalendarType.Agenda] is deprecated in favor of the standalone
- * [com.himanshoe.kalendar.view.KalendarWeek], [com.himanshoe.kalendar.view.KalendarMonth], and
- * [com.himanshoe.kalendar.view.KalendarYear] composables, which support both arrow-click and
- * swipe navigation at once and are called directly rather than through [Kalendar]/[KalendarType].
- * Prefer those for new code.
+ * The only [KalendarType] is [KalendarType.Agenda] — a scrollable event list. For a month, week,
+ * or year grid, use the standalone [com.himanshoe.kalendar.view.KalendarMonth],
+ * [com.himanshoe.kalendar.view.KalendarWeek], or [com.himanshoe.kalendar.view.KalendarYear]
+ * composables instead; they aren't called through [Kalendar]/[KalendarType].
  *
  * ```kotlin
  * Kalendar(
- *     type = KalendarType.Oceanic,
+ *     type = KalendarType.Agenda,
  *     events = myEvents,
- *     onDaySelectionAction = OnDaySelectionAction.Single { date, events -> … },
  *     config = KalendarConfig(
- *         startDayOfWeek = DayOfWeek.MONDAY,
- *         minDate = today,
  *         backgroundColor = KalendarColor.Solid(Color.White),
  *     ),
  * )
  * ```
  *
- * @param type The [KalendarType] that controls the layout variant and navigation style.
+ * @param type The [KalendarType] that controls the layout variant.
  * @param modifier [Modifier] applied to the outermost layout container.
- * @param selectedDate The initially selected (and highlighted) date.
- *   Defaults to today in the current system time zone.
- * @param events The full list of [KalendarEvent] instances to display. Each variant
- *   automatically filters this list to the dates visible in the current view.
- * @param onDaySelectionAction Defines how day taps are handled — single selection, multi
- *   selection, or range selection. Defaults to [OnDaySelectionAction.NoOp].
- * @param config Visual and behavioural configuration for the calendar. Controls colours,
- *   arrow visibility, day-label formatting, navigation bounds, and more.
- * @param controller An optional [KalendarController] for programmatic navigation. Obtain one
- *   via [rememberKalendarController] and call [KalendarController.scrollToDate] to navigate
- *   without user interaction.
- * @param dayContent An optional composable slot that completely replaces the built-in day
- *   cell. Receives the [LocalDate], whether it is currently selected, and the events on that
- *   date. Not available for [KalendarType.Agenda].
+ * @param events The full list of events to display.
+ * @param config Visual and behavioural configuration for the calendar.
  */
-@Suppress("DEPRECATION")
 @Composable
 fun Kalendar(
     type: KalendarType,
     modifier: Modifier = Modifier,
-    selectedDate: LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault()),
     events: KalendarEvents = emptyList(),
-    onDaySelectionAction: OnDaySelectionAction = OnDaySelectionAction.NoOp,
     config: KalendarConfig = KalendarConfig(),
-    controller: KalendarController? = null,
-    dayContent: (@Composable (date: LocalDate, isSelected: Boolean, events: List<KalendarEvent>) -> Unit)? = null,
 ) {
     when (type) {
-        KalendarType.Oceanic -> KalendarOceanic(
-            selectedDate = selectedDate,
-            modifier = modifier,
-            onDaySelectionAction = onDaySelectionAction,
-            config = config,
-            events = events,
-            controller = controller,
-            dayContent = dayContent,
-        )
-
-        KalendarType.Firey -> KalendarFirey(
-            modifier = modifier,
-            selectedDate = selectedDate,
-            events = events,
-            onDaySelectionAction = onDaySelectionAction,
-            config = config,
-            controller = controller,
-            dayContent = dayContent,
-        )
-
-        KalendarType.Aerial -> KalendarAerial(
-            selectedDate = selectedDate,
-            modifier = modifier,
-            onDaySelectionAction = onDaySelectionAction,
-            config = config,
-            events = events,
-            controller = controller,
-            dayContent = dayContent,
-        )
-
-        KalendarType.Solaris -> KalendarSolaris(
-            modifier = modifier,
-            selectedDate = selectedDate,
-            events = events,
-            onDaySelectionAction = onDaySelectionAction,
-            config = config,
-            controller = controller,
-            dayContent = dayContent,
-        )
-
-        KalendarType.Yearly -> KalendarYearly(
-            selectedDate = selectedDate,
-            modifier = modifier,
-            onDaySelectionAction = onDaySelectionAction,
-            config = config,
-            events = events,
-            controller = controller,
-            dayContent = dayContent,
-        )
-
         KalendarType.Agenda -> KalendarAgenda(
             events = events,
             config = config,

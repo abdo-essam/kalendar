@@ -43,19 +43,11 @@ So unless you fancy scribbling your dates on a Howler, let Kalendar handle your 
 These are called directly (`KalendarMonth(...)`, not `Kalendar(type = ...)`) and share no code with
 `kalendar-foundation` — see their docs for usage.
 
-## Kalendar supports these types of calendar, Click to have detailed information:
+## Kalendar(type = ...)
 
-> `Oceanic`/`Firey`/`Solaris`/`Aerial`/`Yearly` are **deprecated** — each hard-codes one navigation
-> style (arrow-click *or* swipe, never both). They still work, but prefer the standalone views above
-> for new code.
-
-- **[Oceanic](doc/Oceanic.md)**: A majestic spell that conjures the MonthView..
-- **[Firey](doc/Firey.md)**: A fiery enchantment that reveals the WeekView.
-- **[Solaris](doc/Solaris.md)**: A charm that lets you swipe through the calendar in MonthView, as
-  if by magic.
-- **[Aerial](doc/Aerial.md)**: A spell that grants you the power to swipe through the calendar in
-  WeekView, with the
-  flick of a wand.
+The only remaining [`KalendarType`](kalendar/src/commonMain/kotlin/com/himanshoe/kalendar/KalendarType.kt)
+is **[Agenda](doc/Agenda.md)** — a scrollable event list grouped by date. Month/week/year grids are
+the standalone views above, not `KalendarType` values.
 
 ## 🎉 Getting Started
 

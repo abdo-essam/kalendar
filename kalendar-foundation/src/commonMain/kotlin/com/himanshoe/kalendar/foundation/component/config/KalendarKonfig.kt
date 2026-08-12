@@ -28,9 +28,7 @@ import kotlinx.datetime.LocalDate
  *
  * @param showDayLabel Whether to show the row of day-of-week labels (Mon, Tue, …).
  *   Defaults to `true`.
- * @param showArrows Whether to show previous/next navigation arrows. Has no effect on
- *   swipeable variants ([KalendarType.Aerial], [KalendarType.Solaris]) which use a swipe
- *   gesture and a "return to today" icon instead. Defaults to `true`.
+ * @param showArrows Whether to show previous/next navigation arrows. Defaults to `true`.
  * @param startDayOfWeek The first day of the week column. Defaults to [DayOfWeek.MONDAY].
  * @param firstVisibleDate When set, the calendar initially scrolls to the month or week
  *   containing this date instead of the one containing [selectedDate]. Useful when you want
@@ -51,6 +49,12 @@ import kotlinx.datetime.LocalDate
  * @param onVisibleRangeChange Called whenever the visible date range changes due to user
  *   navigation or a programmatic scroll. Use this to lazy-load events from a backend.
  *   Defaults to `null`.
+ * @param showWeekNumbers When `true`, an extra left column showing ISO 8601 week numbers is
+ *   rendered. Defaults to `false`.
+ * @param calendarColors A map from calendar-source id to display colour. Used to tint event
+ *   indicator dots when [com.himanshoe.kalendar.foundation.event.KalendarEvent.calendarId] is
+ *   set and [com.himanshoe.kalendar.foundation.event.KalendarEvent.eventColor] is `null`.
+ *   Defaults to an empty map.
  * @param dayConfig Visual configuration for individual day cells.
  * @param headerConfig Visual configuration for the month/week header.
  * @param dayLabelConfig Visual configuration for the day-of-week label row.
@@ -68,6 +72,8 @@ data class KalendarConfig(
     val initialSelectedRange: KalendarSelectedDayRange? = null,
     val disabledDates: (LocalDate) -> Boolean = { false },
     val onVisibleRangeChange: ((start: LocalDate, end: LocalDate) -> Unit)? = null,
+    val showWeekNumbers: Boolean = false,
+    val calendarColors: Map<String, Color> = emptyMap(),
     val dayConfig: KalendarDayConfig = KalendarDayConfig(),
     val headerConfig: KalendarHeaderConfig = KalendarHeaderConfig.default(),
     val dayLabelConfig: KalendarDayLabelConfig = KalendarDayLabelConfig.default(),

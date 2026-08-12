@@ -21,69 +21,14 @@ package com.himanshoe.kalendar
  *
  * | Type | Layout | Navigation |
  * |---|---|---|
- * | [Oceanic] *(deprecated)* | Full month grid | Arrow buttons |
- * | [Firey] *(deprecated)* | Single week row | Arrow buttons |
- * | [Solaris] *(deprecated)* | Full month grid | Horizontal swipe |
- * | [Aerial] *(deprecated)* | Single week row | Horizontal swipe |
- * | [Yearly] *(deprecated)* | 12-month year overview | Arrow buttons |
  * | [Agenda] | Event list grouped by date | Scroll |
  *
- * [Oceanic]/[Firey]/[Solaris]/[Aerial]/[Yearly] each hard-code one navigation style — arrow-click
- * *or* swipe, never both. They're superseded by the standalone
- * [com.himanshoe.kalendar.view.KalendarMonth], [com.himanshoe.kalendar.view.KalendarWeek], and
- * [com.himanshoe.kalendar.view.KalendarYear] composables, which support both at once and aren't
- * called through [Kalendar]/[KalendarType] at all — see their KDoc for usage.
+ * For a month, week, or year grid, use the standalone
+ * [com.himanshoe.kalendar.view.KalendarMonth], [com.himanshoe.kalendar.view.KalendarWeek], or
+ * [com.himanshoe.kalendar.view.KalendarYear] composables instead — they support both arrow-click
+ * and swipe navigation together and aren't called through [Kalendar]/[KalendarType].
  */
 sealed interface KalendarType {
-    /**
-     * A static week-row calendar navigated with previous/next arrow buttons.
-     */
-    @Deprecated(
-        message = "Superseded by com.himanshoe.kalendar.view.KalendarWeek, which supports both " +
-            "arrow clicks and swipe.",
-    )
-    data object Firey : KalendarType
-
-    /**
-     * A static full-month grid calendar navigated with previous/next arrow buttons.
-     */
-    @Deprecated(
-        message = "Superseded by com.himanshoe.kalendar.view.KalendarMonth, which supports both " +
-            "arrow clicks and swipe.",
-    )
-    data object Oceanic : KalendarType
-
-    /**
-     * A swipeable week-row calendar. Users swipe horizontally to move between weeks.
-     * A "return to today" icon appears whenever the user has swiped away from the current week.
-     */
-    @Deprecated(
-        message = "Superseded by com.himanshoe.kalendar.view.KalendarWeek, which supports both " +
-            "arrow clicks and swipe.",
-    )
-    data object Aerial : KalendarType
-
-    /**
-     * A swipeable full-month grid calendar. Users swipe horizontally to move between months.
-     * A "return to today" icon appears whenever the user has swiped away from the current month.
-     */
-    @Deprecated(
-        message = "Superseded by com.himanshoe.kalendar.view.KalendarMonth, which supports both " +
-            "arrow clicks and swipe.",
-    )
-    data object Solaris : KalendarType
-
-    /**
-     * A year-overview calendar showing all 12 months in a compact scrollable grid.
-     * Navigate between years with previous/next arrow buttons. Tapping a day fires
-     * [onDaySelectionAction] and highlights the selected date.
-     */
-    @Deprecated(
-        message = "Superseded by com.himanshoe.kalendar.view.KalendarYear, which supports both " +
-            "arrow clicks and swipe.",
-    )
-    data object Yearly : KalendarType
-
     /**
      * An agenda-style calendar that renders a scrollable list of events grouped by date.
      * Events within the same day are sorted by [com.himanshoe.kalendar.foundation.event.KalendarEvent.startTime]
