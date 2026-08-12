@@ -14,7 +14,6 @@
  *
  */
 
-import com.vanniktech.maven.publish.SonatypeHost
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -27,7 +26,7 @@ plugins {
     alias(libs.plugins.dokka)
 }
 mavenPublishing {
-    publishToMavenCentral(SonatypeHost.S01)
+    publishToMavenCentral()
     signAllPublications()
 }
 
@@ -73,6 +72,7 @@ kotlin {
             implementation(compose.ui)
             implementation(compose.foundation)
             implementation(compose.material3)
+            implementation(compose.material)
             implementation(libs.kotlinx.datetime)
         }
         commonTest.dependencies {
@@ -86,9 +86,9 @@ compose.resources {
     packageOfResClass = "com.himanshoe.kalendar.resources"
     generateResClass = auto
 }
-android {
+extensions.configure<com.android.build.api.dsl.LibraryExtension> {
     namespace = "com.himanshoe.kalendar.core"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         minSdk = 24
     }
@@ -109,7 +109,7 @@ tasks.register<JavaExec>("detekt") {
     classpath = detekt
 
     val input = projectDir
-    val config = "$projectDir/detekt.yml"
+    val config = "${rootProject.projectDir}/detekt.yml"
     val exclude = ".*/build/.*,.*/resources/.*"
     val report = "sarif:${layout.buildDirectory.file("reports/detekt/detekt.sarif").get()}"
     val params = listOf(
