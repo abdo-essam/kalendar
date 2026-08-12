@@ -34,7 +34,7 @@ months.
 | `events` | `KalendarEvents` | `emptyList()` | Events shown as indicator dots on day cells. |
 | `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | Highlighted dates. Hoist your own set for multi-select/range (see [Month.md](Month.md#range-selection)). |
 | `onDateClick` | `(LocalDate, List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped. |
-| `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Disabled dates, arrow visibility, background. |
+| `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Disabled dates, arrow visibility, adjacent-month dates, background. |
 | `dayContent` | `(@Composable (KalendarDayScope) -> Unit)?` | `null` | Fully replaces the built-in day cell for every month. |
 
 ## `rememberKalendarYearState` parameters

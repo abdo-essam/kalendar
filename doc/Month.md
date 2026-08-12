@@ -22,6 +22,8 @@ KalendarMonth(
 
 The arrow buttons in the header and a horizontal swipe on the grid both move the same `state` — they
 always stay in sync. `config.showNavigationArrows = false` hides the buttons; swiping still works.
+`config.showAdjacentMonthDates = false` leaves the previous/next month's padding cells blank
+instead of showing them dimmed.
 
 ### Bounds and disabled dates
 
@@ -107,7 +109,7 @@ KalendarMonth(
 | `events` | `KalendarEvents` | `emptyList()` | Events shown as indicator dots on day cells. |
 | `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | Highlighted dates. Hoist your own set for multi-select/range. |
 | `onDateClick` | `(LocalDate, List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped. |
-| `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Disabled dates, arrow visibility, background. |
+| `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Disabled dates, arrow visibility, adjacent-month dates, background. |
 | `dayContent` | `(@Composable (KalendarDayScope) -> Unit)?` | `null` | Fully replaces the built-in day cell. |
 
 ## `rememberKalendarMonthState` parameters
