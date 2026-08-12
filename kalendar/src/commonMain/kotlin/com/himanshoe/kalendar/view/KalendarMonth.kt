@@ -111,8 +111,3 @@ fun KalendarMonth(
         }
     }
 }
-
-private fun monthTitle(monthStart: LocalDate): String {
-    val monthName = monthStart.month.name.lowercase().replaceFirstChar { it.titlecase() }
-    return "$monthName ${monthStart.year}"
-}

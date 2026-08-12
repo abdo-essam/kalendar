@@ -16,6 +16,10 @@
 
 package com.himanshoe.kalendar.view
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -69,7 +73,12 @@ internal fun KalendarNavigationHeader(
             Spacer(modifier = Modifier.size(48.dp))
         }
 
-        Text(text = title, style = MaterialTheme.typography.titleMedium)
+        AnimatedContent(
+            targetState = title,
+            transitionSpec = { fadeIn() togetherWith fadeOut() },
+        ) { animatedTitle ->
+            Text(text = animatedTitle, style = MaterialTheme.typography.titleMedium)
+        }
 
         if (showArrows) {
             IconButton(

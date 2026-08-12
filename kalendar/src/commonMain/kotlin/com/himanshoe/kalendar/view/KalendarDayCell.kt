@@ -16,8 +16,13 @@
 
 package com.himanshoe.kalendar.view
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.padding
@@ -26,10 +31,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -65,9 +73,10 @@ data class KalendarDayScope(
 object KalendarDayCellDefaults {
 
     /**
-     * Renders [scope] as a circular date cell: bold text for today, a filled background for the
-     * selected state, reduced opacity and no click handling when disabled, and a small dot below
-     * the day number when [KalendarDayScope.events] is non-empty.
+     * Renders [scope] as a circular date cell: bold text for today, a filled background that
+     * animates in for the selected state, a brief press-scale for tactile feedback, reduced
+     * opacity and no click handling when disabled, and a small dot that fades in below the day
+     * number when [KalendarDayScope.events] is non-empty.
      */
     @Composable
     fun Cell(
@@ -76,12 +85,9 @@ object KalendarDayCellDefaults {
         modifier: Modifier = Modifier,
     ) {
         val colors = MaterialTheme.colorScheme
-        val background =
-            if (scope.isSelected) {
-                colors.primaryContainer
-            } else {
-                Color.Transparent
-            }
+        val background by animateColorAsState(
+            targetValue = if (scope.isSelected) colors.primaryContainer else Color.Transparent,
+        )
         val textColor = when {
             scope.isSelected -> colors.onPrimaryContainer
             scope.isToday -> colors.primary
@@ -94,10 +100,15 @@ object KalendarDayCellDefaults {
                 FontWeight.Normal
             }
 
+        val interactionSource = remember { MutableInteractionSource() }
+        val isPressed by interactionSource.collectIsPressedAsState()
+        val scale by animateFloatAsState(targetValue = if (isPressed) 0.92f else 1f)
+
         Box(
             contentAlignment = Alignment.Center,
             modifier = modifier
                 .aspectRatio(1f)
+                .scale(scale)
                 .alpha(
                     if (scope.isDisabled) {
                         0.38f
@@ -112,7 +123,7 @@ object KalendarDayCellDefaults {
                     if (scope.isDisabled) {
                         it
                     } else {
-                        it.clickable(onClick = onClick)
+                        it.clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
                     }
                 },
         ) {
@@ -121,7 +132,7 @@ object KalendarDayCellDefaults {
                 color = textColor,
                 fontWeight = fontWeight,
             )
-            if (scope.events.isNotEmpty()) {
+            AnimatedVisibility(visible = scope.events.isNotEmpty()) {
                 Box(
                     modifier = Modifier
                         .padding(top = 22.dp)

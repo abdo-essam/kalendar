@@ -186,4 +186,14 @@ class KalendarPageTest {
         assertEquals(DayOfWeek.entries.toSet(), rotated.toSet())
         assertEquals(7, rotated.size)
     }
+
+    @Test
+    fun monthTitle_formatsMonthNameAndYear() {
+        assertEquals("August 2026", monthTitle(LocalDate(2026, 8, 1)))
+    }
+
+    @Test
+    fun monthTitle_ignoresDayOfMonth() {
+        assertEquals(monthTitle(LocalDate(2026, 8, 1)), monthTitle(LocalDate(2026, 8, 15)))
+    }
 }

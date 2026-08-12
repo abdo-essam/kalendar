@@ -19,8 +19,7 @@ package com.himanshoe.sample
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,9 +27,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import com.himanshoe.kalendar.view.KalendarMonth
-import com.himanshoe.kalendar.view.rememberKalendarMonthState
+import com.himanshoe.kalendar.view.KalendarTimeline
+import com.himanshoe.kalendar.view.rememberKalendarTimelineState
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.minus
+import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
 
@@ -38,12 +40,16 @@ import kotlin.time.Clock
 fun App() {
     val today = remember { Clock.System.todayIn(TimeZone.currentSystemDefault()) }
     var selectedDates by remember { mutableStateOf(setOf(today)) }
-    val state = rememberKalendarMonthState(initialDate = today)
+    val state = rememberKalendarTimelineState(
+        initialDate = today,
+        minDate = today.minus(1, DateTimeUnit.YEAR),
+        maxDate = today.plus(1, DateTimeUnit.YEAR),
+    )
 
-    Column(modifier = Modifier.wrapContentSize().background(Color.LightGray)) {
-        KalendarMonth(
+    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
+        KalendarTimeline(
             selectedDate = today,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxSize(),
             state = state,
             selectedDates = selectedDates,
             onDateClick = { date, events ->

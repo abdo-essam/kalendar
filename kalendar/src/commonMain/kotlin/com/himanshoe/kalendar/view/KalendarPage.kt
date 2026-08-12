@@ -63,3 +63,8 @@ internal fun daysOfWeekStartingAt(startDayOfWeek: DayOfWeek): List<DayOfWeek> {
     val all = DayOfWeek.entries
     return all.drop(startDayOfWeek.ordinal) + all.take(startDayOfWeek.ordinal)
 }
+
+internal fun monthTitle(monthStart: LocalDate): String {
+    val monthName = monthStart.month.name.lowercase().replaceFirstChar { it.titlecase() }
+    return "$monthName ${monthStart.year}"
+}

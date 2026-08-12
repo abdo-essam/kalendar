@@ -17,6 +17,9 @@
 package com.himanshoe.kalendar.view
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -56,6 +59,44 @@ internal fun KalendarGrid(
         }
         items(items = dates, key = { it.toEpochDays() }) { date ->
             cell(date)
+        }
+    }
+}
+
+/**
+ * Eager (non-lazy) variant of [KalendarGrid] for use inside another scrollable container — e.g.
+ * [KalendarTimeline]'s `LazyColumn` items — where a nested `LazyVerticalGrid` would be measured
+ * with an unbounded height and crash. A month grid is at most 42 cells, cheap enough to compose
+ * eagerly.
+ */
+@Composable
+internal fun KalendarStaticGrid(
+    dates: List<LocalDate>,
+    startDayOfWeek: DayOfWeek,
+    modifier: Modifier = Modifier,
+    cell: @Composable (LocalDate) -> Unit,
+) {
+    val labelDays = remember(startDayOfWeek) { daysOfWeekStartingAt(startDayOfWeek) }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            labelDays.forEach { day ->
+                Text(
+                    text = day.name.take(1),
+                    style = MaterialTheme.typography.labelSmall,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f).alpha(0.6f),
+                )
+            }
+        }
+        dates.chunked(7).forEach { week ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                week.forEach { date ->
+                    Box(modifier = Modifier.weight(1f)) {
+                        cell(date)
+                    }
+                }
+            }
         }
     }
 }
