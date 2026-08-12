@@ -20,8 +20,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.himanshoe.kalendar.foundation.action.OnDaySelectionAction
 import com.himanshoe.kalendar.foundation.component.config.KalendarConfig
-import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
+import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -32,6 +32,12 @@ import kotlinx.datetime.todayIn
  *
  * Choose a [KalendarType] to control the layout and navigation style. All visual and
  * behavioural options are consolidated in [KalendarConfig].
+ *
+ * Every [KalendarType] except [KalendarType.Agenda] is deprecated in favor of the standalone
+ * [com.himanshoe.kalendar.view.KalendarWeek], [com.himanshoe.kalendar.view.KalendarMonth], and
+ * [com.himanshoe.kalendar.view.KalendarYear] composables, which support both arrow-click and
+ * swipe navigation at once and are called directly rather than through [Kalendar]/[KalendarType].
+ * Prefer those for new code.
  *
  * ```kotlin
  * Kalendar(
@@ -63,6 +69,7 @@ import kotlinx.datetime.todayIn
  *   cell. Receives the [LocalDate], whether it is currently selected, and the events on that
  *   date. Not available for [KalendarType.Agenda].
  */
+@Suppress("DEPRECATION")
 @Composable
 fun Kalendar(
     type: KalendarType,
@@ -129,7 +136,6 @@ fun Kalendar(
             events = events,
             config = config,
             modifier = modifier,
-            onDaySelectionAction = onDaySelectionAction,
         )
     }
 }

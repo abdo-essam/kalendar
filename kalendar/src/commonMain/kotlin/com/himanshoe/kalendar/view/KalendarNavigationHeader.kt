@@ -36,7 +36,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
-/** Fresh header used by [KalendarWeek], [KalendarMonth], and [KalendarYear]: a title plus previous/next arrow buttons wired to [state]'s pager. */
+/**
+ * Fresh header used by [KalendarWeek], [KalendarMonth], and [KalendarYear]: a title plus
+ * previous/next arrow buttons wired to [state]'s pager.
+ */
 @Composable
 internal fun KalendarNavigationHeader(
     title: String,

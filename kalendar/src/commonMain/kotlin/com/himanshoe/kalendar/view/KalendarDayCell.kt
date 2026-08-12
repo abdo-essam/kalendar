@@ -58,7 +58,10 @@ data class KalendarDayScope(
     val events: List<KalendarEvent>,
 )
 
-/** Default day-cell rendering, used by [KalendarWeek]/[KalendarMonth]/[KalendarYear] when no `dayContent` slot is supplied. */
+/**
+ * Default day-cell rendering, used by [KalendarWeek]/[KalendarMonth]/[KalendarYear] when no
+ * `dayContent` slot is supplied.
+ */
 object KalendarDayCellDefaults {
 
     /**
