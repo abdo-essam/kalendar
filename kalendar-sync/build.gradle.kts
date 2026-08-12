@@ -14,7 +14,6 @@
  *
  */
 
-import com.vanniktech.maven.publish.SonatypeHost
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -26,7 +25,7 @@ plugins {
 }
 
 mavenPublishing {
-    publishToMavenCentral(SonatypeHost.S01)
+    publishToMavenCentral()
     signAllPublications()
 }
 
@@ -35,7 +34,7 @@ kotlin {
         compilations.all {
             compileTaskProvider.configure {
                 compilerOptions {
-                    jvmTarget.set(JvmTarget.JVM_1_8)
+                    jvmTarget.set(JvmTarget.JVM_11)
                 }
             }
         }
@@ -44,7 +43,7 @@ kotlin {
         compilations.all {
             compileTaskProvider.configure {
                 compilerOptions {
-                    jvmTarget.set(JvmTarget.JVM_1_8)
+                    jvmTarget.set(JvmTarget.JVM_11)
                 }
             }
         }
@@ -80,13 +79,13 @@ kotlin {
 
 android {
     namespace = "com.himanshoe.kalendar.sync"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         minSdk = 24
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 }
 
@@ -101,7 +100,7 @@ tasks.register<JavaExec>("detekt") {
     classpath = detekt
 
     val input = projectDir
-    val config = "$projectDir/detekt.yml"
+    val config = "${rootProject.projectDir}/detekt.yml"
     val exclude = ".*/build/.*,.*/resources/.*"
     val report = "sarif:${layout.buildDirectory.file("reports/detekt/detekt.sarif").get()}"
     val params = listOf("-i", input, "-c", config, "-ex", exclude, "-r", report, "--build-upon-default-config")

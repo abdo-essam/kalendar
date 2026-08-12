@@ -17,7 +17,6 @@
 package com.himanshoe.kalendar.sync
 
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
@@ -29,10 +28,10 @@ import platform.EventKit.EKEvent
 import platform.EventKit.EKEventStore
 import platform.EventKit.EKSpan
 import platform.Foundation.NSDate
-import platform.Foundation.NSError
 import platform.Foundation.timeIntervalSince1970
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+import kotlin.time.Instant
 
 /**
  * Creates an iOS [KalendarSyncProvider] backed by EventKit.
@@ -44,6 +43,10 @@ import kotlin.coroutines.suspendCoroutine
  * ```
  */
 fun KalendarSync(): KalendarSyncProvider = IosKalendarSync()
+
+private const val END_OF_DAY_HOUR = 23
+private const val END_OF_DAY_MINUTE = 59
+private const val SECONDS_PER_DAY = 86_400L
 
 @OptIn(ExperimentalForeignApi::class)
 private class IosKalendarSync : KalendarSyncProvider {
@@ -65,11 +68,12 @@ private class IosKalendarSync : KalendarSyncProvider {
     override suspend fun fetchEvents(
         startDate: LocalDate,
         endDate: LocalDate,
+        timeZone: TimeZone,
     ): KalendarSyncResult<List<KalendarSyncEvent>> {
         if (!hasPermission()) return KalendarSyncResult.PermissionDenied
         return runCatching {
-            val start = startDate.atStartOfDayIn(tz).toNSDate()
-            val end = endDate.atStartOfDayIn(tz).toNSDate()
+            val start = startDate.atStartOfDayIn(timeZone).toNSDate()
+            val end = endDate.atStartOfDayIn(timeZone).toNSDate()
             val calendars = eventStore.calendarsForEntityType(EKEntityType.EKEntityTypeEvent)
 
             @Suppress("UNCHECKED_CAST")
@@ -96,13 +100,12 @@ private class IosKalendarSync : KalendarSyncProvider {
                 endDate = if (event.isAllDay) {
                     event.date.atStartOfDayIn(tz).plusDayNSDate()
                 } else {
-                    localTimeToNSDate(event.date, event.endTime ?: LocalTime(23, 59))
+                    localTimeToNSDate(event.date, event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE))
                 }
                 calendar = eventStore.defaultCalendarForNewEvents
             }
 
             suspendCoroutine<KalendarSyncResult<String>> { cont ->
-                val error: NSError? = null
                 val saved = eventStore.saveEvent(ekEvent, EKSpan.EKSpanThisEvent, true, null)
                 if (saved) {
                     cont.resume(KalendarSyncResult.Success(ekEvent.eventIdentifier ?: ""))
@@ -129,11 +132,14 @@ private class IosKalendarSync : KalendarSyncProvider {
             ekEvent.endDate = if (event.isAllDay) {
                 event.date.atStartOfDayIn(tz).plusDayNSDate()
             } else {
-                localTimeToNSDate(event.date, event.endTime ?: LocalTime(23, 59))
+                localTimeToNSDate(event.date, event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE))
             }
             val saved = eventStore.saveEvent(ekEvent, EKSpan.EKSpanThisEvent, true, null)
-            if (saved) KalendarSyncResult.Success(Unit)
-            else KalendarSyncResult.Error("EventKit saveEvent returned false for update")
+            if (saved) {
+                KalendarSyncResult.Success(Unit)
+            } else {
+                KalendarSyncResult.Error("EventKit saveEvent returned false for update")
+            }
         }.getOrElse { KalendarSyncResult.Error("Failed to update event", it) }
     }
 
@@ -143,8 +149,11 @@ private class IosKalendarSync : KalendarSyncProvider {
             val ekEvent = eventStore.eventWithIdentifier(eventId)
                 ?: return KalendarSyncResult.Error("Event with id=$eventId not found")
             val deleted = eventStore.removeEvent(ekEvent, EKSpan.EKSpanThisEvent, true, null)
-            if (deleted) KalendarSyncResult.Success(Unit)
-            else KalendarSyncResult.Error("EventKit removeEvent returned false")
+            if (deleted) {
+                KalendarSyncResult.Success(Unit)
+            } else {
+                KalendarSyncResult.Error("EventKit removeEvent returned false")
+            }
         }.getOrElse { KalendarSyncResult.Error("Failed to delete event", it) }
     }
 
@@ -155,7 +164,7 @@ private class IosKalendarSync : KalendarSyncProvider {
     private fun EKEvent.toKalendarSyncEvent(): KalendarSyncEvent {
         val date = startDate?.toLocalDate() ?: return BasicKalendarSyncEvent(
             id = eventIdentifier,
-            date = kotlinx.datetime.Clock.System.now().toLocalDateTime(tz).date,
+            date = kotlin.time.Clock.System.now().toLocalDateTime(tz).date,
             eventName = title ?: "",
         )
         return BasicKalendarSyncEvent(
@@ -194,5 +203,5 @@ private class IosKalendarSync : KalendarSyncProvider {
 
     /** Returns an [NSDate] exactly 24 hours after this [Instant], used for all-day event end dates. */
     private fun Instant.plusDayNSDate(): NSDate =
-        NSDate.dateWithTimeIntervalSince1970((epochSeconds + 86_400).toDouble())
+        NSDate.dateWithTimeIntervalSince1970((epochSeconds + SECONDS_PER_DAY).toDouble())
 }

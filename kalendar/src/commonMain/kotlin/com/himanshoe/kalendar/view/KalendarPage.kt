@@ -16,7 +16,6 @@
 
 package com.himanshoe.kalendar.view
 
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
@@ -24,6 +23,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 internal fun todayInSystemTimeZone(): LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
 
@@ -48,7 +48,7 @@ internal fun monthGridDates(monthStart: LocalDate, startDayOfWeek: DayOfWeek): L
 internal fun weeksBetween(from: LocalDate, to: LocalDate, startDayOfWeek: DayOfWeek): Int {
     val fromWeekStart = from.startOfWeek(startDayOfWeek)
     val toWeekStart = to.startOfWeek(startDayOfWeek)
-    return (toWeekStart.toEpochDays() - fromWeekStart.toEpochDays()) / 7
+    return ((toWeekStart.toEpochDays() - fromWeekStart.toEpochDays()) / 7).toInt()
 }
 
 internal fun monthsBetween(from: LocalDate, to: LocalDate): Int {

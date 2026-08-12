@@ -40,10 +40,9 @@ import com.himanshoe.kalendar.foundation.component.KalendarDay
 import com.himanshoe.kalendar.foundation.component.KalendarHeader
 import com.himanshoe.kalendar.foundation.component.buildHeaderText
 import com.himanshoe.kalendar.foundation.component.config.KalendarConfig
-import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
+import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
@@ -51,6 +50,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
 import kotlinx.datetime.until
+import kotlin.time.Clock
 
 @Composable
 internal fun KalendarAerial(
@@ -101,8 +101,11 @@ private fun KalendarAerialContent(
     var clickedNewDate by remember { mutableStateOf(selectedDate) }
     var clickedNewDates by remember {
         mutableStateOf(
-            if (config.initialSelectedDates.isNotEmpty()) config.initialSelectedDates
-            else listOf(selectedDate)
+            if (config.initialSelectedDates.isNotEmpty()) {
+                config.initialSelectedDates
+            } else {
+                listOf(selectedDate)
+            }
         )
     }
     val daysOfWeek = DayOfWeek.entries.rotate(distance = startDayOfWeek.ordinal)
@@ -164,6 +167,7 @@ private fun KalendarAerialContent(
             KalendarScaffold(
                 modifier = Modifier.fillMaxWidth(),
                 showDayLabel = config.showDayLabel,
+                showWeekNumbers = config.showWeekNumbers,
                 dayOfWeek = { daysOfWeek },
                 dayLabelConfig = config.dayLabelConfig,
                 dates = { displayDates },
@@ -198,6 +202,7 @@ private fun KalendarAerialContent(
                         events = dateEvents,
                         selectedDate = clickedNewDate,
                         isDisabled = config.disabledDates(date),
+                        calendarColors = config.calendarColors,
                     )
                 }
             }

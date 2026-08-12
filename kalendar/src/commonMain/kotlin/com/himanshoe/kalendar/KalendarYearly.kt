@@ -39,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,15 +56,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.util.fastMap
+import androidx.compose.ui.util.fastForEach
 import com.himanshoe.kalendar.foundation.action.OnDaySelectionAction
 import com.himanshoe.kalendar.foundation.action.onDayClick
 import com.himanshoe.kalendar.foundation.component.config.KalendarConfig
 import com.himanshoe.kalendar.foundation.component.config.KalendarHeaderConfig
-import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
-import kotlinx.datetime.Clock
-import kotlinx.datetime.DateTimeUnit
+import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
@@ -71,6 +70,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 @Composable
 internal fun KalendarYearly(
@@ -110,6 +110,11 @@ private fun KalendarYearlyContent(
     var clickedDate by remember { mutableStateOf(selectedDate) }
     val eventsByDate = remember(events) { events.groupBy { it.date } }
 
+    DisposableEffect(controller) {
+        controller?.attachScrollImpl { date -> currentYear = date.year }
+        onDispose { controller?.detachScrollImpl() }
+    }
+
     val canGoBack = config.minDate?.let { currentYear > it.year } ?: true
     val canGoForward = config.maxDate?.let { currentYear < it.year } ?: true
 
@@ -136,7 +141,7 @@ private fun KalendarYearlyContent(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Month.entries.forEach { month ->
+            Month.entries.fastForEach { month ->
                 MiniMonthGrid(
                     year = currentYear,
                     month = month,
@@ -231,9 +236,11 @@ private fun MiniMonthGrid(
             style = TextStyle(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
-                brush = Brush.linearGradient(config.headerConfig.textStyle.brush?.let {
-                    listOf(Color(0xFF413D4B), Color(0xFFD8A29E))
-                } ?: listOf(Color(0xFF413D4B), Color(0xFFD8A29E))),
+                brush = Brush.linearGradient(
+                    config.headerConfig.textStyle.brush?.let {
+                        listOf(Color(color = 0xFF413D4B), Color(color = 0xFFD8A29E))
+                    } ?: listOf(Color(color = 0xFF413D4B), Color(color = 0xFFD8A29E))
+                ),
             ),
             modifier = Modifier.padding(bottom = 4.dp),
         )
@@ -252,7 +259,7 @@ private fun MiniMonthGrid(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.Center,
-                            color = Color(0xFF613D4B),
+                            color = Color(color = 0xFF613D4B),
                         ),
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -295,13 +302,13 @@ private fun MiniDayCell(
     onClick: () -> Unit,
 ) {
     val background = when {
-        isSelected -> Brush.linearGradient(listOf(Color(0xFFF7CFD3), Color(0xFFF7CFD3)))
+        isSelected -> Brush.linearGradient(listOf(Color(color = 0xFFF7CFD3), Color(color = 0xFFF7CFD3)))
         else -> Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
     }
     val textColor = when {
-        isSelected -> Color(0xFF413D4B)
-        isToday -> Color(0xFFD8A29E)
-        else -> Color(0xFF413D4B)
+        isSelected -> Color(color = 0xFF413D4B)
+        isToday -> Color(color = 0xFFD8A29E)
+        else -> Color(color = 0xFF413D4B)
     }
     val fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal
 
@@ -332,7 +339,7 @@ private fun MiniDayCell(
                 Box(
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(Color(0xFFD8A29E))
+                        .background(Color(color = 0xFFD8A29E))
                         .padding(2.dp),
                 )
             }

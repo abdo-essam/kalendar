@@ -20,6 +20,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 /**
  * Provides imperative control over a [Kalendar] composable, enabling the host to programmatically
@@ -83,6 +86,16 @@ class KalendarController internal constructor() {
      */
     suspend fun scrollToDate(date: LocalDate) {
         scrollImpl?.invoke(date)
+    }
+
+    /**
+     * Navigates the attached [Kalendar] to today's date in the device's current system
+     * time zone. Equivalent to calling [scrollToDate] with [Clock.System.todayIn].
+     *
+     * If no [Kalendar] is currently attached, this call is a no-op.
+     */
+    suspend fun scrollToToday() {
+        scrollToDate(Clock.System.todayIn(TimeZone.currentSystemDefault()))
     }
 }
 

@@ -16,8 +16,12 @@
 
 package com.himanshoe.kalendar
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
@@ -37,13 +41,16 @@ import com.himanshoe.kalendar.foundation.action.onDayClick
 import com.himanshoe.kalendar.foundation.component.KalendarDay
 import com.himanshoe.kalendar.foundation.component.KalendarHeader
 import com.himanshoe.kalendar.foundation.component.config.KalendarConfig
-import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
+import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
+import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 @Composable
 internal fun KalendarOceanic(
@@ -77,6 +84,7 @@ private fun KalendarOceanicContent(
     dayContent: (@Composable (date: LocalDate, isSelected: Boolean, events: List<KalendarEvent>) -> Unit)? = null,
 ) {
     val startDayOfWeek = config.startDayOfWeek
+    val today = remember { Clock.System.todayIn(TimeZone.currentSystemDefault()) }
     val initialDate = config.firstVisibleDate ?: selectedDate
     var currentMonth by remember {
         mutableStateOf(initialDate.minus(initialDate.dayOfMonth - 1, DateTimeUnit.DAY))
@@ -93,15 +101,19 @@ private fun KalendarOceanicContent(
     var clickedNewDate by remember { mutableStateOf(selectedDate) }
     var clickedNewDates by remember {
         mutableStateOf(
-            if (config.initialSelectedDates.isNotEmpty()) config.initialSelectedDates
-            else listOf(selectedDate)
+            if (config.initialSelectedDates.isNotEmpty()) {
+                config.initialSelectedDates
+            } else {
+                listOf(selectedDate)
+            }
         )
     }
+    var navigationDirection by remember { mutableStateOf(1) }
     val daysOfWeek = DayOfWeek.entries.rotate(startDayOfWeek.ordinal)
-    val displayDates by remember(currentMonth, startDayOfWeek) {
-        mutableStateOf(getMonthDates(currentMonth, startDayOfWeek))
-    }
     val eventsByDate = remember(events) { events.groupBy { it.date } }
+
+    val todayMonthStart = today.minus(today.dayOfMonth - 1, DateTimeUnit.DAY)
+    val calendarIconEnabled = currentMonth != todayMonthStart
 
     val canGoBack = config.minDate?.let { min ->
         currentMonth > min.minus(min.dayOfMonth - 1, DateTimeUnit.DAY)
@@ -112,7 +124,9 @@ private fun KalendarOceanicContent(
 
     DisposableEffect(controller) {
         controller?.attachScrollImpl { date ->
-            currentMonth = date.minus(date.dayOfMonth - 1, DateTimeUnit.DAY)
+            val target = date.minus(date.dayOfMonth - 1, DateTimeUnit.DAY)
+            navigationDirection = if (target >= currentMonth) 1 else -1
+            currentMonth = target
         }
         onDispose { controller?.detachScrollImpl() }
     }
@@ -133,57 +147,84 @@ private fun KalendarOceanicContent(
             month = currentMonth.month,
             year = currentMonth.year,
             showArrows = config.showArrows,
+            showCalendarIcon = true,
+            calendarIconEnabled = calendarIconEnabled,
             canNavigateBack = canGoBack,
             onPreviousClick = {
                 if (canGoBack) {
+                    navigationDirection = -1
                     currentMonth = currentMonth.minus(1, DateTimeUnit.MONTH)
                 }
             },
             onNextClick = {
                 if (canGoForward) {
+                    navigationDirection = 1
                     currentMonth = currentMonth.plus(1, DateTimeUnit.MONTH)
                 }
-            }
+            },
+            onNavigateToday = {
+                if (calendarIconEnabled) {
+                    navigationDirection = if (todayMonthStart >= currentMonth) 1 else -1
+                    currentMonth = todayMonthStart
+                }
+            },
         )
-        KalendarScaffold(
-            modifier = Modifier.fillMaxWidth(),
-            showDayLabel = config.showDayLabel,
-            dayOfWeek = { daysOfWeek },
-            dayLabelConfig = config.dayLabelConfig,
-            dates = { displayDates },
-        ) { date ->
-            val isCurrentMonth = date.month == currentMonth.month
-            val dateEvents = eventsByDate[date] ?: emptyList()
-            if (dayContent != null) {
-                val isSelected = date == clickedNewDate || clickedNewDates.contains(date)
-                dayContent(date, isSelected, dateEvents)
-            } else {
-                KalendarDay(
-                    date = date,
-                    selectedRange = selectedRange.value,
-                    selectedDates = clickedNewDates,
-                    onDayClick = { clickedDate, clickedEvents: List<KalendarEvent> ->
-                        clickedDate.onDayClick(
-                            events = clickedEvents,
-                            rangeStartDate = rangeStartDate,
-                            rangeEndDate = rangeEndDate,
-                            onDaySelectionAction = onDaySelectionAction,
-                            onClickedNewDate = { clickedNewDate = it },
-                            onMultipleClickedNewDate = { date ->
-                                clickedNewDates = clickedNewDates.toMutableList().apply {
-                                    if (clickedNewDates.contains(date)) remove(date) else add(date)
-                                }
-                            },
-                            onClickedRangeStartDate = { rangeStartDate = it },
-                            onClickedRangeEndDate = { rangeEndDate = it },
-                            onUpdateSelectedRange = { selectedRange.value = it },
-                        )
-                    },
-                    dayConfig = config.dayConfig,
-                    events = dateEvents,
-                    selectedDate = clickedNewDate,
-                    isDisabled = config.disabledDates(date) || !isCurrentMonth,
-                )
+        AnimatedContent(
+            targetState = currentMonth,
+            transitionSpec = {
+                if (navigationDirection >= 0) {
+                    slideInHorizontally(animationSpec = tween(300)) { it }
+                        .togetherWith(slideOutHorizontally(animationSpec = tween(300)) { -it })
+                } else {
+                    slideInHorizontally(animationSpec = tween(300)) { -it }
+                        .togetherWith(slideOutHorizontally(animationSpec = tween(300)) { it })
+                }
+            },
+            label = "oceanic_month_transition",
+        ) { month ->
+            val monthDates = remember(month, startDayOfWeek) { getMonthDates(month, startDayOfWeek) }
+            KalendarScaffold(
+                modifier = Modifier.fillMaxWidth(),
+                showDayLabel = config.showDayLabel,
+                showWeekNumbers = config.showWeekNumbers,
+                dayOfWeek = { daysOfWeek },
+                dayLabelConfig = config.dayLabelConfig,
+                dates = { monthDates },
+            ) { date ->
+                val isCurrentMonth = date.month == month.month
+                val dateEvents = eventsByDate[date] ?: emptyList()
+                if (dayContent != null) {
+                    val isSelected = date == clickedNewDate || clickedNewDates.contains(date)
+                    dayContent(date, isSelected, dateEvents)
+                } else {
+                    KalendarDay(
+                        date = date,
+                        selectedRange = selectedRange.value,
+                        selectedDates = clickedNewDates,
+                        onDayClick = { clickedDate, clickedEvents: List<KalendarEvent> ->
+                            clickedDate.onDayClick(
+                                events = clickedEvents,
+                                rangeStartDate = rangeStartDate,
+                                rangeEndDate = rangeEndDate,
+                                onDaySelectionAction = onDaySelectionAction,
+                                onClickedNewDate = { clickedNewDate = it },
+                                onMultipleClickedNewDate = { d ->
+                                    clickedNewDates = clickedNewDates.toMutableList().apply {
+                                        if (clickedNewDates.contains(d)) remove(d) else add(d)
+                                    }
+                                },
+                                onClickedRangeStartDate = { rangeStartDate = it },
+                                onClickedRangeEndDate = { rangeEndDate = it },
+                                onUpdateSelectedRange = { selectedRange.value = it },
+                            )
+                        },
+                        dayConfig = config.dayConfig,
+                        events = dateEvents,
+                        selectedDate = clickedNewDate,
+                        isDisabled = config.disabledDates(date) || !isCurrentMonth,
+                        calendarColors = config.calendarColors,
+                    )
+                }
             }
         }
     }
@@ -191,7 +232,7 @@ private fun KalendarOceanicContent(
 
 internal fun getMonthDates(
     currentMonth: LocalDate,
-    startDayOfWeek: DayOfWeek
+    startDayOfWeek: DayOfWeek,
 ): List<LocalDate> {
     val firstDayOfMonth = currentMonth.minus(currentMonth.dayOfMonth - 1, DateTimeUnit.DAY)
     val lastDayOfMonth = firstDayOfMonth.plus(1, DateTimeUnit.MONTH).minus(1, DateTimeUnit.DAY)

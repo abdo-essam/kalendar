@@ -37,7 +37,7 @@ kotlin {
         compilations.all {
             compileTaskProvider.configure {
                 compilerOptions {
-                    jvmTarget.set(JvmTarget.JVM_1_8)
+                    jvmTarget.set(JvmTarget.JVM_11)
                 }
             }
         }
@@ -46,7 +46,7 @@ kotlin {
         compilations.all {
             compileTaskProvider.configure {
                 compilerOptions {
-                    jvmTarget.set(JvmTarget.JVM_1_8)
+                    jvmTarget.set(JvmTarget.JVM_11)
                 }
             }
         }
@@ -75,7 +75,7 @@ kotlin {
             implementation(compose.ui)
             implementation(compose.foundation)
             implementation(compose.material3)
-            implementation(compose.material)
+            implementation(compose.materialIconsExtended)
             implementation(libs.kotlinx.datetime)
             api(project(":kalendar-foundation"))
         }
@@ -97,8 +97,8 @@ extensions.configure<LibraryExtension> {
         minSdk = 24
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 }
 val detekt by configurations.creating

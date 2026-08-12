@@ -35,20 +35,27 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastForEachIndexed
 import com.himanshoe.kalendar.foundation.action.KalendarSelectedDayRange
 import com.himanshoe.kalendar.foundation.component.config.KalendarDayConfig
-import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
+import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.ext.circleLayout
 import com.himanshoe.kalendar.foundation.ext.dayBackgroundColor
-import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 /**
  * Renders a single day cell inside a calendar grid.
@@ -56,24 +63,27 @@ import kotlinx.datetime.todayIn
  * The cell shows the day-of-month number and up to three event indicator dots below it.
  * Today's date is distinguished by a thin border ring even when not selected.
  * Disabled dates are rendered at 38 % opacity and do not respond to taps.
+ * When there are more than three events, two dots are shown followed by a "+N" overflow label.
+ *
+ * Accessibility: each cell has a [contentDescription] built from its date, today/selected/disabled
+ * state and event count so that screen readers can announce it fully.
+ * A [HapticFeedbackType.LongPress] vibration pulse is emitted on each successful tap.
  *
  * @param date The [LocalDate] this cell represents.
  * @param modifier [Modifier] applied to the outermost layout.
- * @param selectedDates The list of currently selected dates used for multi-select
- *   ([OnDaySelectionAction.Multiple][com.himanshoe.kalendar.foundation.action.OnDaySelectionAction.Multiple])
- *   and range highlighting.
- * @param selectedRange The currently active date range, used to highlight the span between
- *   start and end dates inclusively.
- * @param selectedDate The single currently selected date used for
- *   [OnDaySelectionAction.Single][com.himanshoe.kalendar.foundation.action.OnDaySelectionAction.Single] mode.
- *   Defaults to [date] (no selection).
+ * @param selectedDates The list of currently selected dates used for multi-select and range
+ *   highlighting.
+ * @param selectedRange The currently active date range, used to highlight the span between start
+ *   and end dates inclusively.
+ * @param selectedDate The single currently selected date. Defaults to [date] (no selection).
  * @param events The list of events that fall on [date]. Up to three indicator dots are shown;
- *   per-event colour from [KalendarEvent.eventColor] is used when available.
+ *   per-event colour from [KalendarEvent.eventColor] is used when available, falling back to
+ *   [calendarColors] and then [KalendarDayConfig.indicatorColor].
  * @param dayConfig Visual configuration (size, colours, text style) for the day cell.
  * @param isDisabled When `true` the cell is rendered at reduced opacity and taps are ignored.
- *   Typically driven by [com.himanshoe.kalendar.foundation.component.config.KalendarConfig.disabledDates].
- * @param onDayClick Callback invoked when the user taps an enabled cell. Receives the tapped
- *   [LocalDate] and the events on that date.
+ * @param calendarColors Optional map from [KalendarEvent.calendarId] to a display colour. Used
+ *   to tint indicator dots when [KalendarEvent.eventColor] is `null`.
+ * @param onDayClick Callback invoked when the user taps an enabled cell.
  */
 @Composable
 fun KalendarDay(
@@ -85,6 +95,7 @@ fun KalendarDay(
     events: KalendarEvents = emptyList(),
     dayConfig: KalendarDayConfig = KalendarDayConfig(),
     isDisabled: Boolean = false,
+    calendarColors: Map<String, Color> = emptyMap(),
     onDayClick: (LocalDate, List<KalendarEvent>) -> Unit = { _, _ -> },
 ) {
     KalendarDayContent(
@@ -96,6 +107,7 @@ fun KalendarDay(
         modifier = modifier,
         selectedDates = selectedDates,
         isDisabled = isDisabled,
+        calendarColors = calendarColors,
         onDayClick = onDayClick,
     )
 }
@@ -110,8 +122,10 @@ private fun KalendarDayContent(
     dayConfig: KalendarDayConfig = KalendarDayConfig(),
     events: KalendarEvents = emptyList(),
     isDisabled: Boolean = false,
-    onDayClick: (LocalDate, List<KalendarEvent>) -> Unit = { _, _ -> }
+    calendarColors: Map<String, Color> = emptyMap(),
+    onDayClick: (LocalDate, List<KalendarEvent>) -> Unit = { _, _ -> },
 ) {
+    val hapticFeedback = LocalHapticFeedback.current
     val today = remember(TimeZone.currentSystemDefault()) {
         Clock.System.todayIn(TimeZone.currentSystemDefault())
     }
@@ -126,8 +140,24 @@ private fun KalendarDayContent(
     }
     val fontWeight = remember(selected) { if (selected) FontWeight.Bold else FontWeight.Normal }
 
+    val semanticDescription = remember(date, currentDay, selected, isDisabled, events.size) {
+        buildString {
+            append(
+                "${date.dayOfMonth} ${date.month.name.lowercase().replaceFirstChar { it.uppercaseChar() }} ${date.year}"
+            )
+            if (currentDay) append(", today")
+            if (selected) append(", selected")
+            if (events.isNotEmpty()) append(", ${events.size} event${if (events.size != 1) "s" else ""}")
+            if (isDisabled) append(", not available")
+        }
+    }
+
     Column(
         modifier = modifier
+            .semantics(mergeDescendants = true) {
+                contentDescription = semanticDescription
+                role = Role.Button
+            }
             .alpha(if (isDisabled) 0.38f else 1f)
             .border(
                 border = getBorderStroke(
@@ -145,7 +175,16 @@ private fun KalendarDayContent(
                 selectedRange = selectedRange,
                 colors = dayConfig.selectedBackgroundColor.value
             )
-            .then(if (!isDisabled) Modifier.clickable { onDayClick(date, events) } else Modifier)
+            .then(
+                if (!isDisabled) {
+                    Modifier.clickable {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onDayClick(date, events)
+                    }
+                } else {
+                    Modifier
+                }
+            )
             .circleLayout()
             .defaultMinSize(dayConfig.size),
         verticalArrangement = Arrangement.Center,
@@ -164,6 +203,7 @@ private fun KalendarDayContent(
             EventIndicators(
                 events = events,
                 dayConfig = dayConfig,
+                calendarColors = calendarColors,
                 modifier = Modifier.wrapContentSize().padding(top = 4.dp)
             )
         }
@@ -174,18 +214,35 @@ private fun KalendarDayContent(
 private fun EventIndicators(
     events: List<KalendarEvent>,
     dayConfig: KalendarDayConfig,
-    modifier: Modifier = Modifier
+    calendarColors: Map<String, Color>,
+    modifier: Modifier = Modifier,
 ) {
-    val itemCount = minOf(events.size, 3)
+    val overflowThreshold = 3
+    val hasOverflow = events.size > overflowThreshold
+    val visibleCount = if (hasOverflow) overflowThreshold - 1 else events.size
+    val overflowCount = events.size - visibleCount
 
-    Row(modifier = modifier) {
-        events.take(itemCount).fastForEachIndexed { index, event ->
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        events.take(visibleCount).fastForEachIndexed { index, event ->
+            val resolvedColor = event.eventColor
+                ?: event.calendarId?.let { calendarColors[it] }
             KalendarIndicator(
                 modifier = Modifier,
                 index = index,
                 size = dayConfig.size,
                 color = dayConfig.indicatorColor,
-                overrideColor = event.eventColor,
+                overrideColor = resolvedColor,
+            )
+        }
+        if (hasOverflow) {
+            Text(
+                text = "+$overflowCount",
+                style = dayConfig.textStyle.copy(
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    brush = null,
+                ),
+                modifier = Modifier.padding(start = 1.dp),
             )
         }
     }
@@ -194,7 +251,7 @@ private fun EventIndicators(
 private fun getBorderStroke(
     currentDay: Boolean,
     brush: Brush,
-    selected: Boolean
+    selected: Boolean,
 ) = if (currentDay && !selected) {
     BorderStroke(1.dp, brush)
 } else {

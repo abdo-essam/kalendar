@@ -25,13 +25,13 @@ import android.provider.CalendarContract
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Instant
 
 /**
  * Creates an Android [KalendarSyncProvider] backed by [CalendarContract].
@@ -48,6 +48,9 @@ import kotlinx.datetime.toLocalDateTime
  */
 fun KalendarSync(context: Context): KalendarSyncProvider = AndroidKalendarSync(context)
 
+private const val END_OF_DAY_HOUR = 23
+private const val END_OF_DAY_MINUTE = 59
+
 private class AndroidKalendarSync(private val context: Context) : KalendarSyncProvider {
 
     private val tz get() = TimeZone.currentSystemDefault()
@@ -61,12 +64,13 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
     override suspend fun fetchEvents(
         startDate: LocalDate,
         endDate: LocalDate,
+        timeZone: TimeZone,
     ): KalendarSyncResult<List<KalendarSyncEvent>> {
         if (!hasPermission()) return KalendarSyncResult.PermissionDenied
         return withContext(Dispatchers.IO) {
             runCatching {
-                val startMillis = startDate.atStartOfDayIn(tz).toEpochMilliseconds()
-                val endMillis = endDate.atStartOfDayIn(tz).toEpochMilliseconds() + DAY_MILLIS - 1
+                val startMillis = startDate.atStartOfDayIn(timeZone).toEpochMilliseconds()
+                val endMillis = endDate.atStartOfDayIn(timeZone).toEpochMilliseconds() + DAY_MILLIS - 1
 
                 val projection = arrayOf(
                     CalendarContract.Events._ID,
@@ -100,14 +104,14 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                         val allDay = cursor.getInt(allDayIdx) != 0
                         val startMs = cursor.getLong(startIdx)
                         val endMs = cursor.getLong(endIdx)
-                        val date = millisToLocalDate(startMs)
+                        val date = millisToLocalDate(startMs, timeZone)
                         events += BasicKalendarSyncEvent(
                             id = cursor.getLong(idIdx).toString(),
                             date = date,
                             eventName = cursor.getString(titleIdx) ?: "",
                             eventDescription = cursor.getString(descIdx)?.takeIf { it.isNotBlank() },
-                            startTime = if (allDay) null else millisToLocalTime(startMs),
-                            endTime = if (allDay) null else millisToLocalTime(endMs),
+                            startTime = if (allDay) null else millisToLocalTime(startMs, timeZone),
+                            endTime = if (allDay) null else millisToLocalTime(endMs, timeZone),
                         )
                     }
                 }
@@ -131,7 +135,7 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                 val endMs = if (event.isAllDay) {
                     startMs + DAY_MILLIS
                 } else {
-                    localDateTimeToMillis(event.date, event.endTime ?: LocalTime(23, 59))
+                    localDateTimeToMillis(event.date, event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE))
                 }
 
                 val values = ContentValues().apply {
@@ -163,7 +167,7 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                 val endMs = if (event.isAllDay) {
                     startMs + DAY_MILLIS
                 } else {
-                    localDateTimeToMillis(event.date, event.endTime ?: LocalTime(23, 59))
+                    localDateTimeToMillis(event.date, event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE))
                 }
                 val uri = ContentUris.withAppendedId(
                     CalendarContract.Events.CONTENT_URI,
@@ -178,8 +182,11 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                     put(CalendarContract.Events.EVENT_TIMEZONE, tz.id)
                 }
                 val updated = context.contentResolver.update(uri, values, null, null)
-                if (updated > 0) KalendarSyncResult.Success(Unit)
-                else KalendarSyncResult.Error("Event with id=$eventId not found")
+                if (updated > 0) {
+                    KalendarSyncResult.Success(Unit)
+                } else {
+                    KalendarSyncResult.Error("Event with id=$eventId not found")
+                }
             }.getOrElse { KalendarSyncResult.Error("Failed to update event", it) }
         }
     }
@@ -193,8 +200,11 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                     eventId.toLong(),
                 )
                 val deleted = context.contentResolver.delete(uri, null, null)
-                if (deleted > 0) KalendarSyncResult.Success(Unit)
-                else KalendarSyncResult.Error("Event with id=$eventId not found")
+                if (deleted > 0) {
+                    KalendarSyncResult.Success(Unit)
+                } else {
+                    KalendarSyncResult.Error("Event with id=$eventId not found")
+                }
             }.getOrElse { KalendarSyncResult.Error("Failed to delete event", it) }
         }
     }
@@ -217,15 +227,17 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
         )?.use { cursor ->
             if (cursor.moveToFirst()) {
                 cursor.getLong(cursor.getColumnIndex(CalendarContract.Calendars._ID))
-            } else null
+            } else {
+                null
+            }
         }
     }
 
-    private fun millisToLocalDate(millis: Long): LocalDate =
-        Instant.fromEpochMilliseconds(millis).toLocalDateTime(tz).date
+    private fun millisToLocalDate(millis: Long, timeZone: TimeZone = tz): LocalDate =
+        Instant.fromEpochMilliseconds(millis).toLocalDateTime(timeZone).date
 
-    private fun millisToLocalTime(millis: Long): LocalTime =
-        Instant.fromEpochMilliseconds(millis).toLocalDateTime(tz).time
+    private fun millisToLocalTime(millis: Long, timeZone: TimeZone = tz): LocalTime =
+        Instant.fromEpochMilliseconds(millis).toLocalDateTime(timeZone).time
 
     private fun localDateTimeToMillis(date: LocalDate, time: LocalTime): Long =
         kotlinx.datetime.LocalDateTime(date, time).toInstant(tz).toEpochMilliseconds()

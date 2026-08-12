@@ -72,8 +72,8 @@ class KalendarUtilsTest {
     @Test
     fun getWeekDates_sundayStart_firstDayIsSunday() {
         val wednesday = LocalDate(2026, 6, 11)
-        val week = getWeekDates(wednesday, DayOfWeek.MONDAY)
-        assertEquals(DayOfWeek.MONDAY, week.first().dayOfWeek)
+        val week = getWeekDates(wednesday, DayOfWeek.SUNDAY)
+        assertEquals(DayOfWeek.SUNDAY, week.first().dayOfWeek)
         assertEquals(DayOfWeek.SATURDAY, week.last().dayOfWeek)
     }
 
@@ -82,7 +82,7 @@ class KalendarUtilsTest {
         val wednesday = LocalDate(2026, 6, 11)
         val week = getWeekDates(wednesday, DayOfWeek.MONDAY)
         assertEquals(DayOfWeek.MONDAY, week.first().dayOfWeek)
-        assertEquals(DayOfWeek.MONDAY, week.last().dayOfWeek)
+        assertEquals(DayOfWeek.SUNDAY, week.last().dayOfWeek)
     }
 
     @Test

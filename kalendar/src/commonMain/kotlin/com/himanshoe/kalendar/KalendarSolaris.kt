@@ -17,7 +17,6 @@
 package com.himanshoe.kalendar
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.pager.HorizontalPager
@@ -40,10 +39,9 @@ import com.himanshoe.kalendar.foundation.action.onDayClick
 import com.himanshoe.kalendar.foundation.component.KalendarDay
 import com.himanshoe.kalendar.foundation.component.KalendarHeader
 import com.himanshoe.kalendar.foundation.component.config.KalendarConfig
-import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
+import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
@@ -51,6 +49,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 @Composable
 internal fun KalendarSolaris(
@@ -101,8 +100,11 @@ private fun KalendarSolarisContent(
     var clickedNewDate by remember { mutableStateOf(selectedDate) }
     var clickedNewDates by remember {
         mutableStateOf(
-            if (config.initialSelectedDates.isNotEmpty()) config.initialSelectedDates
-            else listOf(selectedDate)
+            if (config.initialSelectedDates.isNotEmpty()) {
+                config.initialSelectedDates
+            } else {
+                listOf(selectedDate)
+            }
         )
     }
     val daysOfWeek = DayOfWeek.entries.rotate(startDayOfWeek.ordinal)
@@ -163,6 +165,7 @@ private fun KalendarSolarisContent(
             KalendarScaffold(
                 modifier = Modifier.fillMaxWidth(),
                 showDayLabel = config.showDayLabel,
+                showWeekNumbers = config.showWeekNumbers,
                 dayOfWeek = { daysOfWeek },
                 dayLabelConfig = config.dayLabelConfig,
                 dates = { displayDates },
@@ -198,6 +201,7 @@ private fun KalendarSolarisContent(
                         events = dateEvents,
                         selectedDate = clickedNewDate,
                         isDisabled = config.disabledDates(date) || !isCurrentMonth,
+                        calendarColors = config.calendarColors,
                     )
                 }
             }
