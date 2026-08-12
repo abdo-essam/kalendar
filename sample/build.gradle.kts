@@ -14,7 +14,10 @@
  *
  */
 
+@file:OptIn(ExperimentalWasmDsl::class)
+
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig
 
@@ -46,13 +49,14 @@ kotlin {
     jvm("desktop")
 
     wasmJs {
-        moduleName = "sample"
+        outputModuleName.set("sample")
         browser {
             val rootDirPath = project.rootDir.path
             val projectDirPath = project.projectDir.path
             commonWebpackConfig {
                 outputFileName = "sample.js"
                 devServer = (devServer ?: KotlinWebpackConfig.DevServer()).apply {
+                    port = 8123
                     static = (static ?: mutableListOf()).apply {
                         // Serve sources to debug inside browser
                         add(rootDirPath)
@@ -79,6 +83,7 @@ kotlin {
 //            implementation("com.himanshoe:kalendar:2.0.0-RC1")
 //            implementation("com.himanshoe:kalendar-foundation:1.0.0")
             implementation(compose.material)
+            implementation(compose.material3)
             implementation(compose.ui)
             implementation(libs.kotlinx.datetime)
             implementation(compose.components.resources)
@@ -91,9 +96,9 @@ kotlin {
     }
 }
 
-android {
+extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
     namespace = "com.himanshoe.sample"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.himanshoe.sample"

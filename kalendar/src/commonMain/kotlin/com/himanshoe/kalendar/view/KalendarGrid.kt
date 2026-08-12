@@ -91,9 +91,12 @@ internal fun KalendarStaticGrid(
         }
         dates.chunked(7).forEach { week ->
             Row(modifier = Modifier.fillMaxWidth()) {
-                week.forEach { date ->
+                for (dayIndex in 0 until 7) {
                     Box(modifier = Modifier.weight(1f)) {
-                        cell(date)
+                        val date = week.getOrNull(dayIndex)
+                        if (date != null) {
+                            cell(date)
+                        }
                     }
                 }
             }

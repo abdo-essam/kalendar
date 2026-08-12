@@ -103,21 +103,21 @@ fun KalendarTimeline(
                 )
                 KalendarStaticGrid(dates = dates, startDayOfWeek = state.startDayOfWeek) { date ->
                     val dateEvents = eventsByDate[date] ?: emptyList()
+                    val isCurrentMonth = date.month == monthStart.month
                     val scope = KalendarDayScope(
                         date = date,
                         isSelected = date in selectedDates,
                         isToday = date == today,
-                        isDisabled = config.disabledDates(date) || date.month != monthStart.month,
+                        isDisabled = config.disabledDates(date) || !isCurrentMonth,
                         events = dateEvents,
                     )
-                    if (dayContent != null) {
-                        dayContent(scope)
-                    } else {
-                        KalendarDayCellDefaults.Cell(
-                            scope = scope,
-                            onClick = { onDateClick(date, dateEvents) },
-                        )
-                    }
+                    KalendarMonthGridCell(
+                        scope = scope,
+                        isCurrentMonth = isCurrentMonth,
+                        showAdjacentMonthDates = config.showAdjacentMonthDates,
+                        onClick = { onDateClick(date, dateEvents) },
+                        dayContent = dayContent,
+                    )
                 }
             }
         }

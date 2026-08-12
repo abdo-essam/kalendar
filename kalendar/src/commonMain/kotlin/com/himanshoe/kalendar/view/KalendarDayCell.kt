@@ -67,6 +67,30 @@ data class KalendarDayScope(
 )
 
 /**
+ * Renders one grid cell for [KalendarMonth], [KalendarYear], and [KalendarTimeline]: the real day
+ * cell for dates in the current month, or — when [isCurrentMonth] is `false` and
+ * [showAdjacentMonthDates] is `false` — an empty placeholder that preserves the grid's alignment.
+ */
+@Composable
+internal fun KalendarMonthGridCell(
+    scope: KalendarDayScope,
+    isCurrentMonth: Boolean,
+    showAdjacentMonthDates: Boolean,
+    onClick: () -> Unit,
+    dayContent: (@Composable (KalendarDayScope) -> Unit)?,
+) {
+    if (!isCurrentMonth && !showAdjacentMonthDates) {
+        Box(modifier = Modifier.aspectRatio(1f))
+        return
+    }
+    if (dayContent != null) {
+        dayContent(scope)
+    } else {
+        KalendarDayCellDefaults.Cell(scope = scope, onClick = onClick)
+    }
+}
+
+/**
  * Default day-cell rendering, used by [KalendarWeek]/[KalendarMonth]/[KalendarYear] when no
  * `dayContent` slot is supplied.
  */

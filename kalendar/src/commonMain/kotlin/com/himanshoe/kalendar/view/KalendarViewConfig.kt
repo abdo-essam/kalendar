@@ -29,11 +29,16 @@ import kotlinx.datetime.LocalDate
  *   rendered at reduced opacity and taps are ignored. Defaults to `{ false }`.
  * @param showNavigationArrows Whether to show previous/next arrow buttons in the header. Swiping
  *   the calendar works regardless of this setting. Defaults to `true`.
+ * @param showAdjacentMonthDates Whether the leading/trailing dates from the previous/next month
+ *   (the padding needed to complete a month grid's first/last week) are rendered at reduced
+ *   opacity, or left blank. Has no effect on [KalendarWeek], which has no such padding. Defaults
+ *   to `true`.
  * @param background Background brush for the calendar container. Defaults to solid white.
  */
 @Immutable
 data class KalendarViewConfig(
     val disabledDates: (LocalDate) -> Boolean = { false },
     val showNavigationArrows: Boolean = true,
+    val showAdjacentMonthDates: Boolean = true,
     val background: Brush = SolidColor(Color.White),
 )
