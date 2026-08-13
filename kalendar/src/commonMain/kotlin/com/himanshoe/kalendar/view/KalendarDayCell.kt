@@ -26,6 +26,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -48,9 +49,13 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
+
+/** Maximum per-event indicator dots below a day number before collapsing into a "+N" overflow. */
+private const val MAX_EVENT_DOTS = 3
 
 /**
  * The state of a single date cell inside [KalendarWeek], [KalendarMonth], or [KalendarYear].
@@ -114,8 +119,10 @@ public object KalendarDayCellDefaults {
     /**
      * Renders [scope] as a circular date cell: bold text for today, a filled background that
      * animates in for the selected state, a brief press-scale for tactile feedback, reduced
-     * opacity and no click handling when disabled, and a small dot that fades in below the day
-     * number when [KalendarDayScope.events] is non-empty.
+     * opacity and no click handling when disabled, and per-event indicator dots that fade in
+     * below the day number — one dot per event (coloured by
+     * [KalendarEvent.eventColor][com.himanshoe.kalendar.foundation.event.KalendarEvent.eventColor],
+     * falling back to the theme primary), capped at three with a compact `+N` overflow label.
      *
      * @param showSelectionBackground Whether this cell draws its own selection fill. Set to
      *   `false` when a separate sliding indicator (e.g. [KalendarGrid]'s) already renders the
@@ -204,19 +211,33 @@ public object KalendarDayCellDefaults {
                     fontWeight = fontWeight,
                 )
                 AnimatedVisibility(visible = scope.events.isNotEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .padding(top = 3.dp)
-                            .size(4.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (scope.isSelected) {
-                                    textColor
-                                } else {
-                                    colors.primary
-                                }
-                            ),
-                    )
+                    Row(
+                        modifier = Modifier.padding(top = 3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        scope.events.take(MAX_EVENT_DOTS).forEach { event ->
+                            Box(
+                                modifier = Modifier
+                                    .size(4.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        when {
+                                            scope.isSelected -> textColor
+                                            else -> event.eventColor ?: colors.primary
+                                        }
+                                    ),
+                            )
+                        }
+                        if (scope.events.size > MAX_EVENT_DOTS) {
+                            Text(
+                                text = "+${scope.events.size - MAX_EVENT_DOTS}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 7.sp,
+                                color = if (scope.isSelected) textColor else colors.primary,
+                            )
+                        }
+                    }
                 }
             }
         }

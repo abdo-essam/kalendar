@@ -161,6 +161,61 @@ class KalendarRecurrenceExpanderTest {
     }
 
     @Test
+    fun expandOccurrences_monthlyByMonthDayWithInterval_skipsUnalignedMonths() {
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 1),
+            eventName = "Bi-monthly payday",
+            recurrenceRule = KalendarRule(
+                frequency = KalendarRecurrenceFrequency.MONTHLY,
+                interval = 2,
+                byMonthDay = listOf(1, 15),
+            ),
+        )
+        val occurrences = event.expandOccurrences(
+            rangeStart = LocalDate(2026, 1, 1),
+            rangeEnd = LocalDate(2026, 5, 31),
+        )
+        assertEquals(
+            listOf(
+                LocalDate(2026, 1, 1),
+                LocalDate(2026, 1, 15),
+                LocalDate(2026, 3, 1),
+                LocalDate(2026, 3, 15),
+                LocalDate(2026, 5, 1),
+                LocalDate(2026, 5, 15),
+            ),
+            occurrences.map { it.date },
+        )
+    }
+
+    @Test
+    fun expandOccurrences_weeklyByDayWithInterval_skipsUnalignedWeeks() {
+        // 2026-01-05 is a Monday; interval=2 -> Mon/Wed of every other week.
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 5),
+            eventName = "Fortnightly",
+            recurrenceRule = KalendarRule(
+                frequency = KalendarRecurrenceFrequency.WEEKLY,
+                interval = 2,
+                byDay = listOf(KalendarWeekDay.MONDAY, KalendarWeekDay.WEDNESDAY),
+            ),
+        )
+        val occurrences = event.expandOccurrences(
+            rangeStart = LocalDate(2026, 1, 5),
+            rangeEnd = LocalDate(2026, 2, 1),
+        )
+        assertEquals(
+            listOf(
+                LocalDate(2026, 1, 5),
+                LocalDate(2026, 1, 7),
+                LocalDate(2026, 1, 19),
+                LocalDate(2026, 1, 21),
+            ),
+            occurrences.map { it.date },
+        )
+    }
+
+    @Test
     fun expandOccurrences_exceptionDate_isSkipped() {
         val event = BasicKalendarSyncEvent(
             date = LocalDate(2026, 1, 1),

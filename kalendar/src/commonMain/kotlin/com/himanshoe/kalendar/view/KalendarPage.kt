@@ -90,6 +90,90 @@ internal fun monthTitle(
     monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
 ): String = "${monthNameFormatter(monthStart.month)} ${monthStart.year}"
 
+internal const val MINUTES_PER_HOUR = 60
+internal const val HOURS_PER_DAY = 24
+internal const val MINUTES_PER_DAY = MINUTES_PER_HOUR * HOURS_PER_DAY
+
+/** Shortest rendered duration for a schedule block, so zero/negative spans stay tappable. */
+internal const val MIN_SCHEDULE_BLOCK_MINUTES = 15
+
+/**
+ * A timed event positioned on [KalendarSchedule]'s hour grid: its minute range within the day and
+ * the column slot it occupies when overlapping events share the horizontal space.
+ *
+ * @property column Zero-based slot within the event's overlap cluster.
+ * @property columns Total slots in the cluster — every member of a cluster divides the width by
+ *   the same count so side-by-side blocks align.
+ */
+internal data class KalendarScheduleBlock(
+    val event: KalendarEvent,
+    val startMinutes: Int,
+    val endMinutes: Int,
+    val column: Int,
+    val columns: Int,
+)
+
+/**
+ * Lays out the timed events (those with a non-null [KalendarEvent.startTime]) of [date] as
+ * schedule blocks: minute ranges clamped to the day (events spanning midnight are truncated at
+ * the day's edges), a missing [KalendarEvent.endTime] defaulting to one hour, and overlapping
+ * events packed greedily into side-by-side columns per overlap cluster.
+ */
+internal fun scheduleBlocks(events: List<KalendarEvent>, date: LocalDate): List<KalendarScheduleBlock> {
+    data class Working(val event: KalendarEvent, val start: Int, val end: Int) {
+        var column: Int = 0
+        var columns: Int = 1
+    }
+
+    val timed = events.mapNotNull { event ->
+        val startTime = event.startTime ?: return@mapNotNull null
+        val start = if (startTime.date < date) {
+            0
+        } else {
+            startTime.hour * MINUTES_PER_HOUR + startTime.minute
+        }
+        val requestedEnd = event.endTime?.let { endTime ->
+            if (endTime.date > date) {
+                MINUTES_PER_DAY
+            } else {
+                endTime.hour * MINUTES_PER_HOUR + endTime.minute
+            }
+        } ?: (start + MINUTES_PER_HOUR)
+        val clampedStart = start.coerceIn(0, MINUTES_PER_DAY - MIN_SCHEDULE_BLOCK_MINUTES)
+        val end = requestedEnd.coerceIn(clampedStart + MIN_SCHEDULE_BLOCK_MINUTES, MINUTES_PER_DAY)
+        Working(event = event, start = clampedStart, end = end)
+    }.sortedWith(compareBy({ it.start }, { it.end }))
+
+    val active = mutableListOf<Working>()
+    val cluster = mutableListOf<Working>()
+    for (candidate in timed) {
+        active.removeAll { it.end <= candidate.start }
+        if (active.isEmpty() && cluster.isNotEmpty()) {
+            val width = cluster.maxOf { it.column } + 1
+            cluster.forEach { it.columns = width }
+            cluster.clear()
+        }
+        val occupied = active.map { it.column }.toSet()
+        candidate.column = generateSequence(0) { it + 1 }.first { it !in occupied }
+        active += candidate
+        cluster += candidate
+    }
+    if (cluster.isNotEmpty()) {
+        val width = cluster.maxOf { it.column } + 1
+        cluster.forEach { it.columns = width }
+    }
+
+    return timed.map {
+        KalendarScheduleBlock(
+            event = it.event,
+            startMinutes = it.start,
+            endMinutes = it.end,
+            column = it.column,
+            columns = it.columns,
+        )
+    }
+}
+
 /**
  * Groups events by every date they occupy — a multi-day event (one with
  * [KalendarEvent.endDate] set) appears under each date from [KalendarEvent.date] through

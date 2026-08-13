@@ -19,7 +19,11 @@ package com.himanshoe.kalendar.sync
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.minus
 import kotlinx.datetime.plus
+
+private const val DAYS_PER_WEEK = 7
+private const val MONTHS_PER_YEAR = 12
 
 /**
  * Expands this recurring event into all concrete occurrences within the closed date range
@@ -36,10 +40,10 @@ import kotlinx.datetime.plus
  * - Dates in [KalendarSyncEvent.exceptionDates] are skipped — they still count towards
  *   [KalendarRule.count], matching how DTSTART+RRULE+EXDATE interact in most calendar apps (EXDATE
  *   removes specific occurrences from an already-determined series rather than shortening it).
- * - [KalendarRule.interval] combined with a non-empty [KalendarRule.byMonthDay] is not currently
- *   supported: a MONTHLY rule with BYMONTHDAY steps one day at a time to enumerate every matching
- *   day within each month, which does not honour a skip-N-months interval. Use `interval = 1` when
- *   BYMONTHDAY is set.
+ * - [KalendarRule.interval] composes with the BY-filters: a WEEKLY BYDAY rule with `interval = 2`
+ *   emits only in weeks an even number of weeks from the start date's week (weeks delimited per
+ *   RFC 5545's default Monday week start), and a MONTHLY BYMONTHDAY rule with `interval = 2`
+ *   emits only in months an even number of months from the start month.
  *
  * ```kotlin
  * val template = BasicKalendarSyncEvent(
@@ -71,7 +75,7 @@ public fun KalendarSyncEvent.expandOccurrences(
     var current = date
 
     while (withinBounds(rule, occurrenceCount, current, rangeEnd)) {
-        if (current >= rangeStart && current.matchesFilters(rule)) {
+        if (current >= rangeStart && current.matchesFilters(rule) && current.alignsWithInterval(rule, date)) {
             if (current !in exceptionDates) {
                 occurrences += copyWithDate(current)
             }
@@ -98,10 +102,42 @@ private fun LocalDate.matchesFilters(rule: KalendarRule): Boolean {
 }
 
 /**
- * Returns the next candidate date after this one, based on [rule]'s frequency and BYDAY strategy.
+ * Returns `true` if this date falls in a period that is a whole multiple of [KalendarRule.interval]
+ * periods away from [seriesStart]'s period. Only WEEKLY-with-BYDAY and MONTHLY-with-BYMONTHDAY
+ * rules need this: they enumerate candidates one day at a time (see [advance]), so the interval
+ * must be enforced as a filter rather than a step size. Weeks are delimited by RFC 5545's default
+ * Monday week start; DAILY and YEARLY (and filter-less WEEKLY/MONTHLY) already advance by whole
+ * interval units.
+ */
+private fun LocalDate.alignsWithInterval(rule: KalendarRule, seriesStart: LocalDate): Boolean {
+    if (rule.interval == 1) return true
+    return when (rule.frequency) {
+        KalendarRecurrenceFrequency.WEEKLY ->
+            rule.byDay.isEmpty() || weeksBetween(seriesStart, this) % rule.interval == 0
+
+        KalendarRecurrenceFrequency.MONTHLY ->
+            rule.byMonthDay.isEmpty() || monthsBetween(seriesStart, this) % rule.interval == 0
+
+        else -> true
+    }
+}
+
+private fun weeksBetween(from: LocalDate, to: LocalDate): Int {
+    val fromWeekStart = from.minus(from.dayOfWeek.ordinal, DateTimeUnit.DAY)
+    val toWeekStart = to.minus(to.dayOfWeek.ordinal, DateTimeUnit.DAY)
+    return ((toWeekStart.toEpochDays() - fromWeekStart.toEpochDays()) / DAYS_PER_WEEK).toInt()
+}
+
+private fun monthsBetween(from: LocalDate, to: LocalDate): Int =
+    (to.year - from.year) * MONTHS_PER_YEAR + (to.monthNumber - from.monthNumber)
+
+/**
+ * Returns the next candidate date after this one, based on [rule]'s frequency and BY-filter
+ * strategy.
  *
- * WEEKLY rules with a non-empty BYDAY filter advance one day at a time so that every qualifying
- * day within each week is tested. All other combinations advance by one full interval unit.
+ * WEEKLY rules with a BYDAY filter and MONTHLY rules with a BYMONTHDAY filter advance one day at
+ * a time so that every qualifying day within each period is tested — [alignsWithInterval] then
+ * rejects candidates in skipped periods. All other combinations advance by one full interval unit.
  */
 private fun LocalDate.advance(rule: KalendarRule): LocalDate =
     when (rule.frequency) {

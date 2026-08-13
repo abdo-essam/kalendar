@@ -144,6 +144,38 @@ public fun rememberKalendarMonthState(
 }
 
 /**
+ * Creates and [remember]s a [KalendarViewState] for [KalendarSchedule], paging by single day.
+ *
+ * @param initialDate The day initially visible. Defaults to today.
+ * @param minDate When set, [KalendarViewState.canScrollBackward] turns `false` at this date.
+ * @param maxDate When set, [KalendarViewState.canScrollForward] turns `false` at this date.
+ */
+@Composable
+public fun rememberKalendarScheduleState(
+    initialDate: LocalDate = todayInSystemTimeZone(),
+    minDate: LocalDate? = null,
+    maxDate: LocalDate? = null,
+): KalendarViewState {
+    val anchor = remember(initialDate) { initialDate }
+    val pagerState = rememberPagerState(
+        initialPage = KALENDAR_PAGER_CENTER_PAGE,
+        pageCount = { Int.MAX_VALUE },
+    )
+    return remember(pagerState, anchor, minDate, maxDate) {
+        KalendarViewState(
+            pagerState = pagerState,
+            pageToDate = { page -> anchor.plus(page - KALENDAR_PAGER_CENTER_PAGE, DateTimeUnit.DAY) },
+            dateToPage = { date ->
+                KALENDAR_PAGER_CENTER_PAGE + (date.toEpochDays() - anchor.toEpochDays()).toInt()
+            },
+            startDayOfWeek = DayOfWeek.MONDAY,
+            minDate = minDate,
+            maxDate = maxDate,
+        )
+    }
+}
+
+/**
  * Creates and [remember]s a [KalendarViewState] for [KalendarYear], paging by year.
  *
  * @param initialDate The date whose year is initially visible. Defaults to today.

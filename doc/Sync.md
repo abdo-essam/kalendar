@@ -88,9 +88,9 @@ val occurrences = template.expandOccurrences(
 ```
 
 `KalendarRule` supports `DAILY`/`WEEKLY`/`MONTHLY`/`YEARLY` frequencies, `interval`, `count`/`until`
-termination (mutually exclusive), and the RFC 5545 `byDay`/`byMonthDay`/`byMonth` filters. Combining
-`interval > 1` with `byMonthDay` is not currently supported — use `interval = 1` when `byMonthDay`
-is set.
+termination (mutually exclusive), and the RFC 5545 `byDay`/`byMonthDay`/`byMonth` filters.
+`interval` composes with the filters — e.g. `WEEKLY` + `byDay` + `interval = 2` fires only in every
+other week, and `MONTHLY` + `byMonthDay` + `interval = 2` only in every other month.
 
 ### Recurrence exceptions ("delete just this one occurrence")
 
