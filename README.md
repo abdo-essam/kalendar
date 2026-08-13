@@ -50,6 +50,13 @@ The only remaining [`KalendarType`](kalendar/src/commonMain/kotlin/com/himanshoe
 is **[Agenda](doc/Agenda.md)** — a scrollable event list grouped by date. Month/week/year grids are
 the standalone views above, not `KalendarType` values.
 
+## Device calendar sync
+
+**[kalendar-sync](doc/Sync.md)**: reads, writes, and exports events from the device's real calendar
+(Android `CalendarContract`, iOS EventKit, a file-backed `.ics` provider on Desktop) — no
+third-party account required. Includes RFC 5545 recurrence and iCal import/export, and is
+independent of `kalendar`/`kalendar-foundation`.
+
 ## 🎉 Getting Started
 
 ### Version Catalog
@@ -62,10 +69,12 @@ If you're using Version Catalog, you can configure the dependency by adding it t
 [versions]
 kalendar = "<version>"
 kalendarFoundation = "<version>"
+kalendarSync = "<version>"
 
 [libraries]
 kalendar = { module = "com.himanshoe:kalendar", version.ref = "kalendar" }
 kalendar-foundation = { module = "com.himanshoe:kalendar-foundation", version.ref = "kalendarFoundation" }
+kalendar-sync = { module = "com.himanshoe:kalendar-sync", version.ref = "kalendarSync" }
 ```
 
 </details>
@@ -79,10 +88,12 @@ Add the dependency below to your module's `build.gradle.kts` file:
 dependencies {
     implementation("com.himanshoe:kalendar:$version")
     implementation("com.himanshoe:kalendar-foundation:$version")
-    
+    implementation("com.himanshoe:kalendar-sync:$version") // optional: device calendar sync
+
     // if you're using Version Catalog
     implementation(libs.kalendar)
     implementation(libs.kalendar.foundation)
+    implementation(libs.kalendar.sync)
 
 }
 ```
@@ -95,6 +106,7 @@ sourceSets {
     commonMain.dependencies {
           implementation(libs.kalendar)
           implementation(libs.kalendar.foundation)
+          implementation(libs.kalendar.sync) // optional: device calendar sync
      }
 }
 ```

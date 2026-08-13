@@ -22,6 +22,15 @@ KalendarWeek(
 
 The arrow buttons in the header and a horizontal swipe on the row both move the same `state` — they
 always stay in sync. `config.showNavigationArrows = false` hides the buttons; swiping still works.
+The header also shows a today button by default (`config.showTodayButton = true`) that animates
+back to the week containing today's date.
+
+Multi-day events (via `KalendarEvent.endDate`) work the same as in
+[KalendarMonth](Month.md#multi-day-events). Selection modes
+([single/multiple/range](Month.md#selection-modes-single-multiple-range) via
+`rememberKalendarSelectionState`), [drag-to-select](Month.md#drag-to-select-a-range) via
+`onDateRangeSelect`/`onDateRangeSelectEnd`, the [sliding selection indicator](Month.md#sliding-selection-indicator),
+and [locale formatters](Month.md#locale) all work the same way here.
 
 ### Programmatic navigation
 
@@ -38,6 +47,9 @@ Button(onClick = { scope.launch { state.animateScrollToToday() } }) {
     Text("Today")
 }
 ```
+
+The built-in today button in the header calls `state.animateScrollToToday()` internally — this
+snippet shows how to trigger the same navigation from your own UI.
 
 ### Custom day cell
 
@@ -64,9 +76,11 @@ KalendarWeek(
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost layout. |
 | `state` | `KalendarViewState` | `rememberKalendarWeekState(selectedDate)` | Navigation state — pager position, bounds, `visibleDate`. |
 | `events` | `KalendarEvents` | `emptyList()` | Events shown as indicator dots on day cells. |
-| `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | Highlighted dates. Hoist your own set for multi-select/range (see [Month.md](Month.md#range-selection)). |
+| `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | Highlighted dates. Hoist your own set for multi-select/range (see [Month.md](Month.md#selection-modes-single-multiple-range)). |
 | `onDateClick` | `(LocalDate, List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped. |
-| `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Disabled dates, arrow visibility, background. |
+| `onDateRangeSelect` | `((start: LocalDate, current: LocalDate) -> Unit)?` | `null` | Press-and-hold then drag to select a range. See [Month.md](Month.md#drag-to-select-a-range). |
+| `onDateRangeSelectEnd` | `(() -> Unit)?` | `null` | Called once when a drag started by `onDateRangeSelect` ends. |
+| `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Disabled dates, arrow visibility, today button, locale formatters, background. |
 | `dayContent` | `(@Composable (KalendarDayScope) -> Unit)?` | `null` | Fully replaces the built-in day cell. |
 
 ## `rememberKalendarWeekState` parameters

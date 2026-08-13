@@ -8,6 +8,81 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Breaking changes
+- Removed `KalendarType.Oceanic`, `Firey`, `Solaris`, `Aerial`, and `Yearly` (and the
+  `kalendar-foundation` internals they depended on) entirely. Replace them with the standalone
+  `com.himanshoe.kalendar.view` composables below — there is no `KalendarType`-based drop-in
+  replacement; call `KalendarWeek`/`KalendarMonth`/`KalendarYear`/`KalendarTimeline` directly.
+
+### Added
+- **`KalendarWeek`, `KalendarMonth`, `KalendarYear`** — standalone composables backed by a shared
+  `KalendarViewState`, navigable by both arrow-click and swipe (`HorizontalPager`) through the same
+  state so the two input methods never desync.
+- **`KalendarTimeline`** — a continuous, virtualized vertical scroll through months (Google
+  Calendar-list style), optionally bounded by `minDate`/`maxDate` on `rememberKalendarTimelineState`,
+  unbounded by default.
+- **`KalendarViewConfig`** — shared visual/behavioural config (`disabledDates`,
+  `showNavigationArrows`, `showAdjacentMonthDates`, `showTodayButton`, `background`) for all four
+  views above.
+- **Today button** — `KalendarWeek`/`Month`/`Year`'s header, and `KalendarTimeline`'s new sticky
+  header, show a button that animates back to today's date. Enabled by default
+  (`KalendarViewConfig.showTodayButton = true`).
+- **Sticky header on `KalendarTimeline`** — the topmost visible month's title and the today button
+  now stay pinned above the scrolling content instead of scrolling away with it.
+- **Sliding selection indicator** on `KalendarWeek`/`KalendarMonth` — when exactly one date is
+  selected and no custom `dayContent` is supplied, the highlight animates smoothly from the
+  previous cell to the newly tapped one instead of each cell fading independently. Snaps instantly
+  (no fly-in) the first time a grid page appears, and falls back to independent per-cell fades for
+  multi-select/range.
+- **`KalendarSelectionMode` + `rememberKalendarSelectionState`** — a hoisted-state helper
+  implementing single/multiple/range tap behaviour for `selectedDates`/`onDateClick`, so common
+  selection modes don't need to be hand-rolled.
+- **Drag-to-select a range** on `KalendarWeek`/`KalendarMonth` — press and hold a date, then drag,
+  to select a range live via the new `onDateRangeSelect`/`onDateRangeSelectEnd` parameters (paired
+  with `KalendarSelectionState.onRangeDrag`/`onRangeDragEnd` for the common case). Requires a
+  long-press before the drag starts, so a quick tap is unaffected.
+- **Locale-aware formatters** — `KalendarViewConfig.monthNameFormatter`/`dayOfWeekLabelFormatter`
+  let you plug in a platform locale API (`java.time`, `NSDateFormatter`, `Intl`, ...) for month
+  names and day-of-week labels; kotlinx-datetime has no locale-aware formatting of its own, so both
+  default to plain English.
+- **`KalendarSyncEvent.exceptionDates`** — the RFC 5545 EXDATE equivalent for `kalendar-sync`:
+  skips specific dates when a recurring event is expanded via `expandOccurrences`, and
+  round-trips through `exportToIcs`/`importFromIcs` as an `EXDATE` line.
+- **Accessibility semantics on day cells** — every day cell now exposes a screen-reader
+  `contentDescription` (e.g. "August 12, 2026, today, has events") and a `selected` semantic state,
+  and uses `Role.Button` so assistive tech announces it correctly.
+- **`KalendarEvent.endDate`** — multi-day event spans. A day cell shows an event on every date from
+  `date` through `endDate` inclusive; expansion is capped at 366 days to guard against runaway spans.
+- Selection, press, and event-indicator animations (`animateColorAsState`, press-scale,
+  `AnimatedVisibility`) and a title crossfade in the shared navigation header.
+- **`kalendar-sync` module** — reads/writes the real device calendar with no third-party account:
+  `CalendarContract` on Android, `EventKit` on iOS, a file-backed `.ics` provider on Desktop.
+  Includes RFC 5545 recurrence (`KalendarRule`, `KalendarRecurrenceExpander`) and pure in-memory
+  iCal encode/decode (`exportToIcs`/`importFromIcs`) available on every platform including wasmJS.
+  `KalendarSyncEvent.endDate` carries multi-day spans through insert/update/fetch and iCal
+  round-trips on every platform provider.
+- Sample app now has a view switcher covering every view type (Week, Month, Year, Timeline, Agenda).
+- `explicitApi()` mode enabled across all three published modules — every public declaration now
+  requires an explicit visibility modifier and return type, guarding against accidental API leaks.
+- `kotlinx-binary-compatibility-validator` wired into all three published modules and CI
+  (`apiCheck`), so an accidental breaking change to the public API surface now fails the build.
+- Root `.editorconfig` documenting this project's formatting conventions (4-space indent, 140-char
+  line length, no forced trailing commas) for editors and the existing `detekt-formatting`
+  (ktlint-based) ruleset to read.
+
+### Fixed
+- `kalendar-sync` did not actually compile for iOS or wasmJS — `commonMain` used JVM-only
+  `String.format`/`SecurityException`, and the iOS EventKit integration referenced
+  `EKAuthorizationStatusAuthorized` (deprecated in iOS 17, replaced by `EKAuthorizationStatusFullAccess`)
+  and an `NSDate` constructor signature that doesn't exist in the generated Kotlin/Native bindings.
+- Multi-day events (`endDate`) were silently dropped when a recurring event was expanded into
+  occurrences, and when the Desktop/Android/iOS sync providers inserted or updated an event.
+- `KalendarRule` with a multi-value `byMonthDay` (e.g. the 1st and 15th of every month, as shown in
+  its own documentation) only ever produced one occurrence per month instead of both.
+- Nested-lazy-layout crash on Android/iOS in `KalendarTimeline`/`KalendarYear` (a `LazyVerticalGrid`
+  inside an already-scrollable parent) — replaced with the eager `KalendarStaticGrid` in both.
+- Grid cells stretched to fill the row on trailing partial weeks (fewer than 7 days).
+
 ## [2.0.0-RC1] – 2026
 
 ### Breaking changes from 1.x

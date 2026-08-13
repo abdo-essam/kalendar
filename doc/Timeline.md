@@ -4,10 +4,18 @@ A standalone, continuously scrolling calendar — every month, forward and backw
 selected date, in one vertical scroll with no page boundaries. Not called through
 `Kalendar(type = ...)`.
 
-Unlike [KalendarMonth](Month.md), there's no header or arrow buttons — scrolling is the only
-navigation. Only the months near the current scroll position are ever composed. By default the
-list scrolls unlimited in both directions; pass `minDate`/`maxDate` to `rememberKalendarTimelineState`
-to bound how far back or forward it goes.
+Unlike [KalendarMonth](Month.md), there are no arrow buttons — scrolling is the only navigation. A
+sticky header stays pinned above the list, showing the topmost visible month and, by default
+(`config.showTodayButton = true`), a button that scrolls back to today. Only the months near the
+current scroll position are ever composed. By default the list scrolls unlimited in both
+directions; pass `minDate`/`maxDate` to `rememberKalendarTimelineState` to bound how far back or
+forward it goes.
+
+Multi-day events (via `KalendarEvent.endDate`), selection modes
+([single/multiple/range](Month.md#selection-modes-single-multiple-range)), and
+[locale formatters](Month.md#locale) all work the same as in [KalendarMonth](Month.md).
+`onDateRangeSelect`/the sliding selection indicator are Week/Month-only, since Timeline has many
+grids in a scrolling list rather than one grid per page.
 
 ### Bounding how far back/forward it scrolls
 
@@ -87,9 +95,9 @@ KalendarTimeline(
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost layout. |
 | `state` | `KalendarTimelineState` | `rememberKalendarTimelineState(selectedDate)` | Scroll state — list position, `visibleDate`. |
 | `events` | `KalendarEvents` | `emptyList()` | Events shown as indicator dots on day cells. |
-| `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | Highlighted dates. Hoist your own set for multi-select/range (see [Month.md](Month.md#range-selection)). |
+| `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | Highlighted dates. Hoist your own set for multi-select/range (see [Month.md](Month.md#selection-modes-single-multiple-range)). |
 | `onDateClick` | `(LocalDate, List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped. |
-| `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Disabled dates, adjacent-month dates, and background. `showNavigationArrows` has no effect — there's no header. |
+| `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Disabled dates, adjacent-month dates, today button, locale formatters, and background. `showNavigationArrows` has no effect — there are no arrow buttons. |
 | `dayContent` | `(@Composable (KalendarDayScope) -> Unit)?` | `null` | Fully replaces the built-in day cell. |
 
 ## `rememberKalendarTimelineState` parameters
