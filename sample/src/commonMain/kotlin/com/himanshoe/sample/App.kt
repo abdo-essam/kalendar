@@ -41,6 +41,7 @@ import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.view.KalendarMonth
 import com.himanshoe.kalendar.view.KalendarSchedule
+import com.himanshoe.kalendar.view.KalendarScheduleWeek
 import com.himanshoe.kalendar.view.KalendarSelectionMode
 import com.himanshoe.kalendar.view.KalendarTimeline
 import com.himanshoe.kalendar.view.KalendarWeek
@@ -65,6 +66,7 @@ private enum class SampleView(val label: String) {
     Year("Year"),
     Timeline("Timeline"),
     Schedule("Schedule"),
+    ScheduleWeek("Week grid"),
     Agenda("Agenda"),
 }
 
@@ -217,6 +219,13 @@ fun App() {
                 modifier = Modifier.fillMaxSize(),
                 events = events,
                 onEventClick = { event -> println("Tapped event: ${event.eventName}") },
+            )
+
+            SampleView.ScheduleWeek -> KalendarScheduleWeek(
+                selectedDate = today,
+                modifier = Modifier.fillMaxSize(),
+                events = events,
+                onEventClick = { event -> println("Tapped event: ${'$'}{event.eventName}") },
             )
 
             SampleView.Agenda -> Kalendar(

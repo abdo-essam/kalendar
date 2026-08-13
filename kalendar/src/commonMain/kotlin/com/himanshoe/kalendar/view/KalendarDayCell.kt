@@ -122,7 +122,8 @@ public object KalendarDayCellDefaults {
      * opacity and no click handling when disabled, and per-event indicator dots that fade in
      * below the day number — one dot per event (coloured by
      * [KalendarEvent.eventColor][com.himanshoe.kalendar.foundation.event.KalendarEvent.eventColor],
-     * falling back to the theme primary), capped at three with a compact `+N` overflow label.
+     * falling back to [KalendarColors.eventIndicator]), capped at three with a compact `+N`
+     * overflow label. All colours resolve through the ambient [KalendarTheme].
      *
      * @param showSelectionBackground Whether this cell draws its own selection fill. Set to
      *   `false` when a separate sliding indicator (e.g. [KalendarGrid]'s) already renders the
@@ -139,18 +140,18 @@ public object KalendarDayCellDefaults {
         showSelectionBackground: Boolean = true,
         monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
     ) {
-        val colors = MaterialTheme.colorScheme
+        val colors = kalendarColors()
         val background by animateColorAsState(
             targetValue = if (scope.isSelected && showSelectionBackground) {
-                colors.primaryContainer
+                colors.selectionBackground
             } else {
                 Color.Transparent
             },
         )
         val textColor = when {
-            scope.isSelected -> colors.onPrimaryContainer
-            scope.isToday -> colors.primary
-            else -> colors.onSurface
+            scope.isSelected -> colors.onSelectionBackground
+            scope.isToday -> colors.todayContent
+            else -> colors.dayContent
         }
         val fontWeight =
             if (scope.isSelected || scope.isToday) {
@@ -224,7 +225,7 @@ public object KalendarDayCellDefaults {
                                     .background(
                                         when {
                                             scope.isSelected -> textColor
-                                            else -> event.eventColor ?: colors.primary
+                                            else -> event.eventColor ?: colors.eventIndicator
                                         }
                                     ),
                             )
@@ -234,7 +235,7 @@ public object KalendarDayCellDefaults {
                                 text = "+${scope.events.size - MAX_EVENT_DOTS}",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontSize = 7.sp,
-                                color = if (scope.isSelected) textColor else colors.primary,
+                                color = if (scope.isSelected) textColor else colors.eventIndicator,
                             )
                         }
                     }

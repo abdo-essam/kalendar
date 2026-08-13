@@ -34,6 +34,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -121,6 +122,180 @@ public fun KalendarSchedule(
     }
 }
 
+/**
+ * A 7-day hourly time-grid calendar — [KalendarSchedule]'s week variant, navigable by both
+ * arrow-click and swipe with one week per page.
+ *
+ * Seven day columns share a single hour gutter: each column renders that day's timed events as
+ * duration-sized blocks (overlaps packed side by side, exactly as in [KalendarSchedule]), a
+ * header row shows each day's label and date with today emphasised, all-day events pin as chips
+ * above the grid prefixed with their day of month, and the now-indicator line appears on today's
+ * column.
+ *
+ * ```kotlin
+ * KalendarScheduleWeek(
+ *     selectedDate = today,
+ *     events = events,
+ *     onEventClick = { event -> openDetails(event) },
+ * )
+ * ```
+ *
+ * @param selectedDate The date whose week is initially visible when [state] is left at default.
+ * @param modifier [Modifier] applied to the outermost container.
+ * @param state Navigation state from [rememberKalendarWeekState] — pages by week.
+ * @param events Events for the calendar; only those in the visible week are rendered.
+ * @param onEventClick Called when an event block or all-day chip is tapped.
+ * @param config Shared visual/behavioural settings. [KalendarViewConfig.disabledDates] and
+ *   [KalendarViewConfig.showAdjacentMonthDates] have no effect here.
+ * @param hourHeight Vertical space for one hour of the grid; block heights scale with it.
+ */
+@Composable
+public fun KalendarScheduleWeek(
+    selectedDate: LocalDate,
+    modifier: Modifier = Modifier,
+    state: KalendarViewState = rememberKalendarWeekState(selectedDate),
+    events: KalendarEvents = emptyList(),
+    onEventClick: (KalendarEvent) -> Unit = {},
+    config: KalendarViewConfig = KalendarViewConfig(),
+    hourHeight: Dp = 64.dp,
+) {
+    Column(modifier = modifier.background(config.background)) {
+        KalendarNavigationHeader(
+            title = remember(state.visibleDate) { weekTitle(state.visibleDate, config.monthNameFormatter) },
+            state = state,
+            showArrows = config.showNavigationArrows,
+            showTodayButton = config.showTodayButton,
+        )
+        HorizontalPager(
+            state = state.pagerState,
+            modifier = Modifier.fillMaxWidth(),
+        ) { page ->
+            val weekStart = state.pageToDate(page)
+            ScheduleWeekPage(
+                weekStart = weekStart,
+                events = events,
+                onEventClick = onEventClick,
+                config = config,
+                hourHeight = hourHeight,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScheduleWeekPage(
+    weekStart: LocalDate,
+    events: KalendarEvents,
+    onEventClick: (KalendarEvent) -> Unit,
+    config: KalendarViewConfig,
+    hourHeight: Dp,
+) {
+    val today = remember { todayInSystemTimeZone() }
+    val days = remember(weekStart) { weekDates(weekStart) }
+    val eventsByDate = remember(events) { events.byDateExpandingSpans() }
+    val allDayEvents = remember(days, eventsByDate) {
+        days.flatMap { day ->
+            (eventsByDate[day] ?: emptyList())
+                .filter { it.startTime == null }
+                .map { day to it }
+        }
+    }
+    val scrollState = rememberScrollState()
+    val density = LocalDensity.current
+
+    LaunchedEffect(weekStart) {
+        scrollState.scrollTo(with(density) { (hourHeight * MORNING_SCROLL_TARGET_HOUR).roundToPx() })
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Box(modifier = Modifier.width(48.dp))
+            days.forEach { day ->
+                WeekDayHeader(
+                    day = day,
+                    isToday = day == today,
+                    config = config,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        if (allDayEvents.isNotEmpty()) {
+            WeekAllDayRow(entries = allDayEvents, onEventClick = onEventClick)
+        }
+        HorizontalDivider()
+        Row(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState)) {
+            HourGutter(hourHeight = hourHeight)
+            days.forEach { day ->
+                val blocks = remember(eventsByDate, day) {
+                    scheduleBlocks(events = eventsByDate[day] ?: emptyList(), date = day)
+                }
+                Box(modifier = Modifier.weight(1f).height(hourHeight * HOURS_PER_DAY)) {
+                    HourLines(hourHeight = hourHeight)
+                    VerticalDivider(color = kalendarColors().gridLine)
+                    ScheduleBlockLayout(
+                        blocks = blocks,
+                        hourHeight = hourHeight,
+                        onEventClick = onEventClick,
+                    )
+                    NowIndicator(day = day, hourHeight = hourHeight)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeekDayHeader(
+    day: LocalDate,
+    isToday: Boolean,
+    config: KalendarViewConfig,
+    modifier: Modifier = Modifier,
+) {
+    val colors = kalendarColors()
+    Column(
+        modifier = modifier.padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = config.dayOfWeekLabelFormatter(day.dayOfWeek),
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.dayLabelContent,
+        )
+        Text(
+            text = day.dayOfMonth.toString(),
+            style = MaterialTheme.typography.labelLarge,
+            color = if (isToday) colors.todayContent else colors.dayContent,
+        )
+    }
+}
+
+@Composable
+private fun WeekAllDayRow(
+    entries: List<Pair<LocalDate, KalendarEvent>>,
+    onEventClick: (KalendarEvent) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        entries.forEach { (day, event) ->
+            val accent = event.eventColor ?: kalendarColors().eventIndicator
+            Text(
+                text = "${day.dayOfMonth} · ${event.eventName}",
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(accent.copy(alpha = EVENT_BLOCK_BACKGROUND_ALPHA))
+                    .clickable { onEventClick(event) }
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun SchedulePage(
     day: LocalDate,
@@ -167,7 +342,7 @@ private fun AllDayRow(events: List<KalendarEvent>, onEventClick: (KalendarEvent)
         verticalAlignment = Alignment.CenterVertically,
     ) {
         events.forEach { event ->
-            val accent = event.eventColor ?: MaterialTheme.colorScheme.primary
+            val accent = event.eventColor ?: kalendarColors().eventIndicator
             Text(
                 text = event.eventName,
                 style = MaterialTheme.typography.labelSmall,
@@ -191,7 +366,7 @@ private fun HourGutter(hourHeight: Dp) {
                 Text(
                     text = hourLabel(hour),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = kalendarColors().dayLabelContent,
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
             }
@@ -203,7 +378,7 @@ private fun HourGutter(hourHeight: Dp) {
 private fun HourLines(hourHeight: Dp) {
     Column(modifier = Modifier.fillMaxSize()) {
         repeat(HOURS_PER_DAY) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = kalendarColors().gridLine)
             Box(modifier = Modifier.height(hourHeight - 1.dp))
         }
     }
@@ -248,7 +423,7 @@ private fun ScheduleBlockLayout(
 
 @Composable
 private fun ScheduleEventBlock(block: KalendarScheduleBlock, onEventClick: (KalendarEvent) -> Unit) {
-    val accent = block.event.eventColor ?: MaterialTheme.colorScheme.primary
+    val accent = block.event.eventColor ?: kalendarColors().eventIndicator
     Row(
         modifier = Modifier
             .fillMaxSize()
@@ -284,7 +459,7 @@ private fun NowIndicator(day: LocalDate, hourHeight: Dp) {
     val offset = hourHeight * (minutes.toFloat() / MINUTES_PER_HOUR)
     HorizontalDivider(
         thickness = 2.dp,
-        color = MaterialTheme.colorScheme.error,
+        color = kalendarColors().nowIndicator,
         modifier = Modifier.padding(top = offset),
     )
 }

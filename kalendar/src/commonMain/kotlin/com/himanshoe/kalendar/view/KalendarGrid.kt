@@ -96,6 +96,7 @@ internal fun KalendarGrid(
     onEventDrop: ((from: LocalDate, to: LocalDate) -> Unit)? = null,
     cell: @Composable (LocalDate) -> Unit,
 ) {
+    val colors = kalendarColors()
     val labelDays = remember(startDayOfWeek) { daysOfWeekStartingAt(startDayOfWeek) }
     var containerCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val cellCoordinates = remember { mutableStateMapOf<LocalDate, LayoutCoordinates>() }
@@ -189,7 +190,7 @@ internal fun KalendarGrid(
                     }
                     .padding(2.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .background(colors.selectionBackground),
             )
         }
 
@@ -207,7 +208,7 @@ internal fun KalendarGrid(
                     }
                     .padding(2.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = EVENT_GHOST_ALPHA)),
+                    .background(colors.dragGhostBackground.copy(alpha = EVENT_GHOST_ALPHA)),
             )
         }
 

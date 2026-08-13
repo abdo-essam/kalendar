@@ -35,6 +35,34 @@ public final class com/himanshoe/kalendar/view/ComposableSingletons$KalendarTime
 	public final fun getLambda$659622570$kalendar_release ()Lkotlin/jvm/functions/Function2;
 }
 
+public final class com/himanshoe/kalendar/view/KalendarColors {
+	public static final field $stable I
+	public synthetic fun <init> (JJJJJJJJJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-0d7_KjU ()J
+	public final fun component2-0d7_KjU ()J
+	public final fun component3-0d7_KjU ()J
+	public final fun component4-0d7_KjU ()J
+	public final fun component5-0d7_KjU ()J
+	public final fun component6-0d7_KjU ()J
+	public final fun component7-0d7_KjU ()J
+	public final fun component8-0d7_KjU ()J
+	public final fun component9-0d7_KjU ()J
+	public final fun copy-5r9EGqc (JJJJJJJJJ)Lcom/himanshoe/kalendar/view/KalendarColors;
+	public static synthetic fun copy-5r9EGqc$default (Lcom/himanshoe/kalendar/view/KalendarColors;JJJJJJJJJILjava/lang/Object;)Lcom/himanshoe/kalendar/view/KalendarColors;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDayContent-0d7_KjU ()J
+	public final fun getDayLabelContent-0d7_KjU ()J
+	public final fun getDragGhostBackground-0d7_KjU ()J
+	public final fun getEventIndicator-0d7_KjU ()J
+	public final fun getGridLine-0d7_KjU ()J
+	public final fun getNowIndicator-0d7_KjU ()J
+	public final fun getOnSelectionBackground-0d7_KjU ()J
+	public final fun getSelectionBackground-0d7_KjU ()J
+	public final fun getTodayContent-0d7_KjU ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class com/himanshoe/kalendar/view/KalendarDateRangeKt {
 	public static final fun datesUntil (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;)Ljava/util/Set;
 }
@@ -71,6 +99,7 @@ public final class com/himanshoe/kalendar/view/KalendarMonthKt {
 
 public final class com/himanshoe/kalendar/view/KalendarScheduleKt {
 	public static final fun KalendarSchedule-au3_HiA (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/view/KalendarViewState;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lcom/himanshoe/kalendar/view/KalendarViewConfig;FLandroidx/compose/runtime/Composer;II)V
+	public static final fun KalendarScheduleWeek-au3_HiA (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/view/KalendarViewState;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lcom/himanshoe/kalendar/view/KalendarViewConfig;FLandroidx/compose/runtime/Composer;II)V
 }
 
 public abstract interface class com/himanshoe/kalendar/view/KalendarSelectionMode {
@@ -111,6 +140,16 @@ public final class com/himanshoe/kalendar/view/KalendarSelectionState {
 
 public final class com/himanshoe/kalendar/view/KalendarSelectionStateKt {
 	public static final fun rememberKalendarSelectionState (Lcom/himanshoe/kalendar/view/KalendarSelectionMode;Ljava/util/Set;Landroidx/compose/runtime/Composer;II)Lcom/himanshoe/kalendar/view/KalendarSelectionState;
+}
+
+public final class com/himanshoe/kalendar/view/KalendarThemeDefaults {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/himanshoe/kalendar/view/KalendarThemeDefaults;
+	public final fun colors (Landroidx/compose/runtime/Composer;I)Lcom/himanshoe/kalendar/view/KalendarColors;
+}
+
+public final class com/himanshoe/kalendar/view/KalendarThemeKt {
+	public static final fun KalendarTheme (Lcom/himanshoe/kalendar/view/KalendarColors;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
 }
 
 public final class com/himanshoe/kalendar/view/KalendarTimelineKt {

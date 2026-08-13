@@ -137,7 +137,7 @@ public fun KalendarWeek(
  * "Dec 29, 2026 – Jan 4, 2027" across a year boundary — repeating the month/year only where it
  * actually changes, rather than spelling out both ends in full every time.
  */
-private fun weekTitle(weekStart: LocalDate, monthNameFormatter: (Month) -> String): String {
+internal fun weekTitle(weekStart: LocalDate, monthNameFormatter: (Month) -> String): String {
     val weekEnd = weekStart.plus(6, DateTimeUnit.DAY)
     val monthName = monthNameFormatter(weekStart.month).take(3)
     return when {
