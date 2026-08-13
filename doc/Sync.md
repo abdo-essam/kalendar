@@ -153,6 +153,20 @@ termination (mutually exclusive), and the RFC 5545 `byDay`/`byMonthDay`/`byMonth
 `interval` composes with the filters — e.g. `WEEKLY` + `byDay` + `interval = 2` fires only in every
 other week, and `MONTHLY` + `byMonthDay` + `interval = 2` only in every other month.
 
+`recurrenceRule` is written to the device calendar by `insertEvent`/`updateEvent`, so a recurring
+template lands as a real recurring series, not a one-off:
+
+- **Android** stores the rule in `CalendarContract`'s `RRULE` column, together with the RFC 2445
+  `DURATION` the provider requires in place of `DTEND` for recurring events, and `exceptionDates`
+  as an `EXDATE` column. `fetchEvents` maps all three back onto the event.
+- **iOS** maps the rule to an `EKRecurrenceRule` (frequency, interval, `count`/`until` end,
+  `byDay`/`byMonthDay`/`byMonth`), and `fetchEvents` maps it back. **`exceptionDates` is not
+  written on iOS**: EventKit has no per-rule EXDATE API — mirroring the attendees limitation —
+  and exceptions there are made by deleting an individual occurrence instead. When an iOS update
+  adds, changes, or removes a rule it is saved with `EKSpanFutureEvents`, since EventKit does not
+  apply rule changes to a single occurrence.
+- The **Desktop** `.ics` provider round-trips both fields through the iCal codec as before.
+
 ### Recurrence exceptions ("delete just this one occurrence")
 
 Set `exceptionDates` to skip specific dates when a recurring event is expanded — the RFC 5545
@@ -169,10 +183,13 @@ val template = BasicKalendarSyncEvent(
 
 Excepted dates still count towards `KalendarRule.count` (RRULE determines the series first; EXDATE
 then removes specific occurrences from it, matching how most calendar apps interpret the two
-together). This is currently supported for `expandOccurrences` and the iCal codec only — the
-Android/iOS providers don't round-trip `exceptionDates` on fetch, since `CalendarContract`/EventKit
-already expand recurrence server-side and return materialized instances rather than the RRULE
-template (so `recurrenceRule` itself isn't populated on fetch either).
+together). `exceptionDates` is honoured by `expandOccurrences`, the iCal codec, and the Android
+provider, which writes it to `CalendarContract`'s `EXDATE` column and reads it back on fetch. On
+iOS it is **not** written — EventKit has no per-rule EXDATE API, so delete the individual
+occurrence instead — and fetched iOS events don't populate it either, since EventKit returns
+materialized occurrences with the skipped ones simply absent. `recurrenceRule` itself round-trips
+on both platforms: Android parses the `RRULE` column and iOS maps the series' `EKRecurrenceRule`,
+which EventKit exposes on every fetched occurrence.
 
 ### iCal import/export
 
@@ -196,8 +213,8 @@ val events = importFromIcs(icsText)
 | `eventDescription` | `String?` | Optional notes. |
 | `startTime` / `endTime` | `LocalTime?` | `null` for all-day events. |
 | `isAllDay` | `Boolean` | Derived: `true` when both times are `null`. |
-| `recurrenceRule` | `KalendarRule?` | `null` for non-recurring events. |
-| `exceptionDates` | `List<LocalDate>` | Dates to skip when `recurrenceRule` is expanded. Defaults to empty. |
+| `recurrenceRule` | `KalendarRule?` | `null` for non-recurring events. Written to the device calendar on Android (`RRULE`/`DURATION`) and iOS (`EKRecurrenceRule`). |
+| `exceptionDates` | `List<LocalDate>` | Dates to skip when `recurrenceRule` is expanded. Defaults to empty. Written/read as `EXDATE` on Android; not written on iOS. |
 | `reminders` | `List<KalendarReminder>` | Reminders firing `minutesBefore` minutes before the event starts. Defaults to empty. |
 | `attendees` | `List<KalendarAttendee>` | People invited to the event (`email`, optional `name`). Defaults to empty. Read-only on iOS — writes are ignored there. |
 

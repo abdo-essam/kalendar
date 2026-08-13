@@ -29,10 +29,8 @@ import kotlinx.datetime.plus
  */
 private const val END_OF_DAY_HOUR = 23
 private const val END_OF_DAY_MINUTE = 59
-private const val ICS_DATE_LENGTH = 8
 private const val YEAR_END_IDX = 4
 private const val MONTH_END_IDX = 6
-private const val YEAR_DIGIT_WIDTH = 4
 private const val TWO_DIGIT_WIDTH = 2
 private const val MINUTES_PER_HOUR = 60
 
@@ -64,18 +62,18 @@ internal object KalendarICalCodec {
         }
 
         if (event.isAllDay) {
-            appendLine("DTSTART;VALUE=DATE:${event.date.toIcalDate()}")
+            appendLine("DTSTART;VALUE=DATE:${event.date.toIcalDateString()}")
             val endExclusive = (event.endDate ?: event.date).plusDays(1)
-            appendLine("DTEND;VALUE=DATE:${endExclusive.toIcalDate()}")
+            appendLine("DTEND;VALUE=DATE:${endExclusive.toIcalDateString()}")
         } else {
             val startTime = event.startTime ?: LocalTime(0, 0)
             val endTime = event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE)
             appendLine("DTSTART:${LocalDateTime(event.date, startTime).toIcalDateTime()}")
             appendLine("DTEND:${LocalDateTime(event.date, endTime).toIcalDateTime()}")
         }
-        event.recurrenceRule?.let { appendLine("RRULE:${it.toIcal()}") }
+        event.recurrenceRule?.let { appendLine("RRULE:${it.toRRuleString()}") }
         if (event.exceptionDates.isNotEmpty()) {
-            appendLine("EXDATE;VALUE=DATE:${event.exceptionDates.joinToString(",") { it.toIcalDate() }}")
+            appendLine("EXDATE;VALUE=DATE:${event.exceptionDates.joinToString(",") { it.toIcalDateString() }}")
         }
         for (reminder in event.reminders) {
             appendLine("BEGIN:VALARM")
@@ -148,16 +146,16 @@ internal object KalendarICalCodec {
 
     private fun buildEventOrNull(props: VEventProps): KalendarSyncEvent? {
         val startRaw = props.dtStart ?: return null
-        val date = parseIcalDate(startRaw) ?: return null
+        val date = parseIcalDateString(startRaw) ?: return null
         val (startTime, endTime, endDate) = if (props.isAllDay) {
-            val endExclusive = props.dtEnd?.let { parseIcalDate(it) }
+            val endExclusive = props.dtEnd?.let { parseIcalDateString(it) }
             val inclusiveEnd = endExclusive?.minusDays(1)?.takeIf { it > date }
             Triple(null, null, inclusiveEnd)
         } else {
             Triple(parseIcalTime(startRaw), props.dtEnd?.let { parseIcalTime(it) }, null)
         }
         val exceptionDates = props.exDatesRaw.flatMap { raw ->
-            raw.split(",").mapNotNull { parseIcalDate(it) }
+            raw.split(",").mapNotNull { parseIcalDateString(it) }
         }
         return BasicKalendarSyncEvent(
             id = props.uid,
@@ -166,7 +164,7 @@ internal object KalendarICalCodec {
             eventDescription = props.description?.let { icalUnescape(it) },
             startTime = startTime,
             endTime = endTime,
-            recurrenceRule = props.rruleRaw?.let { parseRRule(it) },
+            recurrenceRule = props.rruleRaw?.let { parseRRuleString(it) },
             endDate = endDate,
             exceptionDates = exceptionDates,
             reminders = props.reminderMinutes.map { KalendarReminder(minutesBefore = it) },
@@ -239,25 +237,9 @@ internal object KalendarICalCodec {
         return Triple(key, params, value)
     }
 
-    private fun LocalDate.toIcalDate(): String =
-        "${year.zeroPadded(YEAR_DIGIT_WIDTH)}${monthNumber.zeroPadded(TWO_DIGIT_WIDTH)}" +
-            dayOfMonth.zeroPadded(TWO_DIGIT_WIDTH)
-
     private fun LocalDateTime.toIcalDateTime(): String =
-        "${date.toIcalDate()}T${hour.zeroPadded(TWO_DIGIT_WIDTH)}" +
+        "${date.toIcalDateString()}T${hour.zeroPadded(TWO_DIGIT_WIDTH)}" +
             "${minute.zeroPadded(TWO_DIGIT_WIDTH)}${second.zeroPadded(TWO_DIGIT_WIDTH)}Z"
-
-    private fun Int.zeroPadded(width: Int): String = toString().padStart(width, '0')
-
-    private fun parseIcalDate(value: String): LocalDate? = runCatching {
-        val v = value.substringBefore('T').filter { it.isDigit() }
-        if (v.length < ICS_DATE_LENGTH) return null
-        LocalDate(
-            v.substring(0, YEAR_END_IDX).toInt(),
-            v.substring(YEAR_END_IDX, MONTH_END_IDX).toInt(),
-            v.substring(MONTH_END_IDX, ICS_DATE_LENGTH).toInt(),
-        )
-    }.getOrNull()
 
     private fun parseIcalTime(value: String): LocalTime? = runCatching {
         val timePart = value.substringAfter('T', "").trimEnd('Z')
@@ -281,76 +263,4 @@ internal object KalendarICalCodec {
 
     private fun generateUid(event: KalendarSyncEvent): String =
         "${event.date}-${event.eventName.hashCode().toUInt()}-kalendar@himanshoe.com"
-
-    /**
-     * Serialises a [KalendarRule] to the value portion of an RFC 5545 RRULE property,
-     * e.g. `FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE,FR`.
-     */
-    private fun KalendarRule.toIcal(): String = buildString {
-        append("FREQ=${frequency.name}")
-        if (interval != 1) append(";INTERVAL=$interval")
-        count?.let { append(";COUNT=$it") }
-        until?.let { append(";UNTIL=${it.toIcalDate()}") }
-        if (byDay.isNotEmpty()) append(";BYDAY=${byDay.joinToString(",") { it.toIcalString() }}")
-        if (byMonthDay.isNotEmpty()) append(";BYMONTHDAY=${byMonthDay.joinToString(",")}")
-        if (byMonth.isNotEmpty()) append(";BYMONTH=${byMonth.joinToString(",")}")
-    }
-
-    /**
-     * Parses the value portion of an RFC 5545 RRULE property into a [KalendarRule].
-     * Returns `null` if the FREQ component is missing or unrecognised.
-     */
-    private fun parseRRule(value: String): KalendarRule? = runCatching {
-        val parts = value.split(";").mapNotNull { segment ->
-            val eq = segment.indexOf('=')
-            if (eq < 0) null else segment.substring(0, eq) to segment.substring(eq + 1)
-        }.toMap()
-
-        val frequency = when (parts["FREQ"]) {
-            "DAILY" -> KalendarRecurrenceFrequency.DAILY
-            "WEEKLY" -> KalendarRecurrenceFrequency.WEEKLY
-            "MONTHLY" -> KalendarRecurrenceFrequency.MONTHLY
-            "YEARLY" -> KalendarRecurrenceFrequency.YEARLY
-            else -> return null
-        }
-        KalendarRule(
-            frequency = frequency,
-            interval = parts["INTERVAL"]?.toIntOrNull() ?: 1,
-            count = parts["COUNT"]?.toIntOrNull(),
-            until = parts["UNTIL"]?.let { parseIcalDate(it) },
-            byDay = parts["BYDAY"]
-                ?.split(",")
-                ?.mapNotNull { it.trim().toKalendarWeekDay() }
-                ?: emptyList(),
-            byMonthDay = parts["BYMONTHDAY"]
-                ?.split(",")
-                ?.mapNotNull { it.trim().toIntOrNull() }
-                ?: emptyList(),
-            byMonth = parts["BYMONTH"]
-                ?.split(",")
-                ?.mapNotNull { it.trim().toIntOrNull() }
-                ?: emptyList(),
-        )
-    }.getOrNull()
-
-    private fun KalendarWeekDay.toIcalString(): String = when (this) {
-        KalendarWeekDay.MONDAY -> "MO"
-        KalendarWeekDay.TUESDAY -> "TU"
-        KalendarWeekDay.WEDNESDAY -> "WE"
-        KalendarWeekDay.THURSDAY -> "TH"
-        KalendarWeekDay.FRIDAY -> "FR"
-        KalendarWeekDay.SATURDAY -> "SA"
-        KalendarWeekDay.SUNDAY -> "SU"
-    }
-
-    private fun String.toKalendarWeekDay(): KalendarWeekDay? = when (this) {
-        "MO" -> KalendarWeekDay.MONDAY
-        "TU" -> KalendarWeekDay.TUESDAY
-        "WE" -> KalendarWeekDay.WEDNESDAY
-        "TH" -> KalendarWeekDay.THURSDAY
-        "FR" -> KalendarWeekDay.FRIDAY
-        "SA" -> KalendarWeekDay.SATURDAY
-        "SU" -> KalendarWeekDay.SUNDAY
-        else -> null
-    }
 }

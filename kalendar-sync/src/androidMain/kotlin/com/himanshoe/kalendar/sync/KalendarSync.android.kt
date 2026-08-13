@@ -82,6 +82,9 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                     CalendarContract.Events.DTSTART,
                     CalendarContract.Events.DTEND,
                     CalendarContract.Events.ALL_DAY,
+                    CalendarContract.Events.RRULE,
+                    CalendarContract.Events.DURATION,
+                    CalendarContract.Events.EXDATE,
                 )
                 val selection =
                     "${CalendarContract.Events.DTSTART} >= ? AND ${CalendarContract.Events.DTSTART} <= ? " +
@@ -102,15 +105,28 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                     val startIdx = cursor.getColumnIndex(CalendarContract.Events.DTSTART)
                     val endIdx = cursor.getColumnIndex(CalendarContract.Events.DTEND)
                     val allDayIdx = cursor.getColumnIndex(CalendarContract.Events.ALL_DAY)
+                    val rruleIdx = cursor.getColumnIndex(CalendarContract.Events.RRULE)
+                    val durationIdx = cursor.getColumnIndex(CalendarContract.Events.DURATION)
+                    val exdateIdx = cursor.getColumnIndex(CalendarContract.Events.EXDATE)
 
                     while (cursor.moveToNext()) {
                         val allDay = cursor.getInt(allDayIdx) != 0
                         val startMs = cursor.getLong(startIdx)
-                        val endMs = cursor.getLong(endIdx)
+                        val rule = cursor.getString(rruleIdx)
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { parseRRuleString(it) }
+                        val endMs = when {
+                            !cursor.isNull(endIdx) -> cursor.getLong(endIdx)
+                            rule != null -> durationEndMillis(
+                                startMs = startMs,
+                                durationValue = cursor.getString(durationIdx),
+                            )
+                            else -> null
+                        }
                         val date = millisToLocalDate(startMs, timeZone)
-                        val endDate = millisToLocalDate(endMs, timeZone)
-                            .minus(1, DateTimeUnit.DAY)
-                            .takeIf { allDay && it > date }
+                        val endDate = endMs?.let { millisToLocalDate(it, timeZone) }
+                            ?.minus(1, DateTimeUnit.DAY)
+                            ?.takeIf { allDay && it > date }
                         val eventRowId = cursor.getLong(idIdx)
                         events += BasicKalendarSyncEvent(
                             id = eventRowId.toString(),
@@ -118,8 +134,10 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                             eventName = cursor.getString(titleIdx) ?: "",
                             eventDescription = cursor.getString(descIdx)?.takeIf { it.isNotBlank() },
                             startTime = if (allDay) null else millisToLocalTime(startMs, timeZone),
-                            endTime = if (allDay) null else millisToLocalTime(endMs, timeZone),
+                            endTime = if (allDay || endMs == null) null else millisToLocalTime(endMs, timeZone),
+                            recurrenceRule = rule,
                             endDate = endDate,
+                            exceptionDates = parseExdateColumn(cursor.getString(exdateIdx)),
                             reminders = readReminders(eventRowId),
                             attendees = readAttendees(eventRowId),
                         )
@@ -190,9 +208,9 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                     put(CalendarContract.Events.TITLE, event.eventName)
                     put(CalendarContract.Events.DESCRIPTION, event.eventDescription ?: "")
                     put(CalendarContract.Events.DTSTART, startMs)
-                    put(CalendarContract.Events.DTEND, endMs)
                     put(CalendarContract.Events.ALL_DAY, if (event.isAllDay) 1 else 0)
                     put(CalendarContract.Events.EVENT_TIMEZONE, tz.id)
+                    applyRecurrenceOrEnd(event = event, endMs = endMs, clearStaleFields = false)
                 }
 
                 val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
@@ -229,9 +247,9 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                     put(CalendarContract.Events.TITLE, event.eventName)
                     put(CalendarContract.Events.DESCRIPTION, event.eventDescription ?: "")
                     put(CalendarContract.Events.DTSTART, startMs)
-                    put(CalendarContract.Events.DTEND, endMs)
                     put(CalendarContract.Events.ALL_DAY, if (event.isAllDay) 1 else 0)
                     put(CalendarContract.Events.EVENT_TIMEZONE, tz.id)
+                    applyRecurrenceOrEnd(event = event, endMs = endMs, clearStaleFields = true)
                 }
                 val updated = context.contentResolver.update(uri, values, null, null)
                 if (updated > 0) {
@@ -264,6 +282,58 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
             }.getOrElse { KalendarSyncResult.Error("Failed to delete event", it) }
         }
     }
+
+    /**
+     * Writes the mutually exclusive recurrence/end fields into these [ContentValues].
+     *
+     * [CalendarContract] requires recurring events to carry an RFC 2445 `DURATION` and a
+     * **null** `DTEND` — inserting a recurring event with `DTEND` set is rejected or dropped
+     * by providers. So a non-null [KalendarSyncEvent.recurrenceRule] writes
+     * `RRULE`/`DURATION` (plus `EXDATE` when the event has exception dates), while a null
+     * rule writes `DTEND` as before. With [clearStaleFields] (used on update) the unused
+     * side is explicitly nulled so switching an event between recurring and one-off doesn't
+     * leave stale values behind.
+     */
+    private fun ContentValues.applyRecurrenceOrEnd(event: KalendarSyncEvent, endMs: Long, clearStaleFields: Boolean) {
+        val rule = event.recurrenceRule
+        if (rule != null) {
+            put(CalendarContract.Events.RRULE, rule.toRRuleString())
+            put(CalendarContract.Events.DURATION, recurrenceDurationString(event))
+            val exdate = recurrenceExdateString(event)
+            if (exdate != null) {
+                put(CalendarContract.Events.EXDATE, exdate)
+            } else if (clearStaleFields) {
+                putNull(CalendarContract.Events.EXDATE)
+            }
+            if (clearStaleFields) {
+                putNull(CalendarContract.Events.DTEND)
+            }
+        } else {
+            put(CalendarContract.Events.DTEND, endMs)
+            if (clearStaleFields) {
+                putNull(CalendarContract.Events.RRULE)
+                putNull(CalendarContract.Events.DURATION)
+                putNull(CalendarContract.Events.EXDATE)
+            }
+        }
+    }
+
+    /**
+     * Reconstructs the end instant of a recurring row from its RFC 2445 `DURATION` column
+     * (recurring rows have a null `DTEND`). Returns `null` when the duration is absent or
+     * unparseable.
+     */
+    private fun durationEndMillis(startMs: Long, durationValue: String?): Long? =
+        durationValue
+            ?.let { parseRecurrenceDurationSeconds(it) }
+            ?.let { startMs + it * MILLIS_PER_SECOND }
+
+    /**
+     * Parses the comma-joined iCal dates in an `EXDATE` column into [LocalDate]s,
+     * ignoring unparseable entries.
+     */
+    private fun parseExdateColumn(raw: String?): List<LocalDate> =
+        raw?.split(",")?.mapNotNull { parseIcalDateString(it.trim()) }.orEmpty()
 
     /**
      * Resolves the calendar to insert into: the caller-supplied [calendarId] when given
@@ -399,5 +469,6 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
 
     private companion object {
         const val DAY_MILLIS = 24L * 60 * 60 * 1000
+        const val MILLIS_PER_SECOND = 1000L
     }
 }

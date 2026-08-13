@@ -66,6 +66,10 @@ public interface KalendarSyncEvent {
      * Optional RFC 5545 recurrence rule. When non-null, this event is a template for a
      * recurring series; use [expandOccurrences] to materialise individual occurrences. `null`
      * for non-recurring (one-off) events.
+     *
+     * Written to and read from the device calendar on Android (`CalendarContract`'s `RRULE`
+     * column, paired with the `DURATION` the provider requires for recurring events) and iOS
+     * (`EKRecurrenceRule`), and encoded as an `RRULE` line by the iCal codec.
      */
     public val recurrenceRule: KalendarRule?
         get() = null
@@ -74,6 +78,10 @@ public interface KalendarSyncEvent {
      * Dates to skip when [recurrenceRule] is expanded via [expandOccurrences] — the RFC 5545
      * EXDATE equivalent, for "delete just this one occurrence" without breaking the series.
      * Ignored for non-recurring events. Defaults to empty.
+     *
+     * Written and read on Android (`CalendarContract`'s `EXDATE` column) and encoded as an
+     * `EXDATE` line by the iCal codec. **On iOS exception dates are not written** — EventKit
+     * has no per-rule EXDATE API; delete the individual occurrence there instead.
      */
     public val exceptionDates: List<LocalDate>
         get() = emptyList()

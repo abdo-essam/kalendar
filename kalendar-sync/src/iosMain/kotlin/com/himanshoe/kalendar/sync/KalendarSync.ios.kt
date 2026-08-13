@@ -32,8 +32,21 @@ import platform.EventKit.EKEntityType
 import platform.EventKit.EKEvent
 import platform.EventKit.EKEventStore
 import platform.EventKit.EKParticipant
+import platform.EventKit.EKRecurrenceDayOfWeek
+import platform.EventKit.EKRecurrenceEnd
+import platform.EventKit.EKRecurrenceFrequency
+import platform.EventKit.EKRecurrenceRule
 import platform.EventKit.EKSpan
+import platform.EventKit.EKWeekday
+import platform.EventKit.EKWeekdayFriday
+import platform.EventKit.EKWeekdayMonday
+import platform.EventKit.EKWeekdaySaturday
+import platform.EventKit.EKWeekdaySunday
+import platform.EventKit.EKWeekdayThursday
+import platform.EventKit.EKWeekdayTuesday
+import platform.EventKit.EKWeekdayWednesday
 import platform.Foundation.NSDate
+import platform.Foundation.NSNumber
 import platform.Foundation.NSTimeIntervalSince1970
 import platform.Foundation.timeIntervalSince1970
 import kotlin.coroutines.resume
@@ -116,7 +129,10 @@ private class IosKalendarSync : KalendarSyncProvider {
     /**
      * Inserts [event] into the calendar identified by [calendarId], or the store's default
      * calendar when `null` or not found. [KalendarSyncEvent.attendees] is ignored: EventKit
-     * does not allow adding attendees programmatically.
+     * does not allow adding attendees programmatically. A non-null
+     * [KalendarSyncEvent.recurrenceRule] is written as an [EKRecurrenceRule], but
+     * [KalendarSyncEvent.exceptionDates] is ignored: EventKit has no per-rule EXDATE API —
+     * exceptions are made by deleting individual occurrences with `EKSpanThisEvent`.
      */
     override suspend fun insertEvent(event: KalendarSyncEvent, calendarId: String?): KalendarSyncResult<String> {
         if (!hasPermission()) return KalendarSyncResult.PermissionDenied
@@ -137,6 +153,9 @@ private class IosKalendarSync : KalendarSyncProvider {
                 }
                 calendar = calendarId?.let { eventStore.calendarWithIdentifier(it) }
                     ?: eventStore.defaultCalendarForNewEvents
+                event.recurrenceRule?.let { rule ->
+                    recurrenceRules = listOf(rule.toEKRecurrenceRule())
+                }
                 event.reminders.forEach { reminder ->
                     addAlarm(EKAlarm.alarmWithRelativeOffset(-reminder.minutesBefore * SECONDS_PER_MINUTE))
                 }
@@ -153,11 +172,20 @@ private class IosKalendarSync : KalendarSyncProvider {
         }.getOrElse { KalendarSyncResult.Error("Failed to insert event", it) }
     }
 
+    /**
+     * Updates the event identified by [eventId] with the fields of [event].
+     * [KalendarSyncEvent.recurrenceRule] is written as an [EKRecurrenceRule] (a null rule
+     * clears any existing rules); [KalendarSyncEvent.exceptionDates] is ignored — see
+     * [insertEvent]. When the update adds, changes, or removes a recurrence rule it is saved
+     * with `EKSpanFutureEvents`, since EventKit does not apply rule changes to a single
+     * occurrence; non-recurring updates keep using `EKSpanThisEvent`.
+     */
     override suspend fun updateEvent(eventId: String, event: KalendarSyncEvent): KalendarSyncResult<Unit> {
         if (!hasPermission()) return KalendarSyncResult.PermissionDenied
         return runCatching {
             val ekEvent = eventStore.eventWithIdentifier(eventId)
                 ?: return KalendarSyncResult.Error("Event with id=$eventId not found")
+            val wasRecurring = ekEvent.recurrenceRules?.isNotEmpty() == true
             ekEvent.title = event.eventName
             ekEvent.notes = event.eventDescription
             ekEvent.allDay = event.isAllDay
@@ -171,11 +199,17 @@ private class IosKalendarSync : KalendarSyncProvider {
             } else {
                 localTimeToNSDate(event.date, event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE))
             }
+            ekEvent.recurrenceRules = event.recurrenceRule?.let { listOf(it.toEKRecurrenceRule()) }
             ekEvent.alarms?.filterIsInstance<EKAlarm>()?.forEach { ekEvent.removeAlarm(it) }
             event.reminders.forEach { reminder ->
                 ekEvent.addAlarm(EKAlarm.alarmWithRelativeOffset(-reminder.minutesBefore * SECONDS_PER_MINUTE))
             }
-            val saved = eventStore.saveEvent(ekEvent, EKSpan.EKSpanThisEvent, true, null)
+            val span = if (wasRecurring || event.recurrenceRule != null) {
+                EKSpan.EKSpanFutureEvents
+            } else {
+                EKSpan.EKSpanThisEvent
+            }
+            val saved = eventStore.saveEvent(ekEvent, span, true, null)
             if (saved) {
                 KalendarSyncResult.Success(Unit)
             } else {
@@ -201,12 +235,17 @@ private class IosKalendarSync : KalendarSyncProvider {
     /**
      * Converts an [EKEvent] to a [BasicKalendarSyncEvent], using today's date as a fallback
      * when [EKEvent.startDate] is null.
+     *
+     * Events fetched from a recurring series are materialised occurrences, but EventKit still
+     * exposes the series' [EKRecurrenceRule] on each occurrence — so every occurrence carries
+     * the mapped [KalendarSyncEvent.recurrenceRule] of its series.
      */
     private fun EKEvent.toKalendarSyncEvent(): KalendarSyncEvent {
         val date = startDate?.toLocalDate() ?: return BasicKalendarSyncEvent(
             id = eventIdentifier,
             date = kotlin.time.Clock.System.now().toLocalDateTime(tz).date,
             eventName = title ?: "",
+            recurrenceRule = toKalendarRuleOrNull(),
             reminders = toReminders(),
             attendees = toAttendees(),
         )
@@ -220,10 +259,105 @@ private class IosKalendarSync : KalendarSyncProvider {
             eventDescription = notes?.takeIf { it.isNotBlank() },
             startTime = if (allDay) null else startDate?.toLocalTime(),
             endTime = if (allDay) null else endDate?.toLocalTime(),
+            recurrenceRule = toKalendarRuleOrNull(),
             endDate = spanEndDate,
             reminders = toReminders(),
             attendees = toAttendees(),
         )
+    }
+
+    /**
+     * Maps this rule to EventKit's [EKRecurrenceRule]: frequency/interval directly,
+     * [KalendarRule.count] or [KalendarRule.until] to an [EKRecurrenceEnd] (until as the end
+     * of that day so occurrences on the last date are kept), and the
+     * byDay/byMonthDay/byMonth filters to their `daysOfTheWeek`/`daysOfTheMonth`/
+     * `monthsOfTheYear` equivalents.
+     */
+    private fun KalendarRule.toEKRecurrenceRule(): EKRecurrenceRule {
+        val recurrenceEnd = when {
+            count != null -> EKRecurrenceEnd.recurrenceEndWithOccurrenceCount(count.toULong())
+            until != null -> EKRecurrenceEnd.recurrenceEndWithEndDate(
+                localTimeToNSDate(date = until, time = LocalTime(hour = END_OF_DAY_HOUR, minute = END_OF_DAY_MINUTE)),
+            )
+            else -> null
+        }
+        return EKRecurrenceRule(
+            recurrenceWithFrequency = frequency.toEKFrequency(),
+            interval = interval.toLong(),
+            daysOfTheWeek = byDay
+                .map { EKRecurrenceDayOfWeek.dayOfWeek(it.toEKWeekday()) }
+                .takeIf { it.isNotEmpty() },
+            daysOfTheMonth = byMonthDay.map { NSNumber(int = it) }.takeIf { it.isNotEmpty() },
+            monthsOfTheYear = byMonth.map { NSNumber(int = it) }.takeIf { it.isNotEmpty() },
+            weeksOfTheYear = null,
+            daysOfTheYear = null,
+            setPositions = null,
+            end = recurrenceEnd,
+        )
+    }
+
+    /**
+     * Maps the first [EKRecurrenceRule] of this event back to a [KalendarRule], or `null`
+     * for non-recurring events. `occurrenceCount` maps to
+     * [KalendarRule.count] and a recurrence end date to [KalendarRule.until] (never both,
+     * matching their mutual exclusivity).
+     */
+    private fun EKEvent.toKalendarRuleOrNull(): KalendarRule? {
+        val ekRule = recurrenceRules?.firstOrNull() as? EKRecurrenceRule ?: return null
+        val frequency = ekRule.frequency.toKalendarFrequency()
+        val recurrenceEnd = ekRule.recurrenceEnd
+        val count = recurrenceEnd?.occurrenceCount?.takeIf { it > 0uL }?.toInt()
+        val until = if (count == null) recurrenceEnd?.endDate?.toLocalDate() else null
+        return KalendarRule(
+            frequency = frequency,
+            interval = ekRule.interval.toInt().coerceAtLeast(1),
+            count = count,
+            until = until,
+            byDay = ekRule.daysOfTheWeek
+                ?.mapNotNull { entry -> (entry as? EKRecurrenceDayOfWeek)?.dayOfTheWeek?.toKalendarWeekDayOrNull() }
+                .orEmpty(),
+            byMonthDay = ekRule.daysOfTheMonth?.mapNotNull { (it as? NSNumber)?.intValue }.orEmpty(),
+            byMonth = ekRule.monthsOfTheYear?.mapNotNull { (it as? NSNumber)?.intValue }.orEmpty(),
+        )
+    }
+
+    /** Maps a [KalendarRecurrenceFrequency] to its [EKRecurrenceFrequency] constant. */
+    private fun KalendarRecurrenceFrequency.toEKFrequency(): EKRecurrenceFrequency = when (this) {
+        KalendarRecurrenceFrequency.DAILY -> EKRecurrenceFrequency.EKRecurrenceFrequencyDaily
+        KalendarRecurrenceFrequency.WEEKLY -> EKRecurrenceFrequency.EKRecurrenceFrequencyWeekly
+        KalendarRecurrenceFrequency.MONTHLY -> EKRecurrenceFrequency.EKRecurrenceFrequencyMonthly
+        KalendarRecurrenceFrequency.YEARLY -> EKRecurrenceFrequency.EKRecurrenceFrequencyYearly
+    }
+
+    /** Maps an [EKRecurrenceFrequency] back to a [KalendarRecurrenceFrequency]. */
+    private fun EKRecurrenceFrequency.toKalendarFrequency(): KalendarRecurrenceFrequency = when (this) {
+        EKRecurrenceFrequency.EKRecurrenceFrequencyDaily -> KalendarRecurrenceFrequency.DAILY
+        EKRecurrenceFrequency.EKRecurrenceFrequencyWeekly -> KalendarRecurrenceFrequency.WEEKLY
+        EKRecurrenceFrequency.EKRecurrenceFrequencyMonthly -> KalendarRecurrenceFrequency.MONTHLY
+        EKRecurrenceFrequency.EKRecurrenceFrequencyYearly -> KalendarRecurrenceFrequency.YEARLY
+    }
+
+    /** Maps a [KalendarWeekDay] to its [EKWeekday] constant. */
+    private fun KalendarWeekDay.toEKWeekday(): EKWeekday = when (this) {
+        KalendarWeekDay.MONDAY -> EKWeekdayMonday
+        KalendarWeekDay.TUESDAY -> EKWeekdayTuesday
+        KalendarWeekDay.WEDNESDAY -> EKWeekdayWednesday
+        KalendarWeekDay.THURSDAY -> EKWeekdayThursday
+        KalendarWeekDay.FRIDAY -> EKWeekdayFriday
+        KalendarWeekDay.SATURDAY -> EKWeekdaySaturday
+        KalendarWeekDay.SUNDAY -> EKWeekdaySunday
+    }
+
+    /** Maps an [EKWeekday] back to a [KalendarWeekDay], or `null` if unknown. */
+    private fun EKWeekday.toKalendarWeekDayOrNull(): KalendarWeekDay? = when (this) {
+        EKWeekdayMonday -> KalendarWeekDay.MONDAY
+        EKWeekdayTuesday -> KalendarWeekDay.TUESDAY
+        EKWeekdayWednesday -> KalendarWeekDay.WEDNESDAY
+        EKWeekdayThursday -> KalendarWeekDay.THURSDAY
+        EKWeekdayFriday -> KalendarWeekDay.FRIDAY
+        EKWeekdaySaturday -> KalendarWeekDay.SATURDAY
+        EKWeekdaySunday -> KalendarWeekDay.SUNDAY
+        else -> null
     }
 
     /**
