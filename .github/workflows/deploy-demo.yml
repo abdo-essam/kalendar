@@ -28,13 +28,23 @@ jobs:
           distribution: 'zulu'
           java-version: 17
 
-      - name: Build wasmJs distribution
-        run: ./gradlew :sample:wasmJsBrowserDistribution
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build wasmJs distribution and API docs
+        run: ./gradlew :sample:wasmJsBrowserDistribution :kalendar:dokkaGenerateHtml :kalendar-foundation:dokkaGenerateHtml
+
+      - name: Assemble Pages site (demo at /, API docs at /api)
+        run: |
+          mkdir -p site/api
+          cp -R sample/build/dist/wasmJs/productionExecutable/. site/
+          cp -R kalendar/build/dokka/html site/api/kalendar
+          cp -R kalendar-foundation/build/dokka/html site/api/kalendar-foundation
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: sample/build/dist/wasmJs/productionExecutable
+          path: site
 
   deploy:
     needs: build

@@ -51,14 +51,23 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Bump versions in gradle.properties
+      - name: Run checks (tests, detekt, apiCheck)
         run: |
-          [ -n "${{ github.event.inputs.version_foundation }}" ] && \
-            sed -i "s/^FOUNDATION_VERSION_NAME=.*/FOUNDATION_VERSION_NAME=${{ github.event.inputs.version_foundation }}/" gradle.properties
-          [ -n "${{ github.event.inputs.version_kalendar }}" ] && \
-            sed -i "s/^KALENDAR_VERSION_NAME=.*/KALENDAR_VERSION_NAME=${{ github.event.inputs.version_kalendar }}/" gradle.properties
-          [ -n "${{ github.event.inputs.version_sync }}" ] && \
-            sed -i "s/^SYNC_VERSION_NAME=.*/SYNC_VERSION_NAME=${{ github.event.inputs.version_sync }}/" gradle.properties
+          ./gradlew :kalendar-foundation:desktopTest :kalendar-sync:desktopTest :kalendar:testDebugUnitTest \
+            :kalendar-foundation:detekt :kalendar:detekt :kalendar-sync:detekt \
+            :kalendar-foundation:apiCheck :kalendar:apiCheck :kalendar-sync:apiCheck
+
+      - name: Bump versions in module gradle.properties
+        run: |
+          if [ -n "${{ github.event.inputs.version_foundation }}" ]; then
+            sed -i "s/^VERSION_NAME=.*/VERSION_NAME=${{ github.event.inputs.version_foundation }}/" kalendar-foundation/gradle.properties
+          fi
+          if [ -n "${{ github.event.inputs.version_kalendar }}" ]; then
+            sed -i "s/^VERSION_NAME=.*/VERSION_NAME=${{ github.event.inputs.version_kalendar }}/" kalendar/gradle.properties
+          fi
+          if [ -n "${{ github.event.inputs.version_sync }}" ]; then
+            sed -i "s/^VERSION_NAME=.*/VERSION_NAME=${{ github.event.inputs.version_sync }}/" kalendar-sync/gradle.properties
+          fi
 
       - name: Determine release tag
         id: tag
@@ -79,7 +88,7 @@ jobs:
 
       - name: Commit version bumps
         run: |
-          git add gradle.properties
+          git add kalendar/gradle.properties kalendar-foundation/gradle.properties kalendar-sync/gradle.properties
           git commit -m "Release ${{ steps.tag.outputs.tag }}"
 
       - name: Create and push tag

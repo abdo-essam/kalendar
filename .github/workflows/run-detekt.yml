@@ -14,16 +14,26 @@ jobs:
 
     steps:
       - name: Checkout Kalendar Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up JDK
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Run Detekt
         run: ./gradlew :kalendar-foundation:detekt :kalendar:detekt :kalendar-sync:detekt
 
       - name: Check binary compatibility
         run: ./gradlew :kalendar-foundation:apiCheck :kalendar:apiCheck :kalendar-sync:apiCheck
+
+      # :kalendar:desktopTest is intentionally excluded here: it contains Compose UI golden
+      # tests whose reference images were generated on macOS and do not match Linux rendering.
+      # :kalendar:testDebugUnitTest runs the same commonTest suites on the Android unit-test
+      # target instead.
+      - name: Run tests
+        run: ./gradlew :kalendar-foundation:desktopTest :kalendar-sync:desktopTest :kalendar:testDebugUnitTest
