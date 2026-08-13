@@ -245,6 +245,42 @@ class KalendarViewUiTest {
         )
     }
 
+    @Test
+    fun scheduleView_longPressDragBottomStrip_resizesEndTimeOnly() {
+        var reportedStart: LocalDateTime? = null
+        var reportedEnd: LocalDateTime? = null
+        rule.setContent {
+            KalendarSchedule(
+                selectedDate = march,
+                events = listOf(
+                    BasicKalendarEvent(
+                        date = march,
+                        eventName = "Sync",
+                        startTime = LocalDateTime(2026, 3, 10, 9, 0),
+                        endTime = LocalDateTime(2026, 3, 10, 10, 0),
+                    ),
+                ),
+                onEventTimeChange = { _, newStart, newEnd ->
+                    reportedStart = newStart
+                    reportedEnd = newEnd
+                },
+            )
+        }
+        // The merged block node spans the whole event block; a press in its bottom strip
+        // resizes instead of moving. Dragging down by exactly one block height (= the
+        // event's 60min duration) doubles the duration regardless of density.
+        rule.onNodeWithText("Sync").performTouchInput {
+            down(Offset(center.x, height - height * BOTTOM_STRIP_GRAB_FRACTION))
+            advanceEventTime(LONG_PRESS_MS)
+            moveBy(Offset(0f, height.toFloat()))
+            up()
+        }
+        rule.waitForIdle()
+
+        assertEquals(LocalDateTime(2026, 3, 10, 9, 0), reportedStart, "resize must not move the start")
+        assertEquals(LocalDateTime(2026, 3, 10, 11, 0), reportedEnd, "dragging one block height should add 60min")
+    }
+
     private fun durationMinutes(start: LocalDateTime, end: LocalDateTime): Int {
         val startTotal = start.hour * MINUTES_PER_HOUR + start.minute
         val endTotal = end.hour * MINUTES_PER_HOUR + end.minute
@@ -257,5 +293,8 @@ class KalendarViewUiTest {
         const val DRAG_DISTANCE_PX = 96f
         const val SNAP_MINUTES = 15
         const val ONE_HOUR_MINUTES = 60
+
+        /** 5% of the block height from the bottom — well inside the 12dp resize strip. */
+        const val BOTTOM_STRIP_GRAB_FRACTION = 0.05f
     }
 }
