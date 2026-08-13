@@ -121,6 +121,10 @@ project adheres to [Semantic Versioning](https://semver.org/).
   (ktlint-based) ruleset to read.
 
 ### Fixed
+- On iOS 17+ the sync provider requested calendar access with the deprecated pre-17 API, which
+  can grant only write access and break event fetching; it now calls
+  `requestFullAccessToEventsWithCompletion` when available (runtime-gated), falling back to the
+  legacy request on older iOS.
 - Drag gesture handlers on the Schedule views and the month grid captured their first
   composition's state forever (a `pointerInput` coroutine launches once and never sees later
   lambdas): after the events list changed, the next drag moved/dropped events using stale blocks

@@ -8,7 +8,7 @@ cloud account required. Works standalone; it doesn't depend on `kalendar` or `ka
 | Platform | Backing store | Read/write | Permission |
 |---|---|---|---|
 | Android | [`CalendarContract`](https://developer.android.com/reference/android/provider/CalendarContract) | Yes | `READ_CALENDAR` / `WRITE_CALENDAR` |
-| iOS | [EventKit](https://developer.apple.com/documentation/eventkit) | Yes | `NSCalendarUsageDescription` (pre-iOS 17 SDK) / `NSCalendarsFullAccessUsageDescription` (iOS 17+ SDK; full access required — see the `KalendarSync()` factory KDoc) |
+| iOS | [EventKit](https://developer.apple.com/documentation/eventkit) | Yes | `NSCalendarUsageDescription` (pre-iOS 17 SDK) / `NSCalendarsFullAccessUsageDescription` (iOS 17+ SDK). Full access is required, and the provider requests it itself on first use — `requestFullAccessToEventsWithCompletion:` on iOS 17+, the legacy `requestAccessToEntityType:completion:` on older iOS |
 | Desktop (JVM) | An `.ics` file you choose | Yes, when `icsFilePath` is set | None |
 | Web (wasmJS) | — | No | — |
 

@@ -48,6 +48,7 @@ import platform.EventKit.EKWeekdayTuesday
 import platform.EventKit.EKWeekdayWednesday
 import platform.Foundation.NSDate
 import platform.Foundation.NSNumber
+import platform.Foundation.NSSelectorFromString
 import platform.Foundation.NSTimeIntervalSince1970
 import platform.Foundation.timeIntervalSince1970
 import kotlin.coroutines.resume
@@ -71,11 +72,10 @@ import kotlin.time.Instant
  * <string>This app needs calendar access to display and manage your events.</string>
  * ```
  *
- * This provider requests access through EventKit's legacy `requestAccessToEntityType` API. On
- * apps built with the iOS 17+ SDK that API completes without showing a prompt, so request full
- * access up front — e.g. `EKEventStore.requestFullAccessToEventsWithCompletion:` from your app —
- * before calling any provider function; once the app holds full access, every provider function
- * works as usual.
+ * This provider requests access itself on first use: on iOS 17+ it calls
+ * `requestFullAccessToEventsWithCompletion:`, and on older iOS versions it falls back to
+ * EventKit's legacy `requestAccessToEntityType:completion:` — so the system permission prompt
+ * appears on every iOS version and no manual pre-request is needed.
  */
 public fun KalendarSync(): KalendarSyncProvider = IosKalendarSync()
 
@@ -84,6 +84,7 @@ private const val END_OF_DAY_MINUTE = 59
 private const val SECONDS_PER_DAY = 86_400L
 private const val SECONDS_PER_MINUTE = 60.0
 private const val MAILTO_PREFIX = "mailto:"
+private const val FULL_ACCESS_SELECTOR = "requestFullAccessToEventsWithCompletion:"
 
 @OptIn(ExperimentalForeignApi::class)
 private class IosKalendarSync : KalendarSyncProvider {
@@ -93,18 +94,24 @@ private class IosKalendarSync : KalendarSyncProvider {
 
     /**
      * Returns `true` once the app holds full calendar access (write-only access is not enough —
-     * this provider also reads). When access is undetermined it falls back to EventKit's legacy
-     * `requestAccessToEntityType` request; on apps built with the iOS 17+ SDK that legacy call
-     * completes with `granted = false` without prompting, so such apps must obtain full access
-     * themselves (see the `KalendarSync()` factory KDoc) before using this provider.
+     * this provider also reads). When access is undetermined it requests it: through
+     * `requestFullAccessToEventsWithCompletion:` on iOS 17+, falling back to EventKit's legacy
+     * `requestAccessToEntityType:completion:` on older iOS versions, where full and legacy
+     * access are equivalent.
      */
     override suspend fun hasPermission(): Boolean {
         val status = EKEventStore.authorizationStatusForEntityType(EKEntityType.EKEntityTypeEvent)
         if (status == EKAuthorizationStatusFullAccess) return true
 
         return suspendCoroutine { cont ->
-            eventStore.requestAccessToEntityType(EKEntityType.EKEntityTypeEvent) { granted, _ ->
-                cont.resume(granted)
+            if (eventStore.respondsToSelector(NSSelectorFromString(FULL_ACCESS_SELECTOR))) {
+                eventStore.requestFullAccessToEventsWithCompletion { granted, _ ->
+                    cont.resume(granted)
+                }
+            } else {
+                eventStore.requestAccessToEntityType(EKEntityType.EKEntityTypeEvent) { granted, _ ->
+                    cont.resume(granted)
+                }
             }
         }
     }
