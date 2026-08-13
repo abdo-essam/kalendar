@@ -15,6 +15,14 @@ project adheres to [Semantic Versioning](https://semver.org/).
   replacement; call `KalendarWeek`/`KalendarMonth`/`KalendarYear`/`KalendarTimeline` directly.
 
 ### Added
+- **`KalendarSchedule`** — hourly time-grid day view paged by day: timed events as
+  duration-sized blocks with side-by-side packing for overlaps, all-day chips above the grid, a
+  minute-refreshed now-indicator on today, and an initial scroll to early morning.
+- **Drag-to-reschedule** on `KalendarMonth` — press-and-hold a date with events and drag to
+  another date; `onEventDrop` receives the events and the drop date, with a ghost highlight
+  following the pointer. Composes with drag-to-select (event-less dates still range-select).
+- **Per-event indicator dots** — day cells show one dot per event coloured by
+  `KalendarEvent.eventColor` (theme-primary fallback), capped at three with a `+N` overflow label.
 - **`KalendarWeek`, `KalendarMonth`, `KalendarYear`** — standalone composables backed by a shared
   `KalendarViewState`, navigable by both arrow-click and swipe (`HorizontalPager`) through the same
   state so the two input methods never desync.
@@ -79,6 +87,13 @@ project adheres to [Semantic Versioning](https://semver.org/).
   occurrences, and when the Desktop/Android/iOS sync providers inserted or updated an event.
 - `KalendarRule` with a multi-value `byMonthDay` (e.g. the 1st and 15th of every month, as shown in
   its own documentation) only ever produced one occurrence per month instead of both.
+- `KalendarRule.interval` was silently ignored when combined with WEEKLY `byDay` or MONTHLY
+  `byMonthDay` filters — an every-other-week rule fired every week. Interval now composes with the
+  BY-filters, and the previously documented limitation is removed.
+- The month/week grid's internal `LazyVerticalGrid` scrollable consumed vertical drags before the
+  long-press drag gestures (drag-to-select, drag-to-reschedule) could see them, cancelling the
+  gesture; internal grid scrolling is now disabled (the grid never needed it — pages are fixed
+  height).
 - Nested-lazy-layout crash on Android/iOS in `KalendarTimeline`/`KalendarYear` (a `LazyVerticalGrid`
   inside an already-scrollable parent) — replaced with the eager `KalendarStaticGrid` in both.
 - Grid cells stretched to fill the row on trailing partial weeks (fewer than 7 days).

@@ -52,7 +52,7 @@ class KalendarScheduleTest {
     }
 
     @Test
-    fun scheduleBlocks_missingEndTime_defaultsToOneHour()  {
+    fun scheduleBlocks_missingEndTime_defaultsToOneHour() {
         val block = scheduleBlocks(
             events = listOf(timed(name = "Open-ended", startHour = 14)),
             date = day,

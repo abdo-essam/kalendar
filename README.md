@@ -40,6 +40,7 @@ So unless you fancy scribbling your dates on a Howler, let Kalendar handle your 
 - **[KalendarWeek](doc/Week.md)**: single week row, arrow-click and swipe navigation together.
 - **[KalendarYear](doc/Year.md)**: 12-month year overview, arrow-click and swipe navigation together.
 - **[KalendarTimeline](doc/Timeline.md)**: continuous, boundless vertical scroll through every month — no paging.
+- **[KalendarSchedule](doc/Schedule.md)**: hourly time grid for a single day — duration-sized event blocks, overlap packing, and a now-indicator.
 
 These are called directly (`KalendarMonth(...)`, not `Kalendar(type = ...)`) and share no code with
 `kalendar-foundation` — see their docs for usage.

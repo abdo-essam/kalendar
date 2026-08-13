@@ -38,6 +38,7 @@ import com.himanshoe.kalendar.Kalendar
 import com.himanshoe.kalendar.KalendarType
 import com.himanshoe.kalendar.foundation.component.config.KalendarConfig
 import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
+import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.view.KalendarMonth
 import com.himanshoe.kalendar.view.KalendarSchedule
 import com.himanshoe.kalendar.view.KalendarSelectionMode
@@ -79,8 +80,9 @@ fun App() {
     var selectedView by remember { mutableStateOf(SampleView.Timeline) }
     var selectionMode by remember { mutableStateOf<KalendarSelectionMode>(KalendarSelectionMode.Single) }
     val selection = rememberKalendarSelectionState(mode = selectionMode, initialSelection = setOf(today))
-    val events = remember {
-        listOf(
+    var events by remember {
+        mutableStateOf(
+            listOf(
             BasicKalendarEvent(
                 date = today,
                 endDate = today.plus(2, DateTimeUnit.DAY),
@@ -108,6 +110,7 @@ fun App() {
                 endTime = LocalDateTime(today.year, today.monthNumber, today.dayOfMonth, 14, 45),
                 eventColor = Color(0xFFC2185B),
             ),
+        ),
         )
     }
 
@@ -122,6 +125,19 @@ fun App() {
         { selection.onRangeDragEnd() }
     } else {
         null
+    }
+    val onEventDrop = { dropped: List<KalendarEvent>, newDate: LocalDate ->
+        events = events.map { event ->
+            if (event in dropped) {
+                val shiftDays = (newDate.toEpochDays() - event.date.toEpochDays()).toInt()
+                event.copy(
+                    date = newDate,
+                    endDate = event.endDate?.plus(shiftDays, DateTimeUnit.DAY),
+                )
+            } else {
+                event
+            }
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -171,6 +187,7 @@ fun App() {
                 onDateClick = onDateClick,
                 onDateRangeSelect = onDateRangeSelect,
                 onDateRangeSelectEnd = onDateRangeSelectEnd,
+                onEventDrop = onEventDrop,
             )
 
             SampleView.Year -> KalendarYear(

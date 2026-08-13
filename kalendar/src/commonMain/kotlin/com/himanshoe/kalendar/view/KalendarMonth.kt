@@ -63,6 +63,11 @@ import kotlinx.datetime.LocalDate
  *   as the drag moves. Pair with [onDateRangeSelectEnd] and, for the common case, wire both to
  *   [KalendarSelectionState.onRangeDrag]/[KalendarSelectionState.onRangeDragEnd].
  * @param onDateRangeSelectEnd Called once when a drag started by [onDateRangeSelect] ends.
+ * @param onEventDrop When non-null, press-and-hold on a date that has events then drag to another
+ *   date to reschedule: a ghost highlight follows the cell under the pointer, and releasing calls
+ *   this with the pressed date's events and the drop date — update your event source with the new
+ *   date to complete the move. Dates without events fall through to [onDateRangeSelect]'s range
+ *   behaviour, so both can be enabled together.
  * @param config Shared visual/behavioural settings — disabled dates, arrow visibility, background.
  * @param dayContent Replaces the default day-cell rendering. Receives a [KalendarDayScope]
  *   describing the date being rendered.
@@ -77,12 +82,18 @@ public fun KalendarMonth(
     onDateClick: (date: LocalDate, events: List<KalendarEvent>) -> Unit = { _, _ -> },
     onDateRangeSelect: ((start: LocalDate, current: LocalDate) -> Unit)? = null,
     onDateRangeSelectEnd: (() -> Unit)? = null,
+    onEventDrop: ((events: List<KalendarEvent>, newDate: LocalDate) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
 ) {
     val today = remember { todayInSystemTimeZone() }
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     val slidingSelection = if (dayContent == null) selectedDates.singleOrNull() else null
+    val gridEventDrop: ((LocalDate, LocalDate) -> Unit)? = if (onEventDrop == null) {
+        null
+    } else {
+        { from, to -> onEventDrop(eventsByDate[from].orEmpty(), to) }
+    }
 
     Column(modifier = modifier.background(config.background)) {
         KalendarNavigationHeader(
@@ -106,6 +117,8 @@ public fun KalendarMonth(
                 dayLabelFormatter = config.dayOfWeekLabelFormatter,
                 onDateRangeDrag = onDateRangeSelect,
                 onDateRangeDragEnd = onDateRangeSelectEnd,
+                hasEvents = { date -> eventsByDate[date]?.isNotEmpty() == true },
+                onEventDrop = gridEventDrop,
             ) { date ->
                 val dateEvents = eventsByDate[date] ?: emptyList()
                 val isCurrentMonth = date.month == monthStart.month

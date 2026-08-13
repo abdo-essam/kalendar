@@ -166,6 +166,35 @@ KalendarMonth(
 cell's accessibility description; `dayOfWeekLabelFormatter` is used for the day-of-week column
 headers (defaults to the first letter, e.g. "M" for Monday).
 
+### Drag-to-reschedule events
+
+When `onEventDrop` is set, press-and-hold a date that has events, then drag: a ghost highlight
+follows the cell under the pointer, and releasing over another date calls the callback with the
+pressed date's events and the drop date. Update your event source to complete the move — the
+calendar itself never mutates events:
+
+```kotlin
+var events by remember { mutableStateOf(initialEvents) }
+
+KalendarMonth(
+    selectedDate = today,
+    events = events,
+    onEventDrop = { dropped, newDate ->
+        events = events.map { event ->
+            if (event in dropped) event.copy(date = newDate) else event
+        }
+    },
+)
+```
+
+Dates without events fall through to `onDateRangeSelect`'s drag-to-select behaviour, so both can
+be enabled at once.
+
+### Event indicator dots
+
+Each day cell shows one dot per event, coloured by `KalendarEvent.eventColor` (falling back to
+the theme primary). More than three events collapse into three dots plus a compact `+N` label.
+
 ### Reading the visible month (e.g. for a screen title)
 
 ```kotlin

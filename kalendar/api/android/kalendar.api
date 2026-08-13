@@ -66,7 +66,11 @@ public final class com/himanshoe/kalendar/view/KalendarDayScope {
 }
 
 public final class com/himanshoe/kalendar/view/KalendarMonthKt {
-	public static final fun KalendarMonth (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/view/KalendarViewState;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lcom/himanshoe/kalendar/view/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
+	public static final fun KalendarMonth (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/view/KalendarViewState;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lcom/himanshoe/kalendar/view/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+}
+
+public final class com/himanshoe/kalendar/view/KalendarScheduleKt {
+	public static final fun KalendarSchedule-au3_HiA (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/view/KalendarViewState;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lcom/himanshoe/kalendar/view/KalendarViewConfig;FLandroidx/compose/runtime/Composer;II)V
 }
 
 public abstract interface class com/himanshoe/kalendar/view/KalendarSelectionMode {
@@ -167,6 +171,7 @@ public final class com/himanshoe/kalendar/view/KalendarViewState {
 
 public final class com/himanshoe/kalendar/view/KalendarViewStateKt {
 	public static final fun rememberKalendarMonthState (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;Landroidx/compose/runtime/Composer;II)Lcom/himanshoe/kalendar/view/KalendarViewState;
+	public static final fun rememberKalendarScheduleState (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;Landroidx/compose/runtime/Composer;II)Lcom/himanshoe/kalendar/view/KalendarViewState;
 	public static final fun rememberKalendarWeekState (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;Landroidx/compose/runtime/Composer;II)Lcom/himanshoe/kalendar/view/KalendarViewState;
 	public static final fun rememberKalendarYearState (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;Landroidx/compose/runtime/Composer;II)Lcom/himanshoe/kalendar/view/KalendarViewState;
 }

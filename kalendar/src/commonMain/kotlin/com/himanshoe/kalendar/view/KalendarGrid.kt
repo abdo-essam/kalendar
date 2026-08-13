@@ -60,6 +60,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 
+private const val EVENT_GHOST_ALPHA = 0.6f
+
 /**
  * Fresh 7-column grid engine backing [KalendarWeek] and [KalendarMonth].
  *
@@ -74,6 +76,12 @@ import kotlinx.datetime.LocalDate
  * called continuously with (the date under the initial press, the date under the pointer now) as
  * the drag moves, and [onDateRangeDragEnd] once when the drag ends. A long-press is required to
  * start (not a plain drag) so this never conflicts with each cell's own tap-to-select `clickable`.
+ *
+ * When [onEventDrop] is non-null and the long-pressed cell has events ([hasEvents] returns
+ * `true` for it), the same gesture becomes an event move instead of a range selection: a ghost
+ * highlight follows the cell under the pointer, and releasing over a different date calls
+ * [onEventDrop] with (pressed date, drop date). Cells without events still fall through to
+ * range selection.
  */
 @Composable
 internal fun KalendarGrid(
@@ -84,6 +92,8 @@ internal fun KalendarGrid(
     dayLabelFormatter: (DayOfWeek) -> String = defaultDayOfWeekLabelFormatter,
     onDateRangeDrag: ((start: LocalDate, current: LocalDate) -> Unit)? = null,
     onDateRangeDragEnd: (() -> Unit)? = null,
+    hasEvents: (LocalDate) -> Boolean = { false },
+    onEventDrop: ((from: LocalDate, to: LocalDate) -> Unit)? = null,
     cell: @Composable (LocalDate) -> Unit,
 ) {
     val labelDays = remember(startDayOfWeek) { daysOfWeekStartingAt(startDayOfWeek) }
@@ -115,26 +125,52 @@ internal fun KalendarGrid(
         }
     }
 
-    val dragModifier = if (onDateRangeDrag != null) {
+    var eventDragTarget by remember { mutableStateOf<LocalDate?>(null) }
+
+    val dragModifier = if (onDateRangeDrag != null || onEventDrop != null) {
         Modifier.pointerInput(dates) {
             var dragStartDate: LocalDate? = null
+            var movingEvents = false
             detectDragGesturesAfterLongPress(
                 onDragStart = { offset ->
-                    dragStartDate = dateAtOffset(offset, containerCoordinates, cellCoordinates)
+                    val start = dateAtOffset(offset, containerCoordinates, cellCoordinates)
+                    dragStartDate = start
+                    movingEvents = onEventDrop != null && start != null && hasEvents(start)
+                    if (movingEvents) {
+                        eventDragTarget = start
+                    }
                 },
                 onDragEnd = {
+                    val start = dragStartDate
+                    val target = eventDragTarget
+                    if (movingEvents) {
+                        if (start != null && target != null && target != start) {
+                            onEventDrop?.invoke(start, target)
+                        }
+                    } else {
+                        onDateRangeDragEnd?.invoke()
+                    }
                     dragStartDate = null
-                    onDateRangeDragEnd?.invoke()
+                    movingEvents = false
+                    eventDragTarget = null
                 },
                 onDragCancel = {
+                    if (!movingEvents) {
+                        onDateRangeDragEnd?.invoke()
+                    }
                     dragStartDate = null
-                    onDateRangeDragEnd?.invoke()
+                    movingEvents = false
+                    eventDragTarget = null
                 },
                 onDrag = { change, _ ->
                     val start = dragStartDate ?: return@detectDragGesturesAfterLongPress
                     val current = dateAtOffset(change.position, containerCoordinates, cellCoordinates)
                         ?: return@detectDragGesturesAfterLongPress
-                    onDateRangeDrag(start, current)
+                    if (movingEvents) {
+                        eventDragTarget = current
+                    } else if (onDateRangeDrag != null) {
+                        onDateRangeDrag(start, current)
+                    }
                 },
             )
         }
@@ -157,10 +193,29 @@ internal fun KalendarGrid(
             )
         }
 
+        val ghostCoordinates = eventDragTarget?.let { cellCoordinates[it] }
+        if (container != null && ghostCoordinates != null && ghostCoordinates.isAttached) {
+            val ghostPosition = container.localPositionOf(ghostCoordinates, Offset.Zero)
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(ghostPosition.x.toInt(), ghostPosition.y.toInt()) }
+                    .layout { measurable, _ ->
+                        val placeable = measurable.measure(
+                            Constraints.fixed(ghostCoordinates.size.width, ghostCoordinates.size.height)
+                        )
+                        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+                    }
+                    .padding(2.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = EVENT_GHOST_ALPHA)),
+            )
+        }
+
         LazyVerticalGrid(
             columns = GridCells.Fixed(7),
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,
+            userScrollEnabled = false,
         ) {
             items(labelDays) { day ->
                 Text(

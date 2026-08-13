@@ -85,6 +85,12 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
+        named("desktopTest") {
+            dependencies {
+                implementation(compose.desktop.uiTestJUnit4)
+                implementation(compose.desktop.currentOs)
+            }
+        }
     }
 }
 
