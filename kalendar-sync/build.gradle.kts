@@ -22,6 +22,7 @@ plugins {
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.publish)
     alias(libs.plugins.dokka)
+    alias(libs.plugins.binary.compatibility.validator)
 }
 
 mavenPublishing {
@@ -30,6 +31,8 @@ mavenPublishing {
 }
 
 kotlin {
+    explicitApi()
+
     androidTarget {
         compilations.all {
             compileTaskProvider.configure {

@@ -23,4 +23,7 @@ jobs:
           java-version: 17
 
       - name: Run Detekt
-        run: ./gradlew detekt
+        run: ./gradlew :kalendar-foundation:detekt :kalendar:detekt :kalendar-sync:detekt
+
+      - name: Check binary compatibility
+        run: ./gradlew :kalendar-foundation:apiCheck :kalendar:apiCheck :kalendar-sync:apiCheck

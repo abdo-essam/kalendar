@@ -1,0 +1,177 @@
+public final class com/himanshoe/kalendar/sync/BasicKalendarSyncEvent : com/himanshoe/kalendar/sync/KalendarSyncEvent {
+	public fun <init> (Ljava/lang/String;Lkotlinx/datetime/LocalDate;Ljava/lang/String;Ljava/lang/String;Lkotlinx/datetime/LocalTime;Lkotlinx/datetime/LocalTime;Lcom/himanshoe/kalendar/sync/KalendarRule;Lkotlinx/datetime/LocalDate;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Lkotlinx/datetime/LocalDate;Ljava/lang/String;Ljava/lang/String;Lkotlinx/datetime/LocalTime;Lkotlinx/datetime/LocalTime;Lcom/himanshoe/kalendar/sync/KalendarRule;Lkotlinx/datetime/LocalDate;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lkotlinx/datetime/LocalDate;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Lkotlinx/datetime/LocalTime;
+	public final fun component6 ()Lkotlinx/datetime/LocalTime;
+	public final fun component7 ()Lcom/himanshoe/kalendar/sync/KalendarRule;
+	public final fun component8 ()Lkotlinx/datetime/LocalDate;
+	public final fun component9 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;Lkotlinx/datetime/LocalDate;Ljava/lang/String;Ljava/lang/String;Lkotlinx/datetime/LocalTime;Lkotlinx/datetime/LocalTime;Lcom/himanshoe/kalendar/sync/KalendarRule;Lkotlinx/datetime/LocalDate;Ljava/util/List;)Lcom/himanshoe/kalendar/sync/BasicKalendarSyncEvent;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/sync/BasicKalendarSyncEvent;Ljava/lang/String;Lkotlinx/datetime/LocalDate;Ljava/lang/String;Ljava/lang/String;Lkotlinx/datetime/LocalTime;Lkotlinx/datetime/LocalTime;Lcom/himanshoe/kalendar/sync/KalendarRule;Lkotlinx/datetime/LocalDate;Ljava/util/List;ILjava/lang/Object;)Lcom/himanshoe/kalendar/sync/BasicKalendarSyncEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getDate ()Lkotlinx/datetime/LocalDate;
+	public fun getEndDate ()Lkotlinx/datetime/LocalDate;
+	public fun getEndTime ()Lkotlinx/datetime/LocalTime;
+	public fun getEventDescription ()Ljava/lang/String;
+	public fun getEventName ()Ljava/lang/String;
+	public fun getExceptionDates ()Ljava/util/List;
+	public fun getId ()Ljava/lang/String;
+	public fun getRecurrenceRule ()Lcom/himanshoe/kalendar/sync/KalendarRule;
+	public fun getStartTime ()Lkotlinx/datetime/LocalTime;
+	public fun hashCode ()I
+	public fun isAllDay ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarIcsKt {
+	public static final fun exportToIcs (Ljava/util/List;)Ljava/lang/String;
+	public static final fun importFromIcs (Ljava/lang/String;)Ljava/util/List;
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarPermissionDeniedException : java/lang/RuntimeException {
+	public fun <init> (Ljava/lang/String;)V
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarRecurrenceExpanderKt {
+	public static final fun expandOccurrences (Lcom/himanshoe/kalendar/sync/KalendarSyncEvent;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;)Ljava/util/List;
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarRecurrenceFrequency : java/lang/Enum {
+	public static final field DAILY Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;
+	public static final field MONTHLY Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;
+	public static final field WEEKLY Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;
+	public static final field YEARLY Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;
+	public static fun values ()[Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarRule {
+	public fun <init> (Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;ILjava/lang/Integer;Lkotlinx/datetime/LocalDate;Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
+	public synthetic fun <init> (Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;ILjava/lang/Integer;Lkotlinx/datetime/LocalDate;Ljava/util/List;Ljava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;
+	public final fun component2 ()I
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun component4 ()Lkotlinx/datetime/LocalDate;
+	public final fun component5 ()Ljava/util/List;
+	public final fun component6 ()Ljava/util/List;
+	public final fun component7 ()Ljava/util/List;
+	public final fun copy (Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;ILjava/lang/Integer;Lkotlinx/datetime/LocalDate;Ljava/util/List;Ljava/util/List;Ljava/util/List;)Lcom/himanshoe/kalendar/sync/KalendarRule;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/sync/KalendarRule;Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;ILjava/lang/Integer;Lkotlinx/datetime/LocalDate;Ljava/util/List;Ljava/util/List;Ljava/util/List;ILjava/lang/Object;)Lcom/himanshoe/kalendar/sync/KalendarRule;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getByDay ()Ljava/util/List;
+	public final fun getByMonth ()Ljava/util/List;
+	public final fun getByMonthDay ()Ljava/util/List;
+	public final fun getCount ()Ljava/lang/Integer;
+	public final fun getFrequency ()Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;
+	public final fun getInterval ()I
+	public final fun getUntil ()Lkotlinx/datetime/LocalDate;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/himanshoe/kalendar/sync/KalendarSyncEvent {
+	public abstract fun getDate ()Lkotlinx/datetime/LocalDate;
+	public fun getEndDate ()Lkotlinx/datetime/LocalDate;
+	public abstract fun getEndTime ()Lkotlinx/datetime/LocalTime;
+	public abstract fun getEventDescription ()Ljava/lang/String;
+	public abstract fun getEventName ()Ljava/lang/String;
+	public fun getExceptionDates ()Ljava/util/List;
+	public abstract fun getId ()Ljava/lang/String;
+	public fun getRecurrenceRule ()Lcom/himanshoe/kalendar/sync/KalendarRule;
+	public abstract fun getStartTime ()Lkotlinx/datetime/LocalTime;
+	public fun isAllDay ()Z
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarSyncEvent$DefaultImpls {
+	public static fun getEndDate (Lcom/himanshoe/kalendar/sync/KalendarSyncEvent;)Lkotlinx/datetime/LocalDate;
+	public static fun getExceptionDates (Lcom/himanshoe/kalendar/sync/KalendarSyncEvent;)Ljava/util/List;
+	public static fun getRecurrenceRule (Lcom/himanshoe/kalendar/sync/KalendarSyncEvent;)Lcom/himanshoe/kalendar/sync/KalendarRule;
+	public static fun isAllDay (Lcom/himanshoe/kalendar/sync/KalendarSyncEvent;)Z
+}
+
+public abstract interface class com/himanshoe/kalendar/sync/KalendarSyncProvider {
+	public abstract fun deleteEvent (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun fetchEvents (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/TimeZone;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun fetchEvents$default (Lcom/himanshoe/kalendar/sync/KalendarSyncProvider;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/TimeZone;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun hasPermission (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun insertEvent (Lcom/himanshoe/kalendar/sync/KalendarSyncEvent;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun updateEvent (Ljava/lang/String;Lcom/himanshoe/kalendar/sync/KalendarSyncEvent;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarSyncProvider$DefaultImpls {
+	public static synthetic fun fetchEvents$default (Lcom/himanshoe/kalendar/sync/KalendarSyncProvider;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/TimeZone;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public abstract class com/himanshoe/kalendar/sync/KalendarSyncResult {
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarSyncResult$Error : com/himanshoe/kalendar/sync/KalendarSyncResult {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Throwable;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Throwable;)Lcom/himanshoe/kalendar/sync/KalendarSyncResult$Error;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/sync/KalendarSyncResult$Error;Ljava/lang/String;Ljava/lang/Throwable;ILjava/lang/Object;)Lcom/himanshoe/kalendar/sync/KalendarSyncResult$Error;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCause ()Ljava/lang/Throwable;
+	public final fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarSyncResult$NotSupported : com/himanshoe/kalendar/sync/KalendarSyncResult {
+	public static final field INSTANCE Lcom/himanshoe/kalendar/sync/KalendarSyncResult$NotSupported;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarSyncResult$PermissionDenied : com/himanshoe/kalendar/sync/KalendarSyncResult {
+	public static final field INSTANCE Lcom/himanshoe/kalendar/sync/KalendarSyncResult$PermissionDenied;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarSyncResult$Success : com/himanshoe/kalendar/sync/KalendarSyncResult {
+	public fun <init> (Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/Object;)Lcom/himanshoe/kalendar/sync/KalendarSyncResult$Success;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/sync/KalendarSyncResult$Success;Ljava/lang/Object;ILjava/lang/Object;)Lcom/himanshoe/kalendar/sync/KalendarSyncResult$Success;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getData ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarSyncResultExtensionsKt {
+	public static final fun getOrNull (Lcom/himanshoe/kalendar/sync/KalendarSyncResult;)Ljava/lang/Object;
+	public static final fun getOrThrow (Lcom/himanshoe/kalendar/sync/KalendarSyncResult;)Ljava/lang/Object;
+	public static final fun onError (Lcom/himanshoe/kalendar/sync/KalendarSyncResult;Lkotlin/jvm/functions/Function2;)Lcom/himanshoe/kalendar/sync/KalendarSyncResult;
+	public static final fun onNotSupported (Lcom/himanshoe/kalendar/sync/KalendarSyncResult;Lkotlin/jvm/functions/Function0;)Lcom/himanshoe/kalendar/sync/KalendarSyncResult;
+	public static final fun onPermissionDenied (Lcom/himanshoe/kalendar/sync/KalendarSyncResult;Lkotlin/jvm/functions/Function0;)Lcom/himanshoe/kalendar/sync/KalendarSyncResult;
+	public static final fun onSuccess (Lcom/himanshoe/kalendar/sync/KalendarSyncResult;Lkotlin/jvm/functions/Function1;)Lcom/himanshoe/kalendar/sync/KalendarSyncResult;
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarSync_androidKt {
+	public static final fun KalendarSync (Landroid/content/Context;)Lcom/himanshoe/kalendar/sync/KalendarSyncProvider;
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarWeekDay : java/lang/Enum {
+	public static final field FRIDAY Lcom/himanshoe/kalendar/sync/KalendarWeekDay;
+	public static final field MONDAY Lcom/himanshoe/kalendar/sync/KalendarWeekDay;
+	public static final field SATURDAY Lcom/himanshoe/kalendar/sync/KalendarWeekDay;
+	public static final field SUNDAY Lcom/himanshoe/kalendar/sync/KalendarWeekDay;
+	public static final field THURSDAY Lcom/himanshoe/kalendar/sync/KalendarWeekDay;
+	public static final field TUESDAY Lcom/himanshoe/kalendar/sync/KalendarWeekDay;
+	public static final field WEDNESDAY Lcom/himanshoe/kalendar/sync/KalendarWeekDay;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/himanshoe/kalendar/sync/KalendarWeekDay;
+	public static fun values ()[Lcom/himanshoe/kalendar/sync/KalendarWeekDay;
+}
+

@@ -39,8 +39,8 @@ naming:
     constantPattern: '[A-Z][_A-Za-z0-9]*'
   FunctionNaming:
     active: true
-    functionPattern: '^[a-z][A-Za-z0-9]*$'
-    ignoreAnnotated: [ "Composable" ]
+    functionPattern: '^([a-z][A-Za-z0-9]*|[A-Z][A-Za-z][A-Za-z0-9]*)$'
+    ignoreAnnotated: [ "Composable", "Test" ]
   ClassNaming:
     active: true
     classPattern: '[A-Z][A-Za-z0-9]*'
@@ -73,7 +73,7 @@ style:
     ignoreConstantDeclaration: true
     ignoreCompanionObjectPropertyDeclaration: true
     ignoreNamedArgument: true
-    ignoreAnnotated: [ "Composable" ]
+    ignoreAnnotated: [ "Composable", "Test", "BeforeTest", "AfterTest" ]
   DestructuringDeclarationWithTooManyEntries:
     active: true
     maxDestructuringEntries: 3
