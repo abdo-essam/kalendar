@@ -27,7 +27,7 @@ package com.himanshoe.kalendar.sync
  * val icsText = exportToIcs(events)
  * ```
  */
-fun exportToIcs(events: List<KalendarSyncEvent>): String = KalendarICalCodec.encode(events)
+public fun exportToIcs(events: List<KalendarSyncEvent>): String = KalendarICalCodec.encode(events)
 
 /**
  * Parses an iCalendar (.ics) string and returns the events it contains.
@@ -39,4 +39,4 @@ fun exportToIcs(events: List<KalendarSyncEvent>): String = KalendarICalCodec.enc
  * val events = importFromIcs(icsText)
  * ```
  */
-fun importFromIcs(icsContent: String): List<KalendarSyncEvent> = KalendarICalCodec.decode(icsContent)
+public fun importFromIcs(icsContent: String): List<KalendarSyncEvent> = KalendarICalCodec.decode(icsContent)

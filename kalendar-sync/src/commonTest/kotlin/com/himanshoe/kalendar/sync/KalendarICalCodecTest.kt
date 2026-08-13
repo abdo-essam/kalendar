@@ -1,0 +1,214 @@
+/*
+ *
+ *  * Copyright 2026 Kalendar Contributors (https://www.himanshoe.com). All rights reserved.
+ *  * Licensed under the Apache License, Version 2.0 (the "License");
+ *  * you may not use this file except in compliance with the License.
+ *  * You may obtain a copy of the License at
+ *  * http://www.apache.org/licenses/LICENSE-2.0
+ *  * Unless required by applicable law or agreed to in writing, software
+ *  * distributed under the License is distributed on an "AS IS" BASIS,
+ *  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  * See the License for the specific language governing permissions and
+ *  * limitations under the License.
+ *  *
+ *
+ */
+
+package com.himanshoe.kalendar.sync
+
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+class KalendarICalCodecTest {
+
+    @Test
+    fun encode_timedEvent_containsDtStartAndDtEnd() {
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 8, 12),
+            eventName = "Standup",
+            startTime = LocalTime(9, 0),
+            endTime = LocalTime(9, 30),
+        )
+        val ics = KalendarICalCodec.encode(listOf(event))
+        assertTrue(ics.contains("DTSTART:20260812T090000Z"))
+        assertTrue(ics.contains("DTEND:20260812T093000Z"))
+        assertTrue(ics.contains("SUMMARY:Standup"))
+    }
+
+    @Test
+    fun encode_singleDayAllDayEvent_dtEndIsNextDay() {
+        val event = BasicKalendarSyncEvent(date = LocalDate(2026, 8, 12), eventName = "Holiday")
+        val ics = KalendarICalCodec.encode(listOf(event))
+        assertTrue(ics.contains("DTSTART;VALUE=DATE:20260812"))
+        assertTrue(ics.contains("DTEND;VALUE=DATE:20260813"))
+    }
+
+    @Test
+    fun encode_multiDayAllDayEvent_dtEndIsDayAfterEndDate() {
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 8, 12),
+            eventName = "Conference",
+            endDate = LocalDate(2026, 8, 14),
+        )
+        val ics = KalendarICalCodec.encode(listOf(event))
+        assertTrue(ics.contains("DTSTART;VALUE=DATE:20260812"))
+        assertTrue(ics.contains("DTEND;VALUE=DATE:20260815"))
+    }
+
+    @Test
+    fun decode_singleDayAllDayEvent_endDateIsNull() {
+        val ics = KalendarICalCodec.encode(
+            listOf(BasicKalendarSyncEvent(date = LocalDate(2026, 8, 12), eventName = "Holiday")),
+        )
+        val decoded = KalendarICalCodec.decode(ics).single()
+        assertEquals(LocalDate(2026, 8, 12), decoded.date)
+        assertNull(decoded.endDate)
+    }
+
+    @Test
+    fun decode_multiDayAllDayEvent_endDateIsInclusiveLastDay() {
+        val ics = KalendarICalCodec.encode(
+            listOf(
+                BasicKalendarSyncEvent(
+                    date = LocalDate(2026, 8, 12),
+                    eventName = "Conference",
+                    endDate = LocalDate(2026, 8, 14),
+                ),
+            ),
+        )
+        val decoded = KalendarICalCodec.decode(ics).single()
+        assertEquals(LocalDate(2026, 8, 12), decoded.date)
+        assertEquals(LocalDate(2026, 8, 14), decoded.endDate)
+    }
+
+    @Test
+    fun decode_timedEvent_endDateIsNull() {
+        val ics = KalendarICalCodec.encode(
+            listOf(
+                BasicKalendarSyncEvent(
+                    date = LocalDate(2026, 8, 12),
+                    eventName = "Standup",
+                    startTime = LocalTime(9, 0),
+                    endTime = LocalTime(9, 30),
+                ),
+            ),
+        )
+        val decoded = KalendarICalCodec.decode(ics).single()
+        assertNull(decoded.endDate)
+        assertEquals(LocalTime(9, 0), decoded.startTime)
+        assertEquals(LocalTime(9, 30), decoded.endTime)
+    }
+
+    @Test
+    fun roundTrip_preservesNameDescriptionAndDates() {
+        val original = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 3, 1),
+            eventName = "Team Offsite",
+            eventDescription = "Quarterly planning session",
+            endDate = LocalDate(2026, 3, 3),
+        )
+        val decoded = KalendarICalCodec.decode(KalendarICalCodec.encode(listOf(original))).single()
+        assertEquals(original.date, decoded.date)
+        assertEquals(original.eventName, decoded.eventName)
+        assertEquals(original.eventDescription, decoded.eventDescription)
+        assertEquals(original.endDate, decoded.endDate)
+    }
+
+    @Test
+    fun roundTrip_escapesAndUnescapesSpecialCharacters() {
+        val original = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 8, 12),
+            eventName = "Comma, semicolon; backslash\\",
+            eventDescription = "Line one\nLine two",
+        )
+        val decoded = KalendarICalCodec.decode(KalendarICalCodec.encode(listOf(original))).single()
+        assertEquals(original.eventName, decoded.eventName)
+        assertEquals(original.eventDescription, decoded.eventDescription)
+    }
+
+    @Test
+    fun roundTrip_preservesRecurrenceRule() {
+        val rule = KalendarRule(
+            frequency = KalendarRecurrenceFrequency.WEEKLY,
+            interval = 2,
+            byDay = listOf(KalendarWeekDay.MONDAY, KalendarWeekDay.WEDNESDAY),
+        )
+        val original = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 5),
+            eventName = "Sync",
+            recurrenceRule = rule,
+        )
+        val decoded = KalendarICalCodec.decode(KalendarICalCodec.encode(listOf(original))).single()
+        assertEquals(rule, decoded.recurrenceRule)
+    }
+
+    @Test
+    fun encode_recurringEventWithExceptions_includesExdateLine() {
+        val original = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 5),
+            eventName = "Standup",
+            recurrenceRule = KalendarRule(frequency = KalendarRecurrenceFrequency.DAILY),
+            exceptionDates = listOf(LocalDate(2026, 1, 7), LocalDate(2026, 1, 9)),
+        )
+        val ics = KalendarICalCodec.encode(listOf(original))
+        assertTrue(ics.contains("EXDATE;VALUE=DATE:20260107,20260109"))
+    }
+
+    @Test
+    fun roundTrip_preservesExceptionDates() {
+        val original = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 5),
+            eventName = "Standup",
+            recurrenceRule = KalendarRule(frequency = KalendarRecurrenceFrequency.DAILY),
+            exceptionDates = listOf(LocalDate(2026, 1, 7), LocalDate(2026, 1, 9)),
+        )
+        val decoded = KalendarICalCodec.decode(KalendarICalCodec.encode(listOf(original))).single()
+        assertEquals(listOf(LocalDate(2026, 1, 7), LocalDate(2026, 1, 9)), decoded.exceptionDates)
+    }
+
+    @Test
+    fun roundTrip_noExceptionDates_decodesEmptyList() {
+        val original = BasicKalendarSyncEvent(date = LocalDate(2026, 1, 5), eventName = "One-off")
+        val decoded = KalendarICalCodec.decode(KalendarICalCodec.encode(listOf(original))).single()
+        assertTrue(decoded.exceptionDates.isEmpty())
+    }
+
+    @Test
+    fun encode_multipleEvents_decodesSameCount() {
+        val events = listOf(
+            BasicKalendarSyncEvent(date = LocalDate(2026, 1, 1), eventName = "One"),
+            BasicKalendarSyncEvent(date = LocalDate(2026, 1, 2), eventName = "Two"),
+            BasicKalendarSyncEvent(date = LocalDate(2026, 1, 3), eventName = "Three"),
+        )
+        val decoded = KalendarICalCodec.decode(KalendarICalCodec.encode(events))
+        assertEquals(3, decoded.size)
+    }
+
+    @Test
+    fun decode_emptyCalendar_returnsEmptyList() {
+        val ics = KalendarICalCodec.encode(emptyList())
+        assertTrue(KalendarICalCodec.decode(ics).isEmpty())
+    }
+
+    @Test
+    fun decode_malformedContent_ignoresGarbageLines() {
+        val ics = """
+            BEGIN:VCALENDAR
+            NOT_A_VALID_LINE_WITHOUT_COLON
+            BEGIN:VEVENT
+            UID:abc123
+            SUMMARY:Valid Event
+            DTSTART;VALUE=DATE:20260812
+            DTEND;VALUE=DATE:20260813
+            END:VEVENT
+            END:VCALENDAR
+        """.trimIndent()
+        val decoded = KalendarICalCodec.decode(ics)
+        assertEquals(1, decoded.size)
+        assertEquals("Valid Event", decoded.single().eventName)
+    }
+}

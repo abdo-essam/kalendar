@@ -16,14 +16,25 @@
 
 package com.himanshoe.kalendar.sync
 
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalTime
+import kotlinx.datetime.minus
+import kotlinx.datetime.plus
 
 /**
  * Pure Kotlin iCalendar (RFC 5545) encoder and decoder.
  * No platform APIs — works on Android, iOS, Desktop, and wasmJS.
  */
+private const val END_OF_DAY_HOUR = 23
+private const val END_OF_DAY_MINUTE = 59
+private const val ICS_DATE_LENGTH = 8
+private const val YEAR_END_IDX = 4
+private const val MONTH_END_IDX = 6
+private const val YEAR_DIGIT_WIDTH = 4
+private const val TWO_DIGIT_WIDTH = 2
+
 internal object KalendarICalCodec {
 
     /**
@@ -49,14 +60,18 @@ internal object KalendarICalCodec {
 
         if (event.isAllDay) {
             appendLine("DTSTART;VALUE=DATE:${event.date.toIcalDate()}")
-            appendLine("DTEND;VALUE=DATE:${event.date.plusDays(1).toIcalDate()}")
+            val endExclusive = (event.endDate ?: event.date).plusDays(1)
+            appendLine("DTEND;VALUE=DATE:${endExclusive.toIcalDate()}")
         } else {
             val startTime = event.startTime ?: LocalTime(0, 0)
-            val endTime = event.endTime ?: LocalTime(23, 59)
+            val endTime = event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE)
             appendLine("DTSTART:${LocalDateTime(event.date, startTime).toIcalDateTime()}")
             appendLine("DTEND:${LocalDateTime(event.date, endTime).toIcalDateTime()}")
         }
         event.recurrenceRule?.let { appendLine("RRULE:${it.toIcal()}") }
+        if (event.exceptionDates.isNotEmpty()) {
+            appendLine("EXDATE;VALUE=DATE:${event.exceptionDates.joinToString(",") { it.toIcalDate() }}")
+        }
         appendLine("END:VEVENT")
     }
 
@@ -67,58 +82,72 @@ internal object KalendarICalCodec {
     fun decode(icsContent: String): List<KalendarSyncEvent> {
         val events = mutableListOf<KalendarSyncEvent>()
         val lines = unfoldLines(icsContent)
-
         var inEvent = false
-        var uid: String? = null
-        var summary: String? = null
-        var description: String? = null
-        var dtStart: String? = null
-        var dtEnd: String? = null
-        var isAllDay = false
-        var rruleRaw: String? = null
-
+        var props = VEventProps()
         for (line in lines) {
             when {
                 line == "BEGIN:VEVENT" -> {
                     inEvent = true
-                    uid = null; summary = null; description = null
-                    dtStart = null; dtEnd = null; isAllDay = false; rruleRaw = null
+                    props = VEventProps()
                 }
                 line == "END:VEVENT" && inEvent -> {
                     inEvent = false
-                    val startRaw = dtStart ?: continue
-                    val date = parseIcalDate(startRaw) ?: continue
-                    val (startTime, endTime) = if (isAllDay) {
-                        null to null
-                    } else {
-                        parseIcalTime(startRaw) to dtEnd?.let { parseIcalTime(it) }
-                    }
-                    events += BasicKalendarSyncEvent(
-                        id = uid,
-                        date = date,
-                        eventName = icalUnescape(summary ?: ""),
-                        eventDescription = description?.let { icalUnescape(it) },
-                        startTime = startTime,
-                        endTime = endTime,
-                        recurrenceRule = rruleRaw?.let { parseRRule(it) },
-                    )
+                    buildEventOrNull(props)?.let { events += it }
                 }
                 inEvent -> parseLine(line)?.let { (key, params, value) ->
-                    when (key) {
-                        "UID" -> uid = value
-                        "SUMMARY" -> summary = value
-                        "DESCRIPTION" -> description = value
-                        "DTSTART" -> {
-                            dtStart = value
-                            isAllDay = params.contains("VALUE=DATE")
-                        }
-                        "DTEND" -> dtEnd = value
-                        "RRULE" -> rruleRaw = value
-                    }
+                    props = props.updated(key, params, value)
                 }
             }
         }
         return events
+    }
+
+    private data class VEventProps(
+        val uid: String? = null,
+        val summary: String? = null,
+        val description: String? = null,
+        val dtStart: String? = null,
+        val dtEnd: String? = null,
+        val isAllDay: Boolean = false,
+        val rruleRaw: String? = null,
+        val exDatesRaw: List<String> = emptyList(),
+    ) {
+        fun updated(key: String, params: Set<String>, value: String): VEventProps = when (key) {
+            "UID" -> copy(uid = value)
+            "SUMMARY" -> copy(summary = value)
+            "DESCRIPTION" -> copy(description = value)
+            "DTSTART" -> copy(dtStart = value, isAllDay = params.contains("VALUE=DATE"))
+            "DTEND" -> copy(dtEnd = value)
+            "RRULE" -> copy(rruleRaw = value)
+            "EXDATE" -> copy(exDatesRaw = exDatesRaw + value)
+            else -> this
+        }
+    }
+
+    private fun buildEventOrNull(props: VEventProps): KalendarSyncEvent? {
+        val startRaw = props.dtStart ?: return null
+        val date = parseIcalDate(startRaw) ?: return null
+        val (startTime, endTime, endDate) = if (props.isAllDay) {
+            val endExclusive = props.dtEnd?.let { parseIcalDate(it) }
+            val inclusiveEnd = endExclusive?.minusDays(1)?.takeIf { it > date }
+            Triple(null, null, inclusiveEnd)
+        } else {
+            Triple(parseIcalTime(startRaw), props.dtEnd?.let { parseIcalTime(it) }, null)
+        }
+        val exceptionDates = props.exDatesRaw.flatMap { raw ->
+            raw.split(",").mapNotNull { parseIcalDate(it) }
+        }
+        return BasicKalendarSyncEvent(
+            id = props.uid,
+            date = date,
+            eventName = icalUnescape(props.summary ?: ""),
+            eventDescription = props.description?.let { icalUnescape(it) },
+            startTime = startTime,
+            endTime = endTime,
+            recurrenceRule = props.rruleRaw?.let { parseRRule(it) },
+            endDate = endDate,
+            exceptionDates = exceptionDates,
+        )
     }
 
     /**
@@ -149,51 +178,38 @@ internal object KalendarICalCodec {
     }
 
     private fun LocalDate.toIcalDate(): String =
-        "%04d%02d%02d".format(year, monthNumber, dayOfMonth)
+        "${year.zeroPadded(YEAR_DIGIT_WIDTH)}${monthNumber.zeroPadded(TWO_DIGIT_WIDTH)}" +
+            dayOfMonth.zeroPadded(TWO_DIGIT_WIDTH)
 
     private fun LocalDateTime.toIcalDateTime(): String =
-        "%04d%02d%02dT%02d%02d%02dZ".format(
-            date.year, date.monthNumber, date.dayOfMonth,
-            hour, minute, second
-        )
+        "${date.toIcalDate()}T${hour.zeroPadded(TWO_DIGIT_WIDTH)}" +
+            "${minute.zeroPadded(TWO_DIGIT_WIDTH)}${second.zeroPadded(TWO_DIGIT_WIDTH)}Z"
+
+    private fun Int.zeroPadded(width: Int): String = toString().padStart(width, '0')
 
     private fun parseIcalDate(value: String): LocalDate? = runCatching {
         val v = value.substringBefore('T').filter { it.isDigit() }
-        if (v.length < 8) return null
-        LocalDate(v.substring(0, 4).toInt(), v.substring(4, 6).toInt(), v.substring(6, 8).toInt())
+        if (v.length < ICS_DATE_LENGTH) return null
+        LocalDate(
+            v.substring(0, YEAR_END_IDX).toInt(),
+            v.substring(YEAR_END_IDX, MONTH_END_IDX).toInt(),
+            v.substring(MONTH_END_IDX, ICS_DATE_LENGTH).toInt(),
+        )
     }.getOrNull()
 
     private fun parseIcalTime(value: String): LocalTime? = runCatching {
         val timePart = value.substringAfter('T', "").trimEnd('Z')
-        if (timePart.length < 6) return null
-        LocalTime(timePart.substring(0, 2).toInt(), timePart.substring(2, 4).toInt(), timePart.substring(4, 6).toInt())
+        if (timePart.length < MONTH_END_IDX) return null
+        LocalTime(
+            timePart.substring(0, 2).toInt(),
+            timePart.substring(2, YEAR_END_IDX).toInt(),
+            timePart.substring(YEAR_END_IDX, MONTH_END_IDX).toInt(),
+        )
     }.getOrNull()
 
-    private fun LocalDate.plusDays(days: Int): LocalDate {
-        var result = this
-        repeat(days) { result = result.nextDay() }
-        return result
-    }
+    private fun LocalDate.plusDays(days: Int): LocalDate = this.plus(days, DateTimeUnit.DAY)
 
-    private fun LocalDate.nextDay(): LocalDate {
-        val maxDay = daysInMonth(year, monthNumber)
-        return if (dayOfMonth < maxDay) {
-            LocalDate(year, monthNumber, dayOfMonth + 1)
-        } else if (monthNumber < 12) {
-            LocalDate(year, monthNumber + 1, 1)
-        } else {
-            LocalDate(year + 1, 1, 1)
-        }
-    }
-
-    private fun daysInMonth(year: Int, month: Int): Int {
-        val days = intArrayOf(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
-        if (month == 2 && isLeapYear(year)) return 29
-        return days[month - 1]
-    }
-
-    private fun isLeapYear(year: Int) =
-        (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+    private fun LocalDate.minusDays(days: Int): LocalDate = this.minus(days, DateTimeUnit.DAY)
 
     private fun icalEscape(text: String): String =
         text.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")

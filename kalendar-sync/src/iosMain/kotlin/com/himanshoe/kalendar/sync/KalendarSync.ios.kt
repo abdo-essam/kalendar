@@ -17,17 +17,21 @@
 package com.himanshoe.kalendar.sync
 
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.minus
+import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
-import platform.EventKit.EKAuthorizationStatus
+import platform.EventKit.EKAuthorizationStatusFullAccess
 import platform.EventKit.EKEntityType
 import platform.EventKit.EKEvent
 import platform.EventKit.EKEventStore
 import platform.EventKit.EKSpan
 import platform.Foundation.NSDate
+import platform.Foundation.NSTimeIntervalSince1970
 import platform.Foundation.timeIntervalSince1970
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -42,7 +46,7 @@ import kotlin.time.Instant
  * <string>This app needs calendar access to display and manage your events.</string>
  * ```
  */
-fun KalendarSync(): KalendarSyncProvider = IosKalendarSync()
+public fun KalendarSync(): KalendarSyncProvider = IosKalendarSync()
 
 private const val END_OF_DAY_HOUR = 23
 private const val END_OF_DAY_MINUTE = 59
@@ -56,7 +60,7 @@ private class IosKalendarSync : KalendarSyncProvider {
 
     override suspend fun hasPermission(): Boolean {
         val status = EKEventStore.authorizationStatusForEntityType(EKEntityType.EKEntityTypeEvent)
-        if (status == EKAuthorizationStatus.EKAuthorizationStatusAuthorized) return true
+        if (status == EKAuthorizationStatusFullAccess) return true
 
         return suspendCoroutine { cont ->
             eventStore.requestAccessToEntityType(EKEntityType.EKEntityTypeEvent) { granted, _ ->
@@ -98,7 +102,7 @@ private class IosKalendarSync : KalendarSyncProvider {
                     localTimeToNSDate(event.date, event.startTime ?: LocalTime(0, 0))
                 }
                 endDate = if (event.isAllDay) {
-                    event.date.atStartOfDayIn(tz).plusDayNSDate()
+                    (event.endDate ?: event.date).atStartOfDayIn(tz).plusDayNSDate()
                 } else {
                     localTimeToNSDate(event.date, event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE))
                 }
@@ -130,7 +134,7 @@ private class IosKalendarSync : KalendarSyncProvider {
                 localTimeToNSDate(event.date, event.startTime ?: LocalTime(0, 0))
             }
             ekEvent.endDate = if (event.isAllDay) {
-                event.date.atStartOfDayIn(tz).plusDayNSDate()
+                (event.endDate ?: event.date).atStartOfDayIn(tz).plusDayNSDate()
             } else {
                 localTimeToNSDate(event.date, event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE))
             }
@@ -167,6 +171,9 @@ private class IosKalendarSync : KalendarSyncProvider {
             date = kotlin.time.Clock.System.now().toLocalDateTime(tz).date,
             eventName = title ?: "",
         )
+        val spanEndDate = endDate?.toLocalDate()
+            ?.let { if (allDay) it.minus(1, DateTimeUnit.DAY) else it }
+            ?.takeIf { allDay && it > date }
         return BasicKalendarSyncEvent(
             id = eventIdentifier,
             date = date,
@@ -174,12 +181,12 @@ private class IosKalendarSync : KalendarSyncProvider {
             eventDescription = notes?.takeIf { it.isNotBlank() },
             startTime = if (allDay) null else startDate?.toLocalTime(),
             endTime = if (allDay) null else endDate?.toLocalTime(),
+            endDate = spanEndDate,
         )
     }
 
     /** Converts a [kotlinx.datetime.Instant] to an [NSDate] for use with EventKit APIs. */
-    private fun Instant.toNSDate(): NSDate =
-        NSDate.dateWithTimeIntervalSince1970(epochSeconds.toDouble())
+    private fun Instant.toNSDate(): NSDate = epochSecondsToNSDate(epochSeconds.toDouble())
 
     /** Converts an [NSDate] to a [LocalDate] using the device's current time zone. */
     private fun NSDate.toLocalDate(): LocalDate =
@@ -194,7 +201,7 @@ private class IosKalendarSync : KalendarSyncProvider {
     /** Combines a [LocalDate] and [LocalTime] into an [NSDate] for use with EventKit APIs. */
     private fun localTimeToNSDate(date: LocalDate, time: LocalTime): NSDate {
         val instant = kotlinx.datetime.LocalDateTime(date, time).toInstant(tz)
-        return NSDate.dateWithTimeIntervalSince1970(instant.epochSeconds.toDouble())
+        return epochSecondsToNSDate(instant.epochSeconds.toDouble())
     }
 
     /** Returns the [Instant] at midnight of this [LocalDate] in the given [TimeZone]. */
@@ -203,5 +210,13 @@ private class IosKalendarSync : KalendarSyncProvider {
 
     /** Returns an [NSDate] exactly 24 hours after this [Instant], used for all-day event end dates. */
     private fun Instant.plusDayNSDate(): NSDate =
-        NSDate.dateWithTimeIntervalSince1970((epochSeconds + SECONDS_PER_DAY).toDouble())
+        epochSecondsToNSDate((epochSeconds + SECONDS_PER_DAY).toDouble())
+
+    /**
+     * [NSDate]'s designated initializer counts seconds since its own reference date
+     * (2001-01-01), not the Unix epoch — [NSTimeIntervalSince1970] is the fixed offset
+     * between the two.
+     */
+    private fun epochSecondsToNSDate(epochSeconds: Double): NSDate =
+        NSDate(timeIntervalSinceReferenceDate = epochSeconds - NSTimeIntervalSince1970)
 }

@@ -21,7 +21,7 @@ import kotlinx.datetime.LocalDate
 /**
  * How frequently a recurring event repeats, corresponding to the FREQ part of an RFC 5545 RRULE.
  */
-enum class KalendarRecurrenceFrequency {
+public enum class KalendarRecurrenceFrequency {
     /** Repeat every N days. */
     DAILY,
 
@@ -52,7 +52,7 @@ enum class KalendarRecurrenceFrequency {
  * )
  * ```
  */
-enum class KalendarWeekDay {
+public enum class KalendarWeekDay {
     MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY
 }
 
@@ -88,7 +88,7 @@ enum class KalendarWeekDay {
  * @param byMonthDay For MONTHLY rules, restricts occurrences to these day-of-month values (1–31).
  * @param byMonth For YEARLY rules, restricts occurrences to these month values (1–12).
  */
-data class KalendarRule(
+public data class KalendarRule(
     val frequency: KalendarRecurrenceFrequency,
     val interval: Int = 1,
     val count: Int? = null,

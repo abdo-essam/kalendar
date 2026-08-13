@@ -17,6 +17,7 @@
 package com.himanshoe.kalendar.sync
 
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 
 /**
  * Reads, writes, and exports events from the device's built-in calendar without any
@@ -39,7 +40,7 @@ import kotlinx.datetime.LocalDate
  * val sync = KalendarSync()
  * ```
  */
-interface KalendarSyncProvider {
+public interface KalendarSyncProvider {
 
     /**
      * Checks whether the app currently holds the necessary calendar permission.
@@ -49,15 +50,19 @@ interface KalendarSyncProvider {
      *
      * @return `true` if permission is already granted, `false` otherwise.
      */
-    suspend fun hasPermission(): Boolean
+    public suspend fun hasPermission(): Boolean
 
     /**
      * Returns all events from the device calendar whose date falls within
      * [[startDate], [endDate]] (both inclusive).
+     *
+     * @param timeZone The time zone used to interpret [startDate] and [endDate] when converting
+     *   to native calendar query parameters. Defaults to the device's current system time zone.
      */
-    suspend fun fetchEvents(
+    public suspend fun fetchEvents(
         startDate: LocalDate,
         endDate: LocalDate,
+        timeZone: TimeZone = TimeZone.currentSystemDefault(),
     ): KalendarSyncResult<List<KalendarSyncEvent>>
 
     /**
@@ -65,7 +70,7 @@ interface KalendarSyncProvider {
      *
      * @return [KalendarSyncResult.Success] carrying the new event's device-assigned ID.
      */
-    suspend fun insertEvent(event: KalendarSyncEvent): KalendarSyncResult<String>
+    public suspend fun insertEvent(event: KalendarSyncEvent): KalendarSyncResult<String>
 
     /**
      * Updates the device-calendar event identified by [eventId] with the fields from [event].
@@ -76,7 +81,7 @@ interface KalendarSyncProvider {
      *
      * @return [KalendarSyncResult.Success] with [Unit] on success.
      */
-    suspend fun updateEvent(eventId: String, event: KalendarSyncEvent): KalendarSyncResult<Unit>
+    public suspend fun updateEvent(eventId: String, event: KalendarSyncEvent): KalendarSyncResult<Unit>
 
     /**
      * Deletes the event identified by [eventId] from the device calendar.
@@ -84,6 +89,5 @@ interface KalendarSyncProvider {
      * [eventId] must be the value returned by [insertEvent] or read from
      * [KalendarSyncEvent.id] via [fetchEvents].
      */
-    suspend fun deleteEvent(eventId: String): KalendarSyncResult<Unit>
-
+    public suspend fun deleteEvent(eventId: String): KalendarSyncResult<Unit>
 }

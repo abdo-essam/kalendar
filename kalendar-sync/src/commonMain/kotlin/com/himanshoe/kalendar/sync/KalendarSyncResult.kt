@@ -29,14 +29,14 @@ package com.himanshoe.kalendar.sync
  * }
  * ```
  */
-sealed class KalendarSyncResult<out T> {
+public sealed class KalendarSyncResult<out T> {
 
     /**
      * The operation completed successfully.
      *
      * @param data The value produced by the operation.
      */
-    data class Success<T>(val data: T) : KalendarSyncResult<T>()
+    public data class Success<T>(val data: T) : KalendarSyncResult<T>()
 
     /**
      * The required calendar permission was not granted by the user.
@@ -45,13 +45,13 @@ sealed class KalendarSyncResult<out T> {
      * via `ActivityCompat.requestPermissions`.
      * On iOS, direct the user to Settings → Privacy → Calendars.
      */
-    data object PermissionDenied : KalendarSyncResult<Nothing>()
+    public data object PermissionDenied : KalendarSyncResult<Nothing>()
 
     /**
      * Device calendar access is not available on this platform
      * (e.g. Desktop JVM, Web/wasmJS).
      */
-    data object NotSupported : KalendarSyncResult<Nothing>()
+    public data object NotSupported : KalendarSyncResult<Nothing>()
 
     /**
      * The operation failed with an error.
@@ -59,7 +59,7 @@ sealed class KalendarSyncResult<out T> {
      * @param message A human-readable description of what went wrong.
      * @param cause The underlying exception, if available.
      */
-    data class Error(
+    public data class Error(
         val message: String,
         val cause: Throwable? = null,
     ) : KalendarSyncResult<Nothing>()

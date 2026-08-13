@@ -25,42 +25,58 @@ import kotlinx.datetime.LocalTime
  * Implement this interface for custom event types, or use [BasicKalendarSyncEvent]
  * for the built-in implementation.
  */
-interface KalendarSyncEvent {
+public interface KalendarSyncEvent {
     /** Stable identifier assigned by the device calendar. `null` for events not yet persisted. */
-    val id: String?
+    public val id: String?
 
-    /** The calendar date this event falls on. */
-    val date: LocalDate
+    /** The calendar date this event falls on, or the first date for a multi-day event. */
+    public val date: LocalDate
+
+    /**
+     * The last date this event occupies, inclusive, for a multi-day all-day event (e.g. a
+     * vacation spanning several days). `null` means the event is confined to [date]. Defaults
+     * to `null`.
+     */
+    public val endDate: LocalDate?
+        get() = null
 
     /** Display title of the event. */
-    val eventName: String
+    public val eventName: String
 
     /** Optional longer description or notes. */
-    val eventDescription: String?
+    public val eventDescription: String?
 
     /**
      * Start time for timed events. `null` for all-day events.
      * Combined with [date] to form the full start date-time.
      */
-    val startTime: LocalTime?
+    public val startTime: LocalTime?
 
     /**
      * End time for timed events. `null` for all-day events.
      * Combined with [date] to form the full end date-time.
      */
-    val endTime: LocalTime?
+    public val endTime: LocalTime?
 
     /** `true` if this occupies the entire day with no specific start/end time. */
-    val isAllDay: Boolean
+    public val isAllDay: Boolean
         get() = startTime == null && endTime == null
 
     /**
      * Optional RFC 5545 recurrence rule. When non-null, this event is a template for a
-     * recurring series; use [KalendarRecurrenceExpander.expand] to materialise individual
-     * occurrences. `null` for non-recurring (one-off) events.
+     * recurring series; use [expandOccurrences] to materialise individual occurrences. `null`
+     * for non-recurring (one-off) events.
      */
-    val recurrenceRule: KalendarRule?
+    public val recurrenceRule: KalendarRule?
         get() = null
+
+    /**
+     * Dates to skip when [recurrenceRule] is expanded via [expandOccurrences] — the RFC 5545
+     * EXDATE equivalent, for "delete just this one occurrence" without breaking the series.
+     * Ignored for non-recurring events. Defaults to empty.
+     */
+    public val exceptionDates: List<LocalDate>
+        get() = emptyList()
 }
 
 /**
@@ -74,8 +90,11 @@ interface KalendarSyncEvent {
  * @param startTime Start time for timed events; `null` for all-day.
  * @param endTime End time for timed events; `null` for all-day.
  * @param recurrenceRule Optional RFC 5545 recurrence rule. `null` for non-recurring events.
+ * @param endDate The last date this event occupies, inclusive, for a multi-day all-day event.
+ *   Defaults to `null` (single-day event).
+ * @param exceptionDates Dates to skip when [recurrenceRule] is expanded. Defaults to empty.
  */
-data class BasicKalendarSyncEvent(
+public data class BasicKalendarSyncEvent(
     override val id: String? = null,
     override val date: LocalDate,
     override val eventName: String,
@@ -83,4 +102,6 @@ data class BasicKalendarSyncEvent(
     override val startTime: LocalTime? = null,
     override val endTime: LocalTime? = null,
     override val recurrenceRule: KalendarRule? = null,
+    override val endDate: LocalDate? = null,
+    override val exceptionDates: List<LocalDate> = emptyList(),
 ) : KalendarSyncEvent

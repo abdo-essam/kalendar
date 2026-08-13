@@ -25,10 +25,13 @@ import android.provider.CalendarContract
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.minus
+import kotlinx.datetime.plus
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
@@ -46,7 +49,7 @@ import kotlin.time.Instant
  *
  * @param context An application or activity context used to access the ContentResolver.
  */
-fun KalendarSync(context: Context): KalendarSyncProvider = AndroidKalendarSync(context)
+public fun KalendarSync(context: Context): KalendarSyncProvider = AndroidKalendarSync(context)
 
 private const val END_OF_DAY_HOUR = 23
 private const val END_OF_DAY_MINUTE = 59
@@ -105,6 +108,9 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                         val startMs = cursor.getLong(startIdx)
                         val endMs = cursor.getLong(endIdx)
                         val date = millisToLocalDate(startMs, timeZone)
+                        val endDate = millisToLocalDate(endMs, timeZone)
+                            .minus(1, DateTimeUnit.DAY)
+                            .takeIf { allDay && it > date }
                         events += BasicKalendarSyncEvent(
                             id = cursor.getLong(idIdx).toString(),
                             date = date,
@@ -112,6 +118,7 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                             eventDescription = cursor.getString(descIdx)?.takeIf { it.isNotBlank() },
                             startTime = if (allDay) null else millisToLocalTime(startMs, timeZone),
                             endTime = if (allDay) null else millisToLocalTime(endMs, timeZone),
+                            endDate = endDate,
                         )
                     }
                 }
@@ -133,7 +140,7 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                     localDateTimeToMillis(event.date, event.startTime ?: LocalTime(0, 0))
                 }
                 val endMs = if (event.isAllDay) {
-                    startMs + DAY_MILLIS
+                    (event.endDate ?: event.date).plus(1, DateTimeUnit.DAY).atStartOfDayIn(tz).toEpochMilliseconds()
                 } else {
                     localDateTimeToMillis(event.date, event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE))
                 }
@@ -165,7 +172,7 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                     localDateTimeToMillis(event.date, event.startTime ?: LocalTime(0, 0))
                 }
                 val endMs = if (event.isAllDay) {
-                    startMs + DAY_MILLIS
+                    (event.endDate ?: event.date).plus(1, DateTimeUnit.DAY).atStartOfDayIn(tz).toEpochMilliseconds()
                 } else {
                     localDateTimeToMillis(event.date, event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE))
                 }

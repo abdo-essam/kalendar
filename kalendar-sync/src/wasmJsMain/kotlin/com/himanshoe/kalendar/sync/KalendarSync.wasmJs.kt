@@ -17,6 +17,7 @@
 package com.himanshoe.kalendar.sync
 
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 
 /**
  * Web/wasmJS stub. Browsers have no direct device-calendar API.
@@ -25,7 +26,7 @@ import kotlinx.datetime.LocalDate
  * trigger a file download so the user can import it into Google Calendar or
  * Apple Calendar manually.
  */
-fun KalendarSync(): KalendarSyncProvider = WasmKalendarSync()
+public fun KalendarSync(): KalendarSyncProvider = WasmKalendarSync()
 
 private class WasmKalendarSync : KalendarSyncProvider {
     override suspend fun hasPermission() = false
@@ -33,6 +34,7 @@ private class WasmKalendarSync : KalendarSyncProvider {
     override suspend fun fetchEvents(
         startDate: LocalDate,
         endDate: LocalDate,
+        timeZone: TimeZone,
     ): KalendarSyncResult<List<KalendarSyncEvent>> = KalendarSyncResult.NotSupported
 
     override suspend fun insertEvent(event: KalendarSyncEvent): KalendarSyncResult<String> =

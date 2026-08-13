@@ -31,7 +31,15 @@ import kotlinx.datetime.plus
  * - Events without a [KalendarRule] are treated as single-occurrence: `this` is returned in a
  *   one-element list when its date is within the range, or an empty list otherwise.
  * - Each generated occurrence is a copy of the receiver with [KalendarSyncEvent.date] replaced by
- *   the occurrence date and [KalendarSyncEvent.id] cleared.
+ *   the occurrence date and [KalendarSyncEvent.id] cleared; [KalendarSyncEvent.endDate], if set,
+ *   shifts by the same number of days so multi-day spans are preserved on every occurrence.
+ * - Dates in [KalendarSyncEvent.exceptionDates] are skipped — they still count towards
+ *   [KalendarRule.count], matching how DTSTART+RRULE+EXDATE interact in most calendar apps (EXDATE
+ *   removes specific occurrences from an already-determined series rather than shortening it).
+ * - [KalendarRule.interval] combined with a non-empty [KalendarRule.byMonthDay] is not currently
+ *   supported: a MONTHLY rule with BYMONTHDAY steps one day at a time to enumerate every matching
+ *   day within each month, which does not honour a skip-N-months interval. Use `interval = 1` when
+ *   BYMONTHDAY is set.
  *
  * ```kotlin
  * val template = BasicKalendarSyncEvent(
@@ -51,7 +59,7 @@ import kotlinx.datetime.plus
  * @param rangeStart Start of the expansion window (inclusive).
  * @param rangeEnd End of the expansion window (inclusive).
  */
-fun KalendarSyncEvent.expandOccurrences(
+public fun KalendarSyncEvent.expandOccurrences(
     rangeStart: LocalDate,
     rangeEnd: LocalDate,
 ): List<KalendarSyncEvent> {
@@ -62,20 +70,22 @@ fun KalendarSyncEvent.expandOccurrences(
     var occurrenceCount = 0
     var current = date
 
-    while (true) {
-        if (rule.count != null && occurrenceCount >= rule.count) break
-        if (rule.until != null && current > rule.until) break
-        if (current > rangeEnd) break
-
+    while (withinBounds(rule, occurrenceCount, current, rangeEnd)) {
         if (current >= rangeStart && current.matchesFilters(rule)) {
-            occurrences += copyWithDate(current)
+            if (current !in exceptionDates) {
+                occurrences += copyWithDate(current)
+            }
             occurrenceCount++
         }
-
         current = current.advance(rule)
     }
     return occurrences
 }
+
+private fun withinBounds(rule: KalendarRule, count: Int, current: LocalDate, rangeEnd: LocalDate): Boolean =
+    (rule.count == null || count < rule.count) &&
+        (rule.until == null || current <= rule.until) &&
+        current <= rangeEnd
 
 /**
  * Returns `true` if this date satisfies all BYMONTH, BYMONTHDAY, and BYDAY constraints in [rule].
@@ -99,11 +109,18 @@ private fun LocalDate.advance(rule: KalendarRule): LocalDate =
             plus(rule.interval, DateTimeUnit.DAY)
 
         KalendarRecurrenceFrequency.WEEKLY ->
-            if (rule.byDay.isEmpty()) plus(rule.interval * 7, DateTimeUnit.DAY)
-            else plus(1, DateTimeUnit.DAY)
+            if (rule.byDay.isEmpty()) {
+                plus(rule.interval * 7, DateTimeUnit.DAY)
+            } else {
+                plus(1, DateTimeUnit.DAY)
+            }
 
         KalendarRecurrenceFrequency.MONTHLY ->
-            plus(rule.interval, DateTimeUnit.MONTH)
+            if (rule.byMonthDay.isEmpty()) {
+                plus(rule.interval, DateTimeUnit.MONTH)
+            } else {
+                plus(1, DateTimeUnit.DAY)
+            }
 
         KalendarRecurrenceFrequency.YEARLY ->
             plus(rule.interval, DateTimeUnit.YEAR)
@@ -126,8 +143,9 @@ private fun DayOfWeek.toKalendarWeekDay(): KalendarWeekDay = when (this) {
  * Returns a copy of this event with [KalendarSyncEvent.date] replaced by [date] and
  * [KalendarSyncEvent.id] cleared — representing a single materialised occurrence.
  */
-private fun KalendarSyncEvent.copyWithDate(date: LocalDate): KalendarSyncEvent =
-    BasicKalendarSyncEvent(
+private fun KalendarSyncEvent.copyWithDate(date: LocalDate): KalendarSyncEvent {
+    val span = endDate?.let { date.plus(daysBetween(this.date, it), DateTimeUnit.DAY) }
+    return BasicKalendarSyncEvent(
         id = null,
         date = date,
         eventName = eventName,
@@ -135,4 +153,9 @@ private fun KalendarSyncEvent.copyWithDate(date: LocalDate): KalendarSyncEvent =
         startTime = startTime,
         endTime = endTime,
         recurrenceRule = recurrenceRule,
+        endDate = span,
     )
+}
+
+private fun daysBetween(from: LocalDate, to: LocalDate): Int =
+    (to.toEpochDays() - from.toEpochDays()).toInt()
