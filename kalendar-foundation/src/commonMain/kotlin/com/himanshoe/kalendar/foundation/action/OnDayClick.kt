@@ -19,7 +19,7 @@ package com.himanshoe.kalendar.foundation.action
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import kotlinx.datetime.LocalDate
 
-fun LocalDate.onDayClick(
+public fun LocalDate.onDayClick(
     events: List<KalendarEvent>,
     rangeStartDate: LocalDate?,
     rangeEndDate: LocalDate?,

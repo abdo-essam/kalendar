@@ -16,6 +16,7 @@
 
 package com.himanshoe.kalendar.view
 
+import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
@@ -195,5 +196,64 @@ class KalendarPageTest {
     @Test
     fun monthTitle_ignoresDayOfMonth() {
         assertEquals(monthTitle(LocalDate(2026, 8, 1)), monthTitle(LocalDate(2026, 8, 15)))
+    }
+
+    @Test
+    fun monthTitle_customFormatter_isUsedInsteadOfDefault() {
+        val title = monthTitle(LocalDate(2026, 8, 1)) { month -> "Mois-${month.ordinal + 1}" }
+        assertEquals("Mois-8 2026", title)
+    }
+
+    @Test
+    fun byDateExpandingSpans_singleDayEvent_appearsOnlyOnItsDate() {
+        val event = BasicKalendarEvent(date = LocalDate(2026, 8, 12), eventName = "Standup")
+        val byDate = listOf(event).byDateExpandingSpans()
+        assertEquals(setOf(LocalDate(2026, 8, 12)), byDate.keys)
+        assertEquals(listOf(event), byDate.getValue(LocalDate(2026, 8, 12)))
+    }
+
+    @Test
+    fun byDateExpandingSpans_multiDayEvent_appearsOnEveryDateInclusive() {
+        val event = BasicKalendarEvent(
+            date = LocalDate(2026, 8, 12),
+            eventName = "Conference",
+            endDate = LocalDate(2026, 8, 14),
+        )
+        val byDate = listOf(event).byDateExpandingSpans()
+        assertEquals(
+            setOf(LocalDate(2026, 8, 12), LocalDate(2026, 8, 13), LocalDate(2026, 8, 14)),
+            byDate.keys,
+        )
+        assertTrue(byDate.values.all { it == listOf(event) })
+    }
+
+    @Test
+    fun byDateExpandingSpans_endDateBeforeDate_treatedAsSingleDay() {
+        val event = BasicKalendarEvent(
+            date = LocalDate(2026, 8, 12),
+            eventName = "Malformed",
+            endDate = LocalDate(2026, 8, 10),
+        )
+        val byDate = listOf(event).byDateExpandingSpans()
+        assertEquals(setOf(LocalDate(2026, 8, 12)), byDate.keys)
+    }
+
+    @Test
+    fun byDateExpandingSpans_multipleEventsSameDate_bothPresent() {
+        val first = BasicKalendarEvent(date = LocalDate(2026, 8, 12), eventName = "Standup")
+        val second = BasicKalendarEvent(date = LocalDate(2026, 8, 12), eventName = "Lunch")
+        val byDate = listOf(first, second).byDateExpandingSpans()
+        assertEquals(listOf(first, second), byDate.getValue(LocalDate(2026, 8, 12)))
+    }
+
+    @Test
+    fun byDateExpandingSpans_excessiveEndDate_isCapped() {
+        val event = BasicKalendarEvent(
+            date = LocalDate(2026, 8, 12),
+            eventName = "Runaway",
+            endDate = LocalDate(2099, 1, 1),
+        )
+        val byDate = listOf(event).byDateExpandingSpans()
+        assertEquals(367, byDate.size)
     }
 }

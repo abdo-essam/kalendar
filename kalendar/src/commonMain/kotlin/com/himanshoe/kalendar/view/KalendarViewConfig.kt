@@ -20,7 +20,9 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.Month
 
 /**
  * Shared visual and behavioural knobs for [KalendarWeek], [KalendarMonth], and [KalendarYear].
@@ -33,12 +35,23 @@ import kotlinx.datetime.LocalDate
  *   (the padding needed to complete a month grid's first/last week) are rendered at reduced
  *   opacity, or left blank. Has no effect on [KalendarWeek], which has no such padding. Defaults
  *   to `true`.
+ * @param showTodayButton Whether to show a button in the header that animates back to today's
+ *   date. Defaults to `true`.
+ * @param monthNameFormatter Formats a month name for titles, headers, and accessibility
+ *   descriptions. kotlinx-datetime has no locale-aware formatting, so this defaults to plain
+ *   English (e.g. "August") — pass a formatter backed by a platform date API (`java.time`,
+ *   `NSDateFormatter`, `Intl`, ...) for a localized name.
+ * @param dayOfWeekLabelFormatter Formats the day-of-week column headers. Defaults to the day
+ *   name's first letter (e.g. "M" for Monday).
  * @param background Background brush for the calendar container. Defaults to solid white.
  */
 @Immutable
-data class KalendarViewConfig(
+public data class KalendarViewConfig(
     val disabledDates: (LocalDate) -> Boolean = { false },
     val showNavigationArrows: Boolean = true,
     val showAdjacentMonthDates: Boolean = true,
+    val showTodayButton: Boolean = true,
+    val monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
+    val dayOfWeekLabelFormatter: (DayOfWeek) -> String = defaultDayOfWeekLabelFormatter,
     val background: Brush = SolidColor(Color.White),
 )

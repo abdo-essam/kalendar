@@ -36,12 +36,14 @@ import androidx.compose.ui.unit.dp
 import com.himanshoe.kalendar.Kalendar
 import com.himanshoe.kalendar.KalendarType
 import com.himanshoe.kalendar.foundation.component.config.KalendarConfig
-import com.himanshoe.kalendar.foundation.event.KalendarEvent
+import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
 import com.himanshoe.kalendar.view.KalendarMonth
+import com.himanshoe.kalendar.view.KalendarSelectionMode
 import com.himanshoe.kalendar.view.KalendarTimeline
 import com.himanshoe.kalendar.view.KalendarWeek
 import com.himanshoe.kalendar.view.KalendarYear
 import com.himanshoe.kalendar.view.rememberKalendarMonthState
+import com.himanshoe.kalendar.view.rememberKalendarSelectionState
 import com.himanshoe.kalendar.view.rememberKalendarTimelineState
 import com.himanshoe.kalendar.view.rememberKalendarWeekState
 import com.himanshoe.kalendar.view.rememberKalendarYearState
@@ -61,15 +63,39 @@ private enum class SampleView(val label: String) {
     Agenda("Agenda"),
 }
 
+private val selectionModes = listOf(
+    "Single" to KalendarSelectionMode.Single,
+    "Multiple" to KalendarSelectionMode.Multiple,
+    "Range" to KalendarSelectionMode.Range,
+)
+
 @Composable
 fun App() {
     val today = remember { Clock.System.todayIn(TimeZone.currentSystemDefault()) }
-    var selectedDates by remember { mutableStateOf(setOf(today)) }
     var selectedView by remember { mutableStateOf(SampleView.Timeline) }
+    var selectionMode by remember { mutableStateOf<KalendarSelectionMode>(KalendarSelectionMode.Single) }
+    val selection = rememberKalendarSelectionState(mode = selectionMode, initialSelection = setOf(today))
+    val events = remember {
+        listOf(
+            BasicKalendarEvent(
+                date = today,
+                endDate = today.plus(2, DateTimeUnit.DAY),
+                eventName = "Conference",
+            ),
+        )
+    }
 
-    val onDateClick: (date: LocalDate, events: List<KalendarEvent>) -> Unit = { date, events ->
-        selectedDates = setOf(date)
-        println("Selected Date: $date with events: $events")
+    val onDateClick = { date: LocalDate, _: List<*> -> selection.onDateClick(date) }
+    val selectedDates = selection.selectedDates
+    val onDateRangeSelect = if (selectionMode == KalendarSelectionMode.Range) {
+        { start: LocalDate, current: LocalDate -> selection.onRangeDrag(start, current) }
+    } else {
+        null
+    }
+    val onDateRangeSelectEnd = if (selectionMode == KalendarSelectionMode.Range) {
+        { selection.onRangeDragEnd() }
+    } else {
+        null
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -85,28 +111,47 @@ fun App() {
                 )
             }
         }
+        LazyRow(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(selectionModes) { (label, mode) ->
+                FilterChip(
+                    selected = mode == selectionMode,
+                    onClick = { selectionMode = mode },
+                    label = { Text(label) },
+                )
+            }
+        }
 
         when (selectedView) {
             SampleView.Week -> KalendarWeek(
                 selectedDate = today,
                 modifier = Modifier.fillMaxSize(),
                 state = rememberKalendarWeekState(initialDate = today),
+                events = events,
                 selectedDates = selectedDates,
                 onDateClick = onDateClick,
+                onDateRangeSelect = onDateRangeSelect,
+                onDateRangeSelectEnd = onDateRangeSelectEnd,
             )
 
             SampleView.Month -> KalendarMonth(
                 selectedDate = today,
                 modifier = Modifier.fillMaxSize(),
                 state = rememberKalendarMonthState(initialDate = today),
+                events = events,
                 selectedDates = selectedDates,
                 onDateClick = onDateClick,
+                onDateRangeSelect = onDateRangeSelect,
+                onDateRangeSelectEnd = onDateRangeSelectEnd,
             )
 
             SampleView.Year -> KalendarYear(
                 selectedDate = today,
                 modifier = Modifier.fillMaxSize(),
                 state = rememberKalendarYearState(initialDate = today),
+                events = events,
                 selectedDates = selectedDates,
                 onDateClick = onDateClick,
             )
@@ -119,6 +164,7 @@ fun App() {
                     minDate = today.minus(1, DateTimeUnit.YEAR),
                     maxDate = today.plus(1, DateTimeUnit.YEAR),
                 ),
+                events = events,
                 selectedDates = selectedDates,
                 onDateClick = onDateClick,
             )

@@ -28,11 +28,11 @@ package com.himanshoe.kalendar
  * [com.himanshoe.kalendar.view.KalendarYear] composables instead — they support both arrow-click
  * and swipe navigation together and aren't called through [Kalendar]/[KalendarType].
  */
-sealed interface KalendarType {
+public sealed interface KalendarType {
     /**
      * An agenda-style calendar that renders a scrollable list of events grouped by date.
      * Events within the same day are sorted by [com.himanshoe.kalendar.foundation.event.KalendarEvent.startTime]
      * when available. An empty-state message is shown when no events are provided.
      */
-    data object Agenda : KalendarType
+    public data object Agenda : KalendarType
 }

@@ -25,19 +25,21 @@ import androidx.compose.ui.unit.sp
 import com.himanshoe.kalendar.foundation.color.KalendarColor
 import com.himanshoe.kalendar.foundation.color.asSolidColor
 
-data class KalendarDayConfig(
-    val size: Dp = 56.dp,
-    val selectedTextColor: KalendarColor = Color(0xFF413D4B).asSolidColor(),
-    val borderColor: KalendarColor = Color(0xFFC39EA1).asSolidColor(),
-    val indicatorColor: KalendarColor = Color(0xFFD8A29E).asSolidColor(),
+private const val DEFAULT_DAY_SIZE_DP = 56
+
+public data class KalendarDayConfig(
+    val size: Dp = DEFAULT_DAY_SIZE_DP.dp,
+    val selectedTextColor: KalendarColor = Color(color = 0xFF413D4B).asSolidColor(),
+    val borderColor: KalendarColor = Color(color = 0xFFC39EA1).asSolidColor(),
+    val indicatorColor: KalendarColor = Color(color = 0xFFD8A29E).asSolidColor(),
     val textStyle: TextStyle = TextStyle(
         fontSize = 16.sp,
         brush = Brush.linearGradient(
             listOf(
-                Color(0xFF413D4B),
-                Color(0xFFD8A29E)
+                Color(color = 0xFF413D4B),
+                Color(color = 0xFFD8A29E),
             )
         ),
     ),
-    val selectedBackgroundColor: KalendarColor = Color(0xFFF7CFD3).asSolidColor(),
+    val selectedBackgroundColor: KalendarColor = Color(color = 0xFFF7CFD3).asSolidColor(),
 )

@@ -45,7 +45,7 @@ import com.himanshoe.kalendar.foundation.event.KalendarEvents
  * @param config Visual and behavioural configuration for the calendar.
  */
 @Composable
-fun Kalendar(
+public fun Kalendar(
     type: KalendarType,
     modifier: Modifier = Modifier,
     events: KalendarEvents = emptyList(),

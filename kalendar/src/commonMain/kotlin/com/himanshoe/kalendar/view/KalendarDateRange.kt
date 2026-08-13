@@ -49,7 +49,7 @@ import kotlinx.datetime.plus
  * )
  * ```
  */
-fun LocalDate.datesUntil(other: LocalDate): Set<LocalDate> {
+public fun LocalDate.datesUntil(other: LocalDate): Set<LocalDate> {
     val start =
         if (this <= other) {
             this

@@ -44,18 +44,18 @@ import kotlinx.datetime.DayOfWeek
  *   Defaults to `null` (falls back to `textCharCount`).
  */
 @Immutable
-data class KalendarDayLabelConfig(
+public data class KalendarDayLabelConfig(
     val textStyle: TextStyle,
     val textCharCount: Int,
     val centerAligned: Boolean,
     val dayNameFormatter: ((DayOfWeek) -> String)? = null,
 ) {
-    companion object {
+    public companion object {
         /**
          * Returns a [KalendarDayLabelConfig] populated with the default visual values used by the
          * built-in calendar themes.
          */
-        fun default() = KalendarDayLabelConfig(
+        public fun default(): KalendarDayLabelConfig = KalendarDayLabelConfig(
             centerAligned = true,
             textCharCount = 2,
             textStyle = TextStyle(
@@ -64,8 +64,8 @@ data class KalendarDayLabelConfig(
                 fontSize = 16.sp,
                 brush = Brush.linearGradient(
                     listOf(
-                        Color(0xFF613D4B),
-                        Color(0xFFD8A26E)
+                        Color(color = 0xFF613D4B),
+                        Color(color = 0xFFD8A26E)
                     )
                 ),
             ),

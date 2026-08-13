@@ -41,34 +41,34 @@ internal const val KALENDAR_PAGER_CENTER_PAGE: Int = Int.MAX_VALUE / 2
  * to and from a [LocalDate].
  */
 @Stable
-class KalendarViewState internal constructor(
+public class KalendarViewState internal constructor(
     internal val pagerState: PagerState,
     internal val pageToDate: (Int) -> LocalDate,
     internal val dateToPage: (LocalDate) -> Int,
-    val startDayOfWeek: DayOfWeek,
-    val minDate: LocalDate?,
-    val maxDate: LocalDate?,
+    public val startDayOfWeek: DayOfWeek,
+    public val minDate: LocalDate?,
+    public val maxDate: LocalDate?,
 ) {
     /** The start date of the page currently visible in the pager. */
-    val visibleDate: LocalDate by derivedStateOf { pageToDate(pagerState.currentPage) }
+    public val visibleDate: LocalDate by derivedStateOf { pageToDate(pagerState.currentPage) }
 
     /** Whether stepping one page backward stays at or after [minDate]. */
-    val canScrollBackward: Boolean by derivedStateOf {
+    public val canScrollBackward: Boolean by derivedStateOf {
         minDate == null || pageToDate(pagerState.currentPage - 1) >= minDate
     }
 
     /** Whether stepping one page forward stays at or before [maxDate]. */
-    val canScrollForward: Boolean by derivedStateOf {
+    public val canScrollForward: Boolean by derivedStateOf {
         maxDate == null || pageToDate(pagerState.currentPage + 1) <= maxDate
     }
 
     /** Animates the pager so the page containing [date] is visible. */
-    suspend fun animateScrollTo(date: LocalDate) {
+    public suspend fun animateScrollTo(date: LocalDate) {
         pagerState.animateScrollToPage(dateToPage(date))
     }
 
     /** Animates the pager back to the page containing today's date. */
-    suspend fun animateScrollToToday() {
+    public suspend fun animateScrollToToday() {
         animateScrollTo(todayInSystemTimeZone())
     }
 }
@@ -84,7 +84,7 @@ class KalendarViewState internal constructor(
  *   week would start after the week containing this date.
  */
 @Composable
-fun rememberKalendarWeekState(
+public fun rememberKalendarWeekState(
     initialDate: LocalDate = todayInSystemTimeZone(),
     startDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     minDate: LocalDate? = null,
@@ -120,7 +120,7 @@ fun rememberKalendarWeekState(
  *   month would start after the month containing this date.
  */
 @Composable
-fun rememberKalendarMonthState(
+public fun rememberKalendarMonthState(
     initialDate: LocalDate = todayInSystemTimeZone(),
     startDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     minDate: LocalDate? = null,
@@ -154,7 +154,7 @@ fun rememberKalendarMonthState(
  *   year would start after the year containing this date.
  */
 @Composable
-fun rememberKalendarYearState(
+public fun rememberKalendarYearState(
     initialDate: LocalDate = todayInSystemTimeZone(),
     startDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     minDate: LocalDate? = null,

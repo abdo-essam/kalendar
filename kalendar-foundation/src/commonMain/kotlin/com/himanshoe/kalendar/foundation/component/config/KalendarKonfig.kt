@@ -61,7 +61,7 @@ import kotlinx.datetime.LocalDate
  * @param backgroundColor Background color or gradient for the calendar container.
  */
 @Immutable
-data class KalendarConfig(
+public data class KalendarConfig(
     val showDayLabel: Boolean = true,
     val showArrows: Boolean = true,
     val startDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,

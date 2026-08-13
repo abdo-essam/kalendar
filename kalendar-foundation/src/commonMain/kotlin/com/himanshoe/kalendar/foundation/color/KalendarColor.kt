@@ -23,20 +23,20 @@ import androidx.compose.ui.graphics.Color
  *
  * @property value A list of colors used for the color representation.
  */
-sealed class KalendarColor(open val value: List<Color> = emptyList()) {
+public sealed class KalendarColor(public open val value: List<Color> = emptyList()) {
     /**
      * A data class representing a solid color.
      *
      * @property color The solid color.
      */
-    data class Solid(val color: Color) : KalendarColor(listOf(color, color))
+    public data class Solid(val color: Color) : KalendarColor(listOf(color, color))
 
     /**
      * A data class representing a gradient color.
      *
      * @property value A list of colors used for the gradient.
      */
-    data class Gradient(override val value: List<Color>) : KalendarColor(value)
+    public data class Gradient(override val value: List<Color>) : KalendarColor(value)
 }
 
 /**
@@ -44,11 +44,11 @@ sealed class KalendarColor(open val value: List<Color> = emptyList()) {
  *
  * @return A Solid KalendarColor with the given color.
  */
-fun Color.asSolidColor() = KalendarColor.Solid(this)
+public fun Color.asSolidColor(): KalendarColor.Solid = KalendarColor.Solid(this)
 
 /**
  * Extension function to convert a list of Colors to a Gradient KalendarColor.
  *
  * @return A Gradient KalendarColor with the given list of colors.
  */
-fun List<Color>.asGradientColor() = KalendarColor.Gradient(this)
+public fun List<Color>.asGradientColor(): KalendarColor.Gradient = KalendarColor.Gradient(this)

@@ -46,12 +46,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastMap
-import com.himanshoe.kalendar.foundation.action.OnDaySelectionAction
 import com.himanshoe.kalendar.foundation.component.config.KalendarConfig
 import com.himanshoe.kalendar.foundation.component.config.KalendarHeaderConfig
-import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
+import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 
@@ -60,13 +60,11 @@ internal fun KalendarAgenda(
     events: KalendarEvents,
     config: KalendarConfig,
     modifier: Modifier = Modifier,
-    onDaySelectionAction: OnDaySelectionAction = OnDaySelectionAction.NoOp,
 ) {
     KalendarAgendaContent(
         events = events,
         config = config,
         modifier = modifier,
-        onDaySelectionAction = onDaySelectionAction,
     )
 }
 
@@ -75,7 +73,6 @@ private fun KalendarAgendaContent(
     events: KalendarEvents,
     config: KalendarConfig,
     modifier: Modifier = Modifier,
-    onDaySelectionAction: OnDaySelectionAction,
 ) {
     val groupedEvents: List<Pair<LocalDate, List<KalendarEvent>>> = remember(events) {
         events
@@ -99,7 +96,7 @@ private fun KalendarAgendaContent(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                groupedEvents.forEach { (date, dateEvents) ->
+                groupedEvents.fastForEach { (date, dateEvents) ->
                     item(key = date.toEpochDays()) {
                         AgendaDateHeader(date = date, headerConfig = config.headerConfig)
                     }

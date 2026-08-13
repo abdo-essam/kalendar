@@ -33,7 +33,7 @@ import kotlinx.datetime.LocalDate
  * @throws IllegalArgumentException if [endInclusive] is before [start].
  */
 @Immutable
-data class KalendarSelectedDayRange(
+public data class KalendarSelectedDayRange(
     override val start: LocalDate,
     override val endInclusive: LocalDate,
 ) : ClosedRange<LocalDate> {

@@ -38,25 +38,25 @@ private const val KALENDAR_TIMELINE_CENTER_INDEX: Int = Int.MAX_VALUE / 2
  * [rememberKalendarTimelineState].
  */
 @Stable
-class KalendarTimelineState internal constructor(
+public class KalendarTimelineState internal constructor(
     internal val lazyListState: LazyListState,
     internal val itemCount: Int,
     internal val indexToDate: (Int) -> LocalDate,
     private val dateToIndex: (LocalDate) -> Int,
-    val startDayOfWeek: DayOfWeek,
-    val minDate: LocalDate?,
-    val maxDate: LocalDate?,
+    public val startDayOfWeek: DayOfWeek,
+    public val minDate: LocalDate?,
+    public val maxDate: LocalDate?,
 ) {
     /** The start date of the month currently topmost in the list. */
-    val visibleDate: LocalDate by derivedStateOf { indexToDate(lazyListState.firstVisibleItemIndex) }
+    public val visibleDate: LocalDate by derivedStateOf { indexToDate(lazyListState.firstVisibleItemIndex) }
 
     /** Animates the list so the month containing [date] scrolls to the top. */
-    suspend fun scrollTo(date: LocalDate) {
+    public suspend fun scrollTo(date: LocalDate) {
         lazyListState.animateScrollToItem(dateToIndex(date))
     }
 
     /** Animates the list back to the month containing today's date. */
-    suspend fun scrollToToday() {
+    public suspend fun scrollToToday() {
         scrollTo(todayInSystemTimeZone())
     }
 }
@@ -72,7 +72,7 @@ class KalendarTimelineState internal constructor(
  *   date. Defaults to `null` — unlimited scroll into the future.
  */
 @Composable
-fun rememberKalendarTimelineState(
+public fun rememberKalendarTimelineState(
     initialDate: LocalDate = todayInSystemTimeZone(),
     startDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     minDate: LocalDate? = null,

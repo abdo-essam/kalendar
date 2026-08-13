@@ -58,29 +58,38 @@ import kotlinx.datetime.LocalDate
  *   [datesUntil] for a range-selection helper). Hoist/`remember` the same instance across
  *   recompositions rather than building a fresh [Set] every time.
  * @param onDateClick Called when a non-disabled date is tapped, with the events on that date.
+ * @param onDateRangeSelect When non-null, press-and-hold on a date then drag to select a range —
+ *   called continuously with (the date under the initial press, the date under the pointer now)
+ *   as the drag moves. Pair with [onDateRangeSelectEnd] and, for the common case, wire both to
+ *   [KalendarSelectionState.onRangeDrag]/[KalendarSelectionState.onRangeDragEnd].
+ * @param onDateRangeSelectEnd Called once when a drag started by [onDateRangeSelect] ends.
  * @param config Shared visual/behavioural settings — disabled dates, arrow visibility, background.
  * @param dayContent Replaces the default day-cell rendering. Receives a [KalendarDayScope]
  *   describing the date being rendered.
  */
 @Composable
-fun KalendarMonth(
+public fun KalendarMonth(
     selectedDate: LocalDate,
     modifier: Modifier = Modifier,
     state: KalendarViewState = rememberKalendarMonthState(selectedDate),
     events: KalendarEvents = emptyList(),
     selectedDates: Set<LocalDate> = setOf(selectedDate),
     onDateClick: (date: LocalDate, events: List<KalendarEvent>) -> Unit = { _, _ -> },
+    onDateRangeSelect: ((start: LocalDate, current: LocalDate) -> Unit)? = null,
+    onDateRangeSelectEnd: (() -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
 ) {
     val today = remember { todayInSystemTimeZone() }
-    val eventsByDate = remember(events) { events.groupBy { it.date } }
+    val eventsByDate = remember(events) { events.byDateExpandingSpans() }
+    val slidingSelection = if (dayContent == null) selectedDates.singleOrNull() else null
 
     Column(modifier = modifier.background(config.background)) {
         KalendarNavigationHeader(
-            title = remember(state.visibleDate) { monthTitle(state.visibleDate) },
+            title = remember(state.visibleDate) { monthTitle(state.visibleDate, config.monthNameFormatter) },
             state = state,
             showArrows = config.showNavigationArrows,
+            showTodayButton = config.showTodayButton,
         )
         HorizontalPager(
             state = state.pagerState,
@@ -90,7 +99,14 @@ fun KalendarMonth(
             val dates = remember(monthStart, state.startDayOfWeek) {
                 monthGridDates(monthStart = monthStart, startDayOfWeek = state.startDayOfWeek)
             }
-            KalendarGrid(dates = dates, startDayOfWeek = state.startDayOfWeek) { date ->
+            KalendarGrid(
+                dates = dates,
+                startDayOfWeek = state.startDayOfWeek,
+                selectedDate = slidingSelection,
+                dayLabelFormatter = config.dayOfWeekLabelFormatter,
+                onDateRangeDrag = onDateRangeSelect,
+                onDateRangeDragEnd = onDateRangeSelectEnd,
+            ) { date ->
                 val dateEvents = eventsByDate[date] ?: emptyList()
                 val isCurrentMonth = date.month == monthStart.month
                 val scope = KalendarDayScope(
@@ -106,6 +122,8 @@ fun KalendarMonth(
                     showAdjacentMonthDates = config.showAdjacentMonthDates,
                     onClick = { onDateClick(date, dateEvents) },
                     dayContent = dayContent,
+                    showSelectionBackground = date != slidingSelection,
+                    monthNameFormatter = config.monthNameFormatter,
                 )
             }
         }

@@ -24,13 +24,13 @@ import kotlinx.datetime.LocalDate
  *
  * Pass one of the subclasses to the `onDaySelectionAction` parameter of [Kalendar].
  */
-sealed class OnDaySelectionAction {
+public sealed class OnDaySelectionAction {
     /**
      * Only one day can be selected at a time. Tapping a new day deselects the previous one.
      *
      * @param onDayClick Called with the tapped [LocalDate] and the events on that day.
      */
-    data class Single(val onDayClick: (LocalDate, List<KalendarEvent>) -> Unit) :
+    public data class Single(val onDayClick: (LocalDate, List<KalendarEvent>) -> Unit) :
         OnDaySelectionAction()
 
     /**
@@ -38,7 +38,7 @@ sealed class OnDaySelectionAction {
      *
      * @param onDayClick Called with the tapped [LocalDate] and the events on that day.
      */
-    data class Multiple(val onDayClick: (LocalDate, List<KalendarEvent>) -> Unit) :
+    public data class Multiple(val onDayClick: (LocalDate, List<KalendarEvent>) -> Unit) :
         OnDaySelectionAction()
 
     /**
@@ -49,14 +49,14 @@ sealed class OnDaySelectionAction {
      * @param onRangeSelected Called with the finalised [KalendarSelectedDayRange] and
      *   the events that fall within the range.
      */
-    data class Range(val onRangeSelected: (KalendarSelectedDayRange, List<KalendarEvent>) -> Unit) :
+    public data class Range(val onRangeSelected: (KalendarSelectedDayRange, List<KalendarEvent>) -> Unit) :
         OnDaySelectionAction()
 
-    companion object {
+    public companion object {
         /**
          * A no-op action that ignores all day taps. Use this as the default when no
          * tap handling is needed.
          */
-        val NoOp: OnDaySelectionAction = Single { _, _ -> }
+        public val NoOp: OnDaySelectionAction = Single { _, _ -> }
     }
 }

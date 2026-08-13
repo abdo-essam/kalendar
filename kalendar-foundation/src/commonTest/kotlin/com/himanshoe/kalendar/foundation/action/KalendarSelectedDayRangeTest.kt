@@ -52,7 +52,7 @@ class KalendarSelectedDayRangeTest {
 
     @Test
     fun validRange_acrossYears() {
-        val start = LocalDate(2026, 12, 30)
+        val start = LocalDate(2025, 12, 30)
         val end = LocalDate(2026, 1, 3)
         val range = KalendarSelectedDayRange(start = start, endInclusive = end)
         assertEquals(start, range.start)

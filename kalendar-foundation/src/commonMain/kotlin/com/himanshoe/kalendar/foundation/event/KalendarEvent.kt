@@ -31,63 +31,88 @@ import kotlinx.datetime.LocalDateTime
  * source-compatible without change.
  */
 @Stable
-interface KalendarEvent {
+public interface KalendarEvent {
     /**
-     * The date on which this event falls.
+     * The date on which this event falls, or — for a multi-day event — the first date it
+     * occupies.
      */
-    val date: LocalDate
+    public val date: LocalDate
+
+    /**
+     * The last date this event occupies, inclusive, for a multi-day event (e.g. a vacation or
+     * conference spanning several days). `null` means the event is confined to [date]. When
+     * non-null, calendar views show the event on every date from [date] through [endDate].
+     * Defaults to `null`.
+     */
+    public val endDate: LocalDate? get() = null
 
     /**
      * A short, human-readable name for the event (e.g. "Team standup").
      */
-    val eventName: String
+    public val eventName: String
 
     /**
      * An optional longer description for the event. Defaults to `null`.
      */
-    val eventDescription: String?
+    public val eventDescription: String?
 
     /**
      * The date and time at which the event begins. When non-null, events on the same
      * day are sorted by this value in ascending order (e.g. in the Agenda view).
      * Defaults to `null`.
      */
-    val startTime: LocalDateTime? get() = null
+    public val startTime: LocalDateTime? get() = null
 
     /**
      * The date and time at which the event ends. Displayed alongside [startTime] wherever
      * duration information is shown (e.g. in the Agenda view). Defaults to `null`.
      */
-    val endTime: LocalDateTime? get() = null
+    public val endTime: LocalDateTime? get() = null
 
     /**
      * An optional colour used to tint the event's indicator dot on the day cell.
-     * When `null`, the calendar falls back to [com.himanshoe.kalendar.foundation.component.config.KalendarDayConfig.indicatorColor].
+     * When `null`, the calendar falls back to [com.himanshoe.kalendar.foundation.component.config.KalendarDayConfig.indicatorColor]
+     * or the colour registered for [calendarId] in
+     * [com.himanshoe.kalendar.foundation.component.config.KalendarConfig.calendarColors].
      * Defaults to `null`.
      */
-    val eventColor: Color? get() = null
+    public val eventColor: Color? get() = null
+
+    /**
+     * An optional identifier that links this event to a named calendar source (e.g. "work",
+     * "personal"). When non-null the indicator dot colour is resolved from
+     * [com.himanshoe.kalendar.foundation.component.config.KalendarConfig.calendarColors] using
+     * this id, unless [eventColor] is set (which takes precedence). Defaults to `null`.
+     */
+    public val calendarId: String? get() = null
 }
 
 /**
  * A ready-to-use implementation of [KalendarEvent].
  *
- * @property date The date on which the event falls.
+ * @property date The date on which the event falls, or the first date for a multi-day event.
  * @property eventName A short, human-readable name for the event.
  * @property eventDescription An optional longer description. Defaults to `null`.
  * @property startTime Optional start date-time used for within-day ordering. Defaults to `null`.
  * @property endTime Optional end date-time shown alongside [startTime]. Defaults to `null`.
- * @property eventColor Optional colour for the event's indicator dot. When `null` the calendar
- *   falls back to the configured [com.himanshoe.kalendar.foundation.component.config.KalendarDayConfig.indicatorColor].
- *   Defaults to `null`.
+ * @property eventColor Optional colour for the event's indicator dot. Overrides [calendarId]
+ *   colour lookup when non-null. Defaults to `null`.
+ * @property calendarId Optional source calendar identifier. When set, the indicator dot colour
+ *   is looked up in [com.himanshoe.kalendar.foundation.component.config.KalendarConfig.calendarColors]
+ *   unless [eventColor] is non-null. Defaults to `null`.
+ * @property endDate The last date this event occupies, inclusive, for a multi-day event.
+ *   Defaults to `null` (single-day event).
  */
 @Immutable
-data class BasicKalendarEvent(
+public data class BasicKalendarEvent(
     override val date: LocalDate,
     override val eventName: String,
     override val eventDescription: String? = null,
     override val startTime: LocalDateTime? = null,
     override val endTime: LocalDateTime? = null,
     override val eventColor: Color? = null,
+    override val calendarId: String? = null,
+    override val endDate: LocalDate? = null,
 ) : KalendarEvent
 
 /**
@@ -104,4 +129,4 @@ data class BasicKalendarEvent(
  * )
  * ```
  */
-typealias KalendarEvents = List<KalendarEvent>
+public typealias KalendarEvents = List<KalendarEvent>

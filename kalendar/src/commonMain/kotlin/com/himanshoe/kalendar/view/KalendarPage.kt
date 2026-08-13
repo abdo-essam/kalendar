@@ -16,14 +16,35 @@
 
 package com.himanshoe.kalendar.view
 
+import com.himanshoe.kalendar.foundation.event.KalendarEvent
+import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.Month
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
+
+/**
+ * Default [KalendarViewConfig.monthNameFormatter]: kotlinx-datetime has no locale-aware
+ * formatting, so this is plain English (e.g. "August") — pass your own formatter (backed by
+ * `java.time`, `NSDateFormatter`, `Intl`, etc.) for anything else.
+ */
+internal val defaultMonthNameFormatter: (Month) -> String = {
+    it.name.lowercase().replaceFirstChar { char -> char.titlecase() }
+}
+
+/** Default [KalendarViewConfig.dayOfWeekLabelFormatter]: the day name's first letter. */
+internal val defaultDayOfWeekLabelFormatter: (DayOfWeek) -> String = { it.name.take(1) }
+
+/**
+ * Multi-day events are expanded across at most this many days, guarding against a
+ * caller-supplied `endDate` far in the future turning into an unbounded loop.
+ */
+private const val MAX_EVENT_SPAN_DAYS = 366
 
 internal fun todayInSystemTimeZone(): LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
 
@@ -64,7 +85,31 @@ internal fun daysOfWeekStartingAt(startDayOfWeek: DayOfWeek): List<DayOfWeek> {
     return all.drop(startDayOfWeek.ordinal) + all.take(startDayOfWeek.ordinal)
 }
 
-internal fun monthTitle(monthStart: LocalDate): String {
-    val monthName = monthStart.month.name.lowercase().replaceFirstChar { it.titlecase() }
-    return "$monthName ${monthStart.year}"
+internal fun monthTitle(
+    monthStart: LocalDate,
+    monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
+): String = "${monthNameFormatter(monthStart.month)} ${monthStart.year}"
+
+/**
+ * Groups events by every date they occupy — a multi-day event (one with
+ * [KalendarEvent.endDate] set) appears under each date from [KalendarEvent.date] through
+ * [KalendarEvent.endDate], inclusive, capped at [MAX_EVENT_SPAN_DAYS] days.
+ */
+internal fun KalendarEvents.byDateExpandingSpans(): Map<LocalDate, List<KalendarEvent>> {
+    val result = mutableMapOf<LocalDate, MutableList<KalendarEvent>>()
+    for (event in this) {
+        val start = event.date
+        val requestedEnd = event.endDate ?: start
+        val end = if (requestedEnd > start) {
+            minOf(requestedEnd, start.plus(MAX_EVENT_SPAN_DAYS, DateTimeUnit.DAY))
+        } else {
+            start
+        }
+        var current = start
+        while (current <= end) {
+            result.getOrPut(current) { mutableListOf() }.add(event)
+            current = current.plus(1, DateTimeUnit.DAY)
+        }
+    }
+    return result
 }

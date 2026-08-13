@@ -72,7 +72,7 @@ import kotlinx.datetime.Month
  *   describing the date being rendered.
  */
 @Composable
-fun KalendarYear(
+public fun KalendarYear(
     selectedDate: LocalDate,
     modifier: Modifier = Modifier,
     state: KalendarViewState = rememberKalendarYearState(selectedDate),
@@ -83,13 +83,14 @@ fun KalendarYear(
     dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
 ) {
     val today = remember { todayInSystemTimeZone() }
-    val eventsByDate = remember(events) { events.groupBy { it.date } }
+    val eventsByDate = remember(events) { events.byDateExpandingSpans() }
 
     Column(modifier = modifier.background(config.background)) {
         KalendarNavigationHeader(
             title = remember(state.visibleDate) { state.visibleDate.year.toString() },
             state = state,
             showArrows = config.showNavigationArrows,
+            showTodayButton = config.showTodayButton,
         )
         HorizontalPager(
             state = state.pagerState,
@@ -107,7 +108,7 @@ fun KalendarYear(
                     }
                     Column {
                         Text(
-                            text = monthStart.month.name.lowercase().replaceFirstChar { it.titlecase() },
+                            text = config.monthNameFormatter(monthStart.month),
                             style = MaterialTheme.typography.labelLarge,
                             modifier = Modifier.padding(horizontal = 16.dp),
                         )
@@ -115,6 +116,7 @@ fun KalendarYear(
                             dates = dates,
                             startDayOfWeek = state.startDayOfWeek,
                             modifier = Modifier.padding(horizontal = 8.dp),
+                            dayLabelFormatter = config.dayOfWeekLabelFormatter,
                         ) { date ->
                             val dateEvents = eventsByDate[date] ?: emptyList()
                             val isCurrentMonth = date.month == month
@@ -131,6 +133,7 @@ fun KalendarYear(
                                 showAdjacentMonthDates = config.showAdjacentMonthDates,
                                 onClick = { onDateClick(date, dateEvents) },
                                 dayContent = dayContent,
+                                monthNameFormatter = config.monthNameFormatter,
                             )
                         }
                     }

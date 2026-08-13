@@ -25,13 +25,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 
 @Immutable
-data class KalendarHeaderConfig(
+public data class KalendarHeaderConfig(
     val textStyle: TextStyle,
     val centerAligned: Boolean
 ) {
-    companion object {
+    public companion object {
 
-        fun default() = KalendarHeaderConfig(
+        public fun default(): KalendarHeaderConfig = KalendarHeaderConfig(
             centerAligned = true,
             textStyle = TextStyle(
                 fontWeight = FontWeight.SemiBold,
@@ -39,8 +39,8 @@ data class KalendarHeaderConfig(
                 fontSize = 20.sp,
                 brush = Brush.linearGradient(
                     listOf(
-                        Color(0xFF413D4B),
-                        Color(0xFFD8A29E)
+                        Color(color = 0xFF413D4B),
+                        Color(color = 0xFFD8A29E)
                     )
                 ),
             ),
