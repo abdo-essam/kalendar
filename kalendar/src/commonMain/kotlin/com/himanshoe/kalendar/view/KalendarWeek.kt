@@ -93,6 +93,8 @@ public fun KalendarWeek(
             state = state,
             showArrows = config.showNavigationArrows,
             showTodayButton = config.showTodayButton,
+            showJumpPicker = config.showJumpPicker,
+            monthNameFormatter = config.monthNameFormatter,
         )
         HorizontalPager(
             state = state.pagerState,
@@ -124,6 +126,7 @@ public fun KalendarWeek(
                         onClick = { onDateClick(date, dateEvents) },
                         showSelectionBackground = date != slidingSelection,
                         monthNameFormatter = config.monthNameFormatter,
+                        maxEventIndicators = config.eventIndicatorCap,
                     )
                 }
             }

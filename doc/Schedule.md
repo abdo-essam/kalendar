@@ -40,6 +40,26 @@ val state = rememberKalendarScheduleState(
 KalendarSchedule(selectedDate = today, state = state)
 ```
 
+## Drag to move and resize
+
+When `onEventTimeChange` is set, blocks become draggable: press-and-hold then drag to move an
+event to a new time (snapped to `KalendarViewConfig.scheduleDragSnapMinutes`, 15 by default), or
+press-and-hold the block's **bottom edge** and drag to change its duration. On the week variant a
+horizontal drag also moves the event across days. The callback fires on release with the event and
+its new start/end — update your event source to complete the change:
+
+```kotlin
+KalendarSchedule(
+    selectedDate = today,
+    events = events,
+    onEventTimeChange = { event, newStart, newEnd ->
+        events = events.map {
+            if (it == event) it.copy(date = newStart.date, startTime = newStart, endTime = newEnd) else it
+        }
+    },
+)
+```
+
 ## Week variant
 
 `KalendarScheduleWeek` shows seven day columns side by side, paged by week via

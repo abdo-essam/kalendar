@@ -37,12 +37,22 @@ import kotlinx.datetime.Month
  *   to `true`.
  * @param showTodayButton Whether to show a button in the header that animates back to today's
  *   date. Defaults to `true`.
+ * @param showJumpPicker Whether tapping the header title opens a month/year jump picker that
+ *   scrolls straight to the chosen month. Defaults to `true`.
  * @param monthNameFormatter Formats a month name for titles, headers, and accessibility
  *   descriptions. kotlinx-datetime has no locale-aware formatting, so this defaults to plain
  *   English (e.g. "August") — pass a formatter backed by a platform date API (`java.time`,
  *   `NSDateFormatter`, `Intl`, ...) for a localized name.
  * @param dayOfWeekLabelFormatter Formats the day-of-week column headers. Defaults to the day
  *   name's first letter (e.g. "M" for Monday).
+ * @param hourLabelFormatter Formats the hour-gutter labels on [KalendarSchedule] and
+ *   [KalendarScheduleWeek]. Defaults to 24-hour `"HH:00"`; supply your own for 12-hour AM/PM.
+ * @param scheduleInitialScrollHour The hour the Schedule views scroll to when a page first
+ *   appears (0–23). Defaults to 7.
+ * @param scheduleDragSnapMinutes Snap step, in minutes, for dragging/resizing event blocks on
+ *   the Schedule views. Must be at least 1. Defaults to 15.
+ * @param eventIndicatorCap Maximum per-event indicator dots below a day number before collapsing
+ *   into a `+N` overflow label. Must be at least 1. Defaults to 3.
  * @param background Background brush for the calendar container. Defaults to solid white.
  */
 @Immutable
@@ -51,7 +61,28 @@ public data class KalendarViewConfig(
     val showNavigationArrows: Boolean = true,
     val showAdjacentMonthDates: Boolean = true,
     val showTodayButton: Boolean = true,
+    val showJumpPicker: Boolean = true,
     val monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
     val dayOfWeekLabelFormatter: (DayOfWeek) -> String = defaultDayOfWeekLabelFormatter,
+    val hourLabelFormatter: (Int) -> String = defaultHourLabelFormatter,
+    val scheduleInitialScrollHour: Int = DEFAULT_SCHEDULE_SCROLL_HOUR,
+    val scheduleDragSnapMinutes: Int = DEFAULT_SCHEDULE_SNAP_MINUTES,
+    val eventIndicatorCap: Int = DEFAULT_EVENT_INDICATOR_CAP,
     val background: Brush = SolidColor(Color.White),
-)
+) {
+    init {
+        require(scheduleInitialScrollHour in 0 until HOURS_PER_DAY) {
+            "scheduleInitialScrollHour must be in 0..23, was $scheduleInitialScrollHour"
+        }
+        require(scheduleDragSnapMinutes >= 1) {
+            "scheduleDragSnapMinutes must be >= 1, was $scheduleDragSnapMinutes"
+        }
+        require(eventIndicatorCap >= 1) {
+            "eventIndicatorCap must be >= 1, was $eventIndicatorCap"
+        }
+    }
+}
+
+internal const val DEFAULT_SCHEDULE_SCROLL_HOUR = 7
+internal const val DEFAULT_SCHEDULE_SNAP_MINUTES = 15
+internal const val DEFAULT_EVENT_INDICATOR_CAP = 3

@@ -128,6 +128,15 @@ fun App() {
     } else {
         null
     }
+    val onEventTimeChange = { event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime ->
+        events = events.map { candidate ->
+            if (candidate == event) {
+                candidate.copy(date = newStart.date, startTime = newStart, endTime = newEnd)
+            } else {
+                candidate
+            }
+        }
+    }
     val onEventDrop = { dropped: List<KalendarEvent>, newDate: LocalDate ->
         events = events.map { event ->
             if (event in dropped) {
@@ -219,13 +228,15 @@ fun App() {
                 modifier = Modifier.fillMaxSize(),
                 events = events,
                 onEventClick = { event -> println("Tapped event: ${event.eventName}") },
+                onEventTimeChange = onEventTimeChange,
             )
 
             SampleView.ScheduleWeek -> KalendarScheduleWeek(
                 selectedDate = today,
                 modifier = Modifier.fillMaxSize(),
                 events = events,
-                onEventClick = { event -> println("Tapped event: ${'$'}{event.eventName}") },
+                onEventClick = { event -> println("Tapped event: ${event.eventName}") },
+                onEventTimeChange = onEventTimeChange,
             )
 
             SampleView.Agenda -> Kalendar(

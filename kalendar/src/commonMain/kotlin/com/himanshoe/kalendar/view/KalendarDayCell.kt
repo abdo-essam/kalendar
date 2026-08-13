@@ -54,9 +54,6 @@ import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
 
-/** Maximum per-event indicator dots below a day number before collapsing into a "+N" overflow. */
-private const val MAX_EVENT_DOTS = 3
-
 /**
  * The state of a single date cell inside [KalendarWeek], [KalendarMonth], or [KalendarYear].
  *
@@ -93,6 +90,7 @@ internal fun KalendarMonthGridCell(
     dayContent: (@Composable (KalendarDayScope) -> Unit)?,
     showSelectionBackground: Boolean = true,
     monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
+    maxEventIndicators: Int = DEFAULT_EVENT_INDICATOR_CAP,
 ) {
     if (!isCurrentMonth && !showAdjacentMonthDates) {
         Box(modifier = Modifier.aspectRatio(1f))
@@ -106,6 +104,7 @@ internal fun KalendarMonthGridCell(
             onClick = onClick,
             showSelectionBackground = showSelectionBackground,
             monthNameFormatter = monthNameFormatter,
+            maxEventIndicators = maxEventIndicators,
         )
     }
 }
@@ -139,6 +138,7 @@ public object KalendarDayCellDefaults {
         modifier: Modifier = Modifier,
         showSelectionBackground: Boolean = true,
         monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
+        maxEventIndicators: Int = DEFAULT_EVENT_INDICATOR_CAP,
     ) {
         val colors = kalendarColors()
         val background by animateColorAsState(
@@ -217,7 +217,7 @@ public object KalendarDayCellDefaults {
                         horizontalArrangement = Arrangement.spacedBy(2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        scope.events.take(MAX_EVENT_DOTS).forEach { event ->
+                        scope.events.take(maxEventIndicators).forEach { event ->
                             Box(
                                 modifier = Modifier
                                     .size(4.dp)
@@ -230,9 +230,9 @@ public object KalendarDayCellDefaults {
                                     ),
                             )
                         }
-                        if (scope.events.size > MAX_EVENT_DOTS) {
+                        if (scope.events.size > maxEventIndicators) {
                             Text(
-                                text = "+${scope.events.size - MAX_EVENT_DOTS}",
+                                text = "+${scope.events.size - maxEventIndicators}",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontSize = 7.sp,
                                 color = if (scope.isSelected) textColor else colors.eventIndicator,

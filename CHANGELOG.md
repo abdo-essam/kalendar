@@ -15,6 +15,24 @@ project adheres to [Semantic Versioning](https://semver.org/).
   replacement; call `KalendarWeek`/`KalendarMonth`/`KalendarYear`/`KalendarTimeline` directly.
 
 ### Added
+- **Recurring events write to device calendars** — `insertEvent`/`updateEvent` now persist
+  `recurrenceRule` on Android (RRULE + RFC 2445 DURATION — recurring rows must not set DTEND —
+  plus EXDATE) and iOS (`EKRecurrenceRule` mapping, with `EKSpanFutureEvents` on rule updates so
+  EventKit applies them); fetch round-trips the rule on both platforms. iOS cannot write
+  `exceptionDates` (no EventKit EXDATE API) — documented.
+- **Drag to move/resize Schedule blocks** — press-and-hold a block to drag it to a new time
+  (bottom-edge drag resizes; horizontal drag on the week grid moves across days), snapped to a
+  configurable step, with live preview and overlap re-packing; `onEventTimeChange(event, newStart,
+  newEnd)` fires on release.
+- **Month/year jump picker** — tapping the header title opens a year-stepper + month-grid popup
+  that scrolls straight to the chosen month, on every header-bearing view.
+- **Configurability pass** — `KalendarViewConfig` gains `showJumpPicker`, `hourLabelFormatter`
+  (12h/24h gutter labels), `scheduleInitialScrollHour`, `scheduleDragSnapMinutes`, and
+  `eventIndicatorCap`; `doc/Config.md` rewritten around the real `KalendarViewConfig` (it
+  previously documented a deleted 1.x API).
+- **Phone-framed demo site** — the wasm demo now renders the sample app inside a phone mockup on
+  a gradient landing page (pure Compose: hero title, GitHub/Docs link chips, punch-hole bezel),
+  falling back to full-bleed on narrow viewports.
 - **`KalendarTheme` / `KalendarColors`** — every view colour now resolves through an ambient
   token set (selection, today/day/label content, event accent, now-indicator, grid lines, drag
   ghost). Material apps need no change (tokens derive from the ambient colour scheme); any app can

@@ -40,6 +40,9 @@ internal val defaultMonthNameFormatter: (Month) -> String = {
 /** Default [KalendarViewConfig.dayOfWeekLabelFormatter]: the day name's first letter. */
 internal val defaultDayOfWeekLabelFormatter: (DayOfWeek) -> String = { it.name.take(1) }
 
+/** Default [KalendarViewConfig.hourLabelFormatter]: 24-hour "HH:00". */
+internal val defaultHourLabelFormatter: (Int) -> String = { "${it.toString().padStart(2, '0')}:00" }
+
 /**
  * Multi-day events are expanded across at most this many days, guarding against a
  * caller-supplied `endDate` far in the future turning into an unbounded loop.

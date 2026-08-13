@@ -18,6 +18,7 @@ package com.himanshoe.kalendar.view
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,15 +55,20 @@ import androidx.compose.ui.unit.dp
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import kotlinx.coroutines.delay
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 import kotlin.math.roundToInt
 import kotlin.time.Clock
 
 private const val NOW_TICK_MS = 60_000L
 private const val EVENT_BLOCK_BACKGROUND_ALPHA = 0.18f
-private const val MORNING_SCROLL_TARGET_HOUR = 7
+private const val EVENT_BLOCK_DRAGGING_ALPHA = 0.45f
+private const val RESIZE_STRIP_DP = 12
 
 /**
  * An hourly time-grid calendar for a single day, navigable by both arrow-click and swipe.
@@ -85,6 +92,10 @@ private const val MORNING_SCROLL_TARGET_HOUR = 7
  * @param state Navigation state from [rememberKalendarScheduleState] — pages by single day.
  * @param events Events for the calendar; only those on the visible day are rendered.
  * @param onEventClick Called when an event block or all-day chip is tapped.
+ * @param onEventTimeChange When non-null, blocks become draggable: press-and-hold then drag to
+ *   move an event (snapped to 15-minute steps), or press-and-hold the block's bottom edge and
+ *   drag to change its duration. Called on release with the event and its new start/end —
+ *   update your event source to complete the change; the calendar never mutates events itself.
  * @param config Shared visual/behavioural settings. [KalendarViewConfig.disabledDates] and
  *   [KalendarViewConfig.showAdjacentMonthDates] have no effect here; arrows, the today button,
  *   month-name formatting, and background apply as usual.
@@ -97,6 +108,7 @@ public fun KalendarSchedule(
     state: KalendarViewState = rememberKalendarScheduleState(selectedDate),
     events: KalendarEvents = emptyList(),
     onEventClick: (KalendarEvent) -> Unit = {},
+    onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     hourHeight: Dp = 64.dp,
 ) {
@@ -106,6 +118,8 @@ public fun KalendarSchedule(
             state = state,
             showArrows = config.showNavigationArrows,
             showTodayButton = config.showTodayButton,
+            showJumpPicker = config.showJumpPicker,
+            monthNameFormatter = config.monthNameFormatter,
         )
         HorizontalPager(
             state = state.pagerState,
@@ -116,6 +130,8 @@ public fun KalendarSchedule(
                 day = day,
                 events = events,
                 onEventClick = onEventClick,
+                onEventTimeChange = onEventTimeChange,
+                config = config,
                 hourHeight = hourHeight,
             )
         }
@@ -156,6 +172,7 @@ public fun KalendarScheduleWeek(
     state: KalendarViewState = rememberKalendarWeekState(selectedDate),
     events: KalendarEvents = emptyList(),
     onEventClick: (KalendarEvent) -> Unit = {},
+    onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     hourHeight: Dp = 64.dp,
 ) {
@@ -165,6 +182,8 @@ public fun KalendarScheduleWeek(
             state = state,
             showArrows = config.showNavigationArrows,
             showTodayButton = config.showTodayButton,
+            showJumpPicker = config.showJumpPicker,
+            monthNameFormatter = config.monthNameFormatter,
         )
         HorizontalPager(
             state = state.pagerState,
@@ -175,6 +194,7 @@ public fun KalendarScheduleWeek(
                 weekStart = weekStart,
                 events = events,
                 onEventClick = onEventClick,
+                onEventTimeChange = onEventTimeChange,
                 config = config,
                 hourHeight = hourHeight,
             )
@@ -187,6 +207,7 @@ private fun ScheduleWeekPage(
     weekStart: LocalDate,
     events: KalendarEvents,
     onEventClick: (KalendarEvent) -> Unit,
+    onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?,
     config: KalendarViewConfig,
     hourHeight: Dp,
 ) {
@@ -204,7 +225,7 @@ private fun ScheduleWeekPage(
     val density = LocalDensity.current
 
     LaunchedEffect(weekStart) {
-        scrollState.scrollTo(with(density) { (hourHeight * MORNING_SCROLL_TARGET_HOUR).roundToPx() })
+        scrollState.scrollTo(with(density) { (hourHeight * config.scheduleInitialScrollHour).roundToPx() })
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -224,7 +245,7 @@ private fun ScheduleWeekPage(
         }
         HorizontalDivider()
         Row(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState)) {
-            HourGutter(hourHeight = hourHeight)
+            HourGutter(hourHeight = hourHeight, hourLabelFormatter = config.hourLabelFormatter)
             days.forEach { day ->
                 val blocks = remember(eventsByDate, day) {
                     scheduleBlocks(events = eventsByDate[day] ?: emptyList(), date = day)
@@ -236,6 +257,10 @@ private fun ScheduleWeekPage(
                         blocks = blocks,
                         hourHeight = hourHeight,
                         onEventClick = onEventClick,
+                        date = day,
+                        allowDayShift = true,
+                        snapMinutes = config.scheduleDragSnapMinutes,
+                        onEventTimeChange = onEventTimeChange,
                     )
                     NowIndicator(day = day, hourHeight = hourHeight)
                 }
@@ -301,6 +326,8 @@ private fun SchedulePage(
     day: LocalDate,
     events: KalendarEvents,
     onEventClick: (KalendarEvent) -> Unit,
+    onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?,
+    config: KalendarViewConfig,
     hourHeight: Dp,
 ) {
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
@@ -311,7 +338,7 @@ private fun SchedulePage(
     val density = LocalDensity.current
 
     LaunchedEffect(day) {
-        scrollState.scrollTo(with(density) { (hourHeight * MORNING_SCROLL_TARGET_HOUR).roundToPx() })
+        scrollState.scrollTo(with(density) { (hourHeight * config.scheduleInitialScrollHour).roundToPx() })
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -320,13 +347,16 @@ private fun SchedulePage(
             HorizontalDivider()
         }
         Row(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState)) {
-            HourGutter(hourHeight = hourHeight)
+            HourGutter(hourHeight = hourHeight, hourLabelFormatter = config.hourLabelFormatter)
             Box(modifier = Modifier.weight(1f).height(hourHeight * HOURS_PER_DAY)) {
                 HourLines(hourHeight = hourHeight)
                 ScheduleBlockLayout(
                     blocks = blocks,
                     hourHeight = hourHeight,
                     onEventClick = onEventClick,
+                    date = day,
+                    snapMinutes = config.scheduleDragSnapMinutes,
+                    onEventTimeChange = onEventTimeChange,
                 )
                 NowIndicator(day = day, hourHeight = hourHeight)
             }
@@ -359,12 +389,12 @@ private fun AllDayRow(events: List<KalendarEvent>, onEventClick: (KalendarEvent)
 }
 
 @Composable
-private fun HourGutter(hourHeight: Dp) {
+private fun HourGutter(hourHeight: Dp, hourLabelFormatter: (Int) -> String) {
     Column(modifier = Modifier.width(48.dp)) {
         repeat(HOURS_PER_DAY) { hour ->
             Box(modifier = Modifier.height(hourHeight).fillMaxWidth()) {
                 Text(
-                    text = hourLabel(hour),
+                    text = hourLabelFormatter(hour),
                     style = MaterialTheme.typography.labelSmall,
                     color = kalendarColors().dayLabelContent,
                     modifier = Modifier.align(Alignment.TopCenter),
@@ -384,33 +414,101 @@ private fun HourLines(hourHeight: Dp) {
     }
 }
 
+/**
+ * Live drag state for one block being moved or resized: raw pixel deltas accumulated from the
+ * gesture, converted to snapped minute/day deltas at render and release time.
+ */
+private data class BlockDragState(
+    val index: Int,
+    val resizing: Boolean,
+    val rawDeltaYPx: Float = 0f,
+    val rawDeltaXPx: Float = 0f,
+)
+
 @Composable
 private fun ScheduleBlockLayout(
     blocks: List<KalendarScheduleBlock>,
     hourHeight: Dp,
     onEventClick: (KalendarEvent) -> Unit,
+    date: LocalDate = todayInSystemTimeZone(),
+    allowDayShift: Boolean = false,
+    snapMinutes: Int = DEFAULT_SCHEDULE_SNAP_MINUTES,
+    onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
 ) {
     if (blocks.isEmpty()) {
         return
     }
+    var dragState by remember(blocks) { mutableStateOf<BlockDragState?>(null) }
+    val density = LocalDensity.current
+    val minutePx = with(density) { hourHeight.toPx() } / MINUTES_PER_HOUR
+
+    fun snappedMinutes(rawPx: Float): Int {
+        val minutes = (rawPx / minutePx).roundToInt()
+        return (minutes.toFloat() / snapMinutes).roundToInt() * snapMinutes
+    }
+
+    fun adjusted(index: Int): KalendarScheduleBlock {
+        val block = blocks[index]
+        val drag = dragState?.takeIf { it.index == index } ?: return block
+        val delta = snappedMinutes(drag.rawDeltaYPx)
+        return if (drag.resizing) {
+            val newEnd = (block.endMinutes + delta)
+                .coerceIn(block.startMinutes + MIN_SCHEDULE_BLOCK_MINUTES, MINUTES_PER_DAY)
+            block.copy(endMinutes = newEnd)
+        } else {
+            val duration = block.endMinutes - block.startMinutes
+            val newStart = (block.startMinutes + delta).coerceIn(0, MINUTES_PER_DAY - duration)
+            block.copy(startMinutes = newStart, endMinutes = newStart + duration)
+        }
+    }
+
     Layout(
         content = {
-            blocks.forEach { block ->
-                ScheduleEventBlock(block = block, onEventClick = onEventClick)
+            blocks.forEachIndexed { index, block ->
+                ScheduleEventBlock(
+                    block = block,
+                    onEventClick = onEventClick,
+                    isDragging = dragState?.index == index,
+                    dragModifier = if (onEventTimeChange == null) {
+                        Modifier
+                    } else {
+                        Modifier.blockDragGestures(
+                            index = index,
+                            onDragStateChange = { dragState = it },
+                            currentState = { dragState },
+                            onRelease = { state, layoutWidthPx ->
+                                val result = adjusted(state.index)
+                                val dayShift = if (allowDayShift && layoutWidthPx > 0f) {
+                                    (state.rawDeltaXPx / layoutWidthPx).roundToInt()
+                                } else {
+                                    0
+                                }
+                                val targetDate = date.plus(dayShift, DateTimeUnit.DAY)
+                                onEventTimeChange(
+                                    result.event,
+                                    LocalDateTime(targetDate, minutesToLocalTime(result.startMinutes)),
+                                    LocalDateTime(targetDate, minutesToLocalTime(result.endMinutes)),
+                                )
+                                dragState = null
+                            },
+                        )
+                    },
+                )
             }
         },
         modifier = Modifier.fillMaxSize(),
     ) { measurables, constraints ->
         val minuteHeightPx = hourHeight.toPx() / MINUTES_PER_HOUR
+        val rendered = blocks.indices.map { adjusted(it) }
         val placeables = measurables.mapIndexed { index, measurable ->
-            val block = blocks[index]
+            val block = rendered[index]
             val columnWidth = constraints.maxWidth / block.columns
             val blockHeight = ((block.endMinutes - block.startMinutes) * minuteHeightPx).roundToInt()
             measurable.measure(Constraints.fixed(width = columnWidth, height = blockHeight))
         }
         layout(constraints.maxWidth, (minuteHeightPx * MINUTES_PER_DAY).roundToInt()) {
             placeables.forEachIndexed { index, placeable ->
-                val block = blocks[index]
+                val block = rendered[index]
                 val columnWidth = constraints.maxWidth / block.columns
                 placeable.place(
                     x = block.column * columnWidth,
@@ -421,15 +519,64 @@ private fun ScheduleBlockLayout(
     }
 }
 
+/**
+ * Long-press-then-drag on a block: a press starting in the bottom [RESIZE_STRIP_DP] of the block
+ * resizes (moves the end time), anywhere else moves the whole block. Long-press is required so
+ * plain drags still scroll the surrounding grid.
+ */
+private fun Modifier.blockDragGestures(
+    index: Int,
+    onDragStateChange: (BlockDragState?) -> Unit,
+    currentState: () -> BlockDragState?,
+    onRelease: (state: BlockDragState, layoutWidthPx: Float) -> Unit,
+): Modifier = pointerInput(index) {
+    detectDragGesturesAfterLongPress(
+        onDragStart = { offset ->
+            val resizeStripPx = RESIZE_STRIP_DP.dp.toPx()
+            val resizing = offset.y > size.height - resizeStripPx
+            onDragStateChange(BlockDragState(index = index, resizing = resizing))
+        },
+        onDragEnd = {
+            currentState()?.let { onRelease(it, size.width.toFloat()) }
+        },
+        onDragCancel = {
+            onDragStateChange(null)
+        },
+        onDrag = { change, dragAmount ->
+            change.consume()
+            currentState()?.let { state ->
+                onDragStateChange(
+                    state.copy(
+                        rawDeltaYPx = state.rawDeltaYPx + dragAmount.y,
+                        rawDeltaXPx = state.rawDeltaXPx + dragAmount.x,
+                    ),
+                )
+            }
+        },
+    )
+}
+
+private fun minutesToLocalTime(minutes: Int): LocalTime {
+    val clamped = minutes.coerceIn(0, MINUTES_PER_DAY - 1)
+    return LocalTime(hour = clamped / MINUTES_PER_HOUR, minute = clamped % MINUTES_PER_HOUR)
+}
+
 @Composable
-private fun ScheduleEventBlock(block: KalendarScheduleBlock, onEventClick: (KalendarEvent) -> Unit) {
+private fun ScheduleEventBlock(
+    block: KalendarScheduleBlock,
+    onEventClick: (KalendarEvent) -> Unit,
+    isDragging: Boolean = false,
+    dragModifier: Modifier = Modifier,
+) {
     val accent = block.event.eventColor ?: kalendarColors().eventIndicator
+    val backgroundAlpha = if (isDragging) EVENT_BLOCK_DRAGGING_ALPHA else EVENT_BLOCK_BACKGROUND_ALPHA
     Row(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 1.dp)
             .clip(RoundedCornerShape(4.dp))
-            .background(accent.copy(alpha = EVENT_BLOCK_BACKGROUND_ALPHA))
+            .background(accent.copy(alpha = backgroundAlpha))
+            .then(dragModifier)
             .clickable { onEventClick(block.event) },
     ) {
         Box(modifier = Modifier.width(3.dp).fillMaxSize().background(accent))
@@ -466,8 +613,6 @@ private fun NowIndicator(day: LocalDate, hourHeight: Dp) {
 
 private fun currentLocalDateTime() =
     Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-
-private fun hourLabel(hour: Int): String = "${hour.toString().padStart(2, '0')}:00"
 
 private fun dayTitle(day: LocalDate, monthNameFormatter: (kotlinx.datetime.Month) -> String): String {
     val weekday = day.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.titlecase() }

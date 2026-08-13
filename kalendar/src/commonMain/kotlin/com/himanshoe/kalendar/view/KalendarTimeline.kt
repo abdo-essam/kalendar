@@ -144,6 +144,7 @@ public fun KalendarTimeline(
                             onClick = { onDateClick(date, dateEvents) },
                             dayContent = dayContent,
                             monthNameFormatter = config.monthNameFormatter,
+                            maxEventIndicators = config.eventIndicatorCap,
                         )
                     }
                 }

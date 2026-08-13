@@ -21,10 +21,14 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -32,16 +36,27 @@ import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.Month
 
 private const val TITLE_CROSSFADE_MS = 150
+private const val JUMP_PICKER_MONTH_COLUMNS = 4
 
 /**
  * One [IconButton]'s touch target — deliberately tight (no extra gap padding) since this is
@@ -69,8 +84,11 @@ internal fun KalendarNavigationHeader(
     showArrows: Boolean,
     modifier: Modifier = Modifier,
     showTodayButton: Boolean = false,
+    showJumpPicker: Boolean = false,
+    monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
 ) {
     val scope = rememberCoroutineScope()
+    var pickerOpen by remember { mutableStateOf(false) }
     val leadingReserved = if (showArrows) ICON_SLOT_WIDTH else 0.dp
     val trailingReserved = (if (showTodayButton) ICON_SLOT_WIDTH else 0.dp) +
         (if (showArrows) ICON_SLOT_WIDTH else 0.dp)
@@ -94,6 +112,27 @@ internal fun KalendarNavigationHeader(
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = if (showJumpPicker) {
+                        Modifier.clickable { pickerOpen = true }
+                    } else {
+                        Modifier
+                    },
+                )
+            }
+        }
+
+        if (pickerOpen) {
+            Popup(
+                alignment = Alignment.TopCenter,
+                onDismissRequest = { pickerOpen = false },
+            ) {
+                JumpPicker(
+                    initialYear = state.visibleDate.year,
+                    monthNameFormatter = monthNameFormatter,
+                    onMonthSelected = { year, month ->
+                        pickerOpen = false
+                        scope.launch { state.animateScrollTo(LocalDate(year, month, 1)) }
+                    },
                 )
             }
         }
@@ -128,6 +167,58 @@ internal fun KalendarNavigationHeader(
                     },
                 ) {
                     Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next")
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The month/year jump popup opened by tapping the header title: a year stepper above a 4x3 grid
+ * of month names; choosing a month closes the popup and scrolls the calendar to that month.
+ */
+@Composable
+private fun JumpPicker(
+    initialYear: Int,
+    monthNameFormatter: (Month) -> String,
+    onMonthSelected: (year: Int, month: Month) -> Unit,
+) {
+    var year by remember { mutableIntStateOf(initialYear) }
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        tonalElevation = 3.dp,
+        shadowElevation = 6.dp,
+    ) {
+        Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { year-- }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                        contentDescription = "Previous year",
+                    )
+                }
+                Text(
+                    text = year.toString(),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                )
+                IconButton(onClick = { year++ }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Next year",
+                    )
+                }
+            }
+            Month.entries.chunked(JUMP_PICKER_MONTH_COLUMNS).forEach { rowMonths ->
+                Row {
+                    rowMonths.forEach { month ->
+                        TextButton(
+                            onClick = { onMonthSelected(year, month) },
+                            modifier = Modifier.width(72.dp),
+                        ) {
+                            Text(text = monthNameFormatter(month).take(3))
+                        }
+                    }
                 }
             }
         }

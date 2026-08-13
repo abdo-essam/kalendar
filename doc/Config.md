@@ -1,187 +1,43 @@
 # Kalendar – Configuration Reference
 
-All visual and behavioural options are consolidated in `KalendarConfig`. Pass it to the `config`
-parameter of `Kalendar()`.
-
----
-
-## KalendarConfig
+Every standalone view — `KalendarWeek`, `KalendarMonth`, `KalendarYear`, `KalendarTimeline`,
+`KalendarSchedule`, `KalendarScheduleWeek` — takes the same `KalendarViewConfig` via its `config`
+parameter. Options that only apply to some views say so; passing them elsewhere is harmless.
 
 ```kotlin
-data class KalendarConfig(
-    val showDayLabel: Boolean = true,
-    val showArrows: Boolean = true,
-    val startDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
-    val firstVisibleDate: LocalDate? = null,
-    val minDate: LocalDate? = null,
-    val maxDate: LocalDate? = null,
-    val initialSelectedDates: List<LocalDate> = emptyList(),
-    val initialSelectedRange: KalendarSelectedDayRange? = null,
-    val disabledDates: (LocalDate) -> Boolean = { false },
-    val onVisibleRangeChange: ((start: LocalDate, end: LocalDate) -> Unit)? = null,
-    val dayConfig: KalendarDayConfig = KalendarDayConfig(),
-    val headerConfig: KalendarHeaderConfig = KalendarHeaderConfig.default(),
-    val dayLabelConfig: KalendarDayLabelConfig = KalendarDayLabelConfig.default(),
-    val backgroundColor: KalendarColor = KalendarColor.Solid(Color.White),
+KalendarMonth(
+    selectedDate = today,
+    config = KalendarViewConfig(
+        disabledDates = { it.dayOfWeek == DayOfWeek.SUNDAY },
+        eventIndicatorCap = 2,
+        hourLabelFormatter = { hour -> twelveHourLabel(hour) },
+    ),
 )
 ```
+
+## KalendarViewConfig
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `showDayLabel` | `Boolean` | `true` | Show the Mon/Tue/… header row. |
-| `showArrows` | `Boolean` | `true` | Show previous/next arrow buttons (no effect on swipe variants). |
-| `startDayOfWeek` | `DayOfWeek` | `MONDAY` | First column of the week grid. |
-| `firstVisibleDate` | `LocalDate?` | `null` | Open the calendar on this date without pre-selecting it. |
-| `minDate` | `LocalDate?` | `null` | Oldest navigable date. |
-| `maxDate` | `LocalDate?` | `null` | Latest navigable date. |
-| `initialSelectedDates` | `List<LocalDate>` | `emptyList()` | Pre-selected dates for Multiple mode. |
-| `initialSelectedRange` | `KalendarSelectedDayRange?` | `null` | Pre-selected range for Range mode. |
-| `disabledDates` | `(LocalDate) -> Boolean` | `{ false }` | Predicate; disabled dates are dimmed and non-tappable. |
-| `onVisibleRangeChange` | `((LocalDate, LocalDate) -> Unit)?` | `null` | Fires on every navigation; use for lazy event loading. |
-| `dayConfig` | `KalendarDayConfig` | — | Visual config for day cells. |
-| `headerConfig` | `KalendarHeaderConfig` | — | Visual config for the month/week header. |
-| `dayLabelConfig` | `KalendarDayLabelConfig` | — | Visual config for day-of-week labels. |
-| `backgroundColor` | `KalendarColor` | `Solid(White)` | Background colour/gradient for the container. |
+| `disabledDates` | `(LocalDate) -> Boolean` | `{ false }` | Dates rendered dimmed with taps ignored. |
+| `showNavigationArrows` | `Boolean` | `true` | Previous/next arrows in the header; swiping works regardless. No effect on `KalendarTimeline`. |
+| `showAdjacentMonthDates` | `Boolean` | `true` | Show the previous/next month's padding dates dimmed, or leave those cells blank. Month-grid views only. |
+| `showTodayButton` | `Boolean` | `true` | Header button (sticky-header button on Timeline) that animates back to today. |
+| `showJumpPicker` | `Boolean` | `true` | Tapping the header title opens a month/year picker that jumps straight to the chosen month. Not on Timeline (no header title). |
+| `monthNameFormatter` | `(Month) -> String` | English names | Month names for titles, labels, and accessibility descriptions — plug in a locale-aware platform formatter. |
+| `dayOfWeekLabelFormatter` | `(DayOfWeek) -> String` | First letter | Day-of-week column labels. |
+| `hourLabelFormatter` | `(Int) -> String` | `"HH:00"` | Hour-gutter labels on the Schedule views; supply your own for 12-hour AM/PM. |
+| `scheduleInitialScrollHour` | `Int` | `7` | Hour the Schedule views scroll to when a page appears (0–23). |
+| `scheduleDragSnapMinutes` | `Int` | `15` | Snap step for dragging/resizing Schedule event blocks. |
+| `eventIndicatorCap` | `Int` | `3` | Max per-event dots under a day number before collapsing to `+N`. |
+| `background` | `Brush` | solid white | Background of the calendar container. |
 
----
+Colours are themed separately through [`KalendarTheme`](Theme.md); per-view state (initial date,
+week start day, min/max bounds) lives on the `rememberKalendar*State` functions; selection
+behaviour is hoisted via `selectedDates`/`onDateClick` or [`rememberKalendarSelectionState`](Month.md#selection-modes-single-multiple-range).
 
-## KalendarDayConfig
+## Legacy
 
-```kotlin
-data class KalendarDayConfig(
-    val size: Dp = 56.dp,
-    val selectedTextColor: KalendarColor = Color(0xFF413D4B).asSolidColor(),
-    val borderColor: KalendarColor = Color(0xFFC39EA1).asSolidColor(),
-    val indicatorColor: KalendarColor = Color(0xFFD8A29E).asSolidColor(),
-    val textStyle: TextStyle = ...,
-    val selectedBackgroundColor: KalendarColor = Color(0xFFF7CFD3).asSolidColor(),
-)
-```
-
-| Parameter | Description |
-|---|---|
-| `size` | Diameter of each day circle cell. |
-| `selectedTextColor` | Text colour when a day is selected. |
-| `borderColor` | Border ring colour shown on today's date. |
-| `indicatorColor` | Fallback dot colour for events (overridden by `KalendarEvent.eventColor`). |
-| `textStyle` | Text style for the day number. |
-| `selectedBackgroundColor` | Background fill when a day is selected. |
-
----
-
-## KalendarHeaderConfig
-
-```kotlin
-data class KalendarHeaderConfig(
-    val textStyle: TextStyle,
-    val centerAligned: Boolean,
-)
-```
-
-| Parameter | Description |
-|---|---|
-| `textStyle` | Text style for the month/week title. |
-| `centerAligned` | `true` → title centred with arrows flanking; `false` → title leading. |
-
----
-
-## KalendarDayLabelConfig
-
-```kotlin
-data class KalendarDayLabelConfig(
-    val textStyle: TextStyle,
-    val textCharCount: Int = 2,
-    val centerAligned: Boolean = true,
-    val dayNameFormatter: ((DayOfWeek) -> String)? = null,
-)
-```
-
-| Parameter | Description |
-|---|---|
-| `textStyle` | Text style for day-of-week labels. |
-| `textCharCount` | Characters taken from the day name when `dayNameFormatter` is `null` (e.g. `2` → "Mo"). |
-| `centerAligned` | Centre-aligns labels within their column. |
-| `dayNameFormatter` | Optional lambda for locale-aware labels; replaces `textCharCount` when non-null. |
-
----
-
-## KalendarColor
-
-```kotlin
-sealed class KalendarColor {
-    data class Solid(val color: Color) : KalendarColor()
-    data class Gradient(val colors: List<Color>) : KalendarColor()
-}
-
-fun Color.asSolidColor(): KalendarColor.Solid
-fun List<Color>.asGradientColor(): KalendarColor.Gradient
-```
-
----
-
-## KalendarEvent
-
-```kotlin
-interface KalendarEvent {
-    val date: LocalDate
-    val eventName: String
-    val eventDescription: String?
-    val startTime: LocalDateTime? get() = null
-    val endTime: LocalDateTime? get() = null
-    val eventColor: Color? get() = null
-}
-```
-
-`BasicKalendarEvent` is a ready-to-use `data class` implementation. All three optional fields
-default to `null` so existing implementations remain source-compatible.
-
-| Property | Description |
-|---|---|
-| `date` | Date the event falls on. |
-| `eventName` | Short display name. |
-| `eventDescription` | Optional longer description. |
-| `startTime` | Optional start date-time; events on the same day sort by this in Agenda view. |
-| `endTime` | Optional end date-time; shown alongside `startTime` in Agenda view. |
-| `eventColor` | Per-event indicator dot colour; falls back to `KalendarDayConfig.indicatorColor`. |
-
----
-
-## OnDaySelectionAction
-
-```kotlin
-sealed class OnDaySelectionAction {
-    data class Single(val onDayClick: (LocalDate, List<KalendarEvent>) -> Unit) : OnDaySelectionAction()
-    data class Multiple(val onDayClick: (LocalDate, List<KalendarEvent>) -> Unit) : OnDaySelectionAction()
-    data class Range(val onRangeSelected: (KalendarSelectedDayRange, List<KalendarEvent>) -> Unit) : OnDaySelectionAction()
-
-    companion object {
-        val NoOp: OnDaySelectionAction
-    }
-}
-```
-
----
-
-## KalendarSelectedDayRange
-
-```kotlin
-data class KalendarSelectedDayRange(
-    override val start: LocalDate,
-    override val endInclusive: LocalDate,
-) : ClosedRange<LocalDate>
-```
-
----
-
-## KalendarController
-
-```kotlin
-class KalendarController {
-    suspend fun scrollToDate(date: LocalDate)
-}
-
-@Composable
-fun rememberKalendarController(): KalendarController
-```
-
-Obtain via `rememberKalendarController()` and pass to `Kalendar(controller = …)`.
+The `Kalendar(type = KalendarType.Agenda)` composable predates the view package and takes the
+older `KalendarConfig` from `kalendar-foundation` — see [Agenda](Agenda.md). All other former
+`KalendarType`s were removed in 2.0.

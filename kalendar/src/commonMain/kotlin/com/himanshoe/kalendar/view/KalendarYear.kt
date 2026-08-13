@@ -91,6 +91,8 @@ public fun KalendarYear(
             state = state,
             showArrows = config.showNavigationArrows,
             showTodayButton = config.showTodayButton,
+            showJumpPicker = config.showJumpPicker,
+            monthNameFormatter = config.monthNameFormatter,
         )
         HorizontalPager(
             state = state.pagerState,
@@ -134,6 +136,7 @@ public fun KalendarYear(
                                 onClick = { onDateClick(date, dateEvents) },
                                 dayContent = dayContent,
                                 monthNameFormatter = config.monthNameFormatter,
+                                maxEventIndicators = config.eventIndicatorCap,
                             )
                         }
                     }
