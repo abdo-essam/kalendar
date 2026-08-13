@@ -1,4 +1,4 @@
-# Kalendar: KalendarSchedule
+# Kalendar: KalendarSchedule & KalendarScheduleWeek
 
 An hourly time-grid calendar for a single day — the "day view" of a typical calendar app.
 Navigable by both arrow-click and swipe, one day per page. Timed events (those with a
@@ -39,6 +39,31 @@ val state = rememberKalendarScheduleState(
 )
 KalendarSchedule(selectedDate = today, state = state)
 ```
+
+## Week variant
+
+`KalendarScheduleWeek` shows seven day columns side by side, paged by week via
+`rememberKalendarWeekState`. Day columns share one hour gutter; each column packs its own
+overlapping events; a header row shows each day's label and number with today emphasised; all-day
+events appear as chips prefixed with their day of month; the now-indicator appears only on
+today's column.
+
+```kotlin
+KalendarScheduleWeek(
+    selectedDate = today,
+    events = events,
+    onEventClick = { event -> openDetails(event) },
+)
+```
+
+Its parameters mirror `KalendarSchedule` exactly, except `state` defaults to
+`rememberKalendarWeekState(selectedDate)`.
+
+## Theming
+
+Both views resolve colours through the ambient [`KalendarTheme`](Theme.md) — the event-block
+accent falls back to `KalendarColors.eventIndicator`, hour lines use `KalendarColors.gridLine`,
+and the now-indicator uses `KalendarColors.nowIndicator`.
 
 ## Parameters
 

@@ -99,6 +99,14 @@ compose.resources {
     packageOfResClass = "com.himanshoe.kalendar.resources"
     generateResClass = auto
 }
+
+tasks.withType<Test>().configureEach {
+    systemProperty(
+        "goldenDir",
+        layout.projectDirectory.dir("src/desktopTest/resources/goldens").asFile.absolutePath,
+    )
+    systemProperty("updateGoldens", providers.gradleProperty("updateGoldens").getOrElse("false"))
+}
 extensions.configure<LibraryExtension> {
     namespace = "com.himanshoe.kalendar"
     compileSdk = 36

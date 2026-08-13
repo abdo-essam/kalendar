@@ -20,7 +20,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import kotlinx.datetime.LocalDate
 
@@ -115,10 +117,39 @@ public class KalendarSelectionState internal constructor(
         pendingRangeStart = null
         selectedDates = emptySet()
     }
+
+    internal companion object {
+        /**
+         * Saves the selection and any in-progress range start as epoch-day numbers, so the state
+         * survives configuration changes and process death. [mode] is not saved — it's a
+         * [rememberKalendarSelectionState] key, so changing it intentionally resets the state.
+         */
+        fun saver(mode: KalendarSelectionMode): Saver<KalendarSelectionState, Any> = listSaver(
+            save = { state ->
+                listOf(
+                    state.selectedDates.map { it.toEpochDays() },
+                    state.pendingRangeStart?.toEpochDays(),
+                )
+            },
+            restore = { saved ->
+                @Suppress("UNCHECKED_CAST")
+                val selectedDays = saved[0] as List<Long>
+                val pendingDay = saved[1] as Long?
+                KalendarSelectionState(
+                    mode = mode,
+                    initialSelection = selectedDays.map(LocalDate::fromEpochDays).toSet(),
+                ).also { state ->
+                    state.pendingRangeStart = pendingDay?.let(LocalDate::fromEpochDays)
+                }
+            },
+        )
+    }
 }
 
 /**
- * Creates and [remember]s a [KalendarSelectionState] for the given [mode].
+ * Creates and remembers a [KalendarSelectionState] for the given [mode], surviving configuration
+ * changes and process death via [rememberSaveable] (dates are persisted as epoch-day numbers).
+ * Changing [mode] resets the state.
  *
  * @param mode How tapping a date affects the selection. Defaults to [KalendarSelectionMode.Single].
  * @param initialSelection The initially selected dates. Defaults to none.
@@ -127,4 +158,6 @@ public class KalendarSelectionState internal constructor(
 public fun rememberKalendarSelectionState(
     mode: KalendarSelectionMode = KalendarSelectionMode.Single,
     initialSelection: Set<LocalDate> = emptySet(),
-): KalendarSelectionState = remember(mode) { KalendarSelectionState(mode, initialSelection) }
+): KalendarSelectionState = rememberSaveable(mode, saver = KalendarSelectionState.saver(mode)) {
+    KalendarSelectionState(mode, initialSelection)
+}

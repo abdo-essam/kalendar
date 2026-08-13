@@ -34,6 +34,13 @@ So unless you fancy scribbling your dates on a Howler, let Kalendar handle your 
 
 > _Made with ❤️ for Android Developers by Himanshu_
 
+## Live demo
+
+Try every view in your browser (Compose for Web/wasm build of the sample app):
+**[hi-manshu.github.io/Kalendar](https://hi-manshu.github.io/Kalendar/)** — deployed from `main`
+by the `Deploy Demo` workflow. (Requires GitHub Pages to be set to "GitHub Actions" in the repo
+settings the first time.)
+
 ## Standalone views (recommended)
 
 - **[KalendarMonth](doc/Month.md)**: full month grid, arrow-click and swipe navigation together.
@@ -41,6 +48,9 @@ So unless you fancy scribbling your dates on a Howler, let Kalendar handle your 
 - **[KalendarYear](doc/Year.md)**: 12-month year overview, arrow-click and swipe navigation together.
 - **[KalendarTimeline](doc/Timeline.md)**: continuous, boundless vertical scroll through every month — no paging.
 - **[KalendarSchedule](doc/Schedule.md)**: hourly time grid for a single day — duration-sized event blocks, overlap packing, and a now-indicator.
+- **[KalendarScheduleWeek](doc/Schedule.md#week-variant)**: the 7-day variant — day columns sharing one hour gutter.
+
+All views are restylable via **[KalendarTheme](doc/Theme.md)** colour tokens — no Material dependency required in your app's design system.
 
 These are called directly (`KalendarMonth(...)`, not `Kalendar(type = ...)`) and share no code with
 `kalendar-foundation` — see their docs for usage.

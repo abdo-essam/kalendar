@@ -15,6 +15,20 @@ project adheres to [Semantic Versioning](https://semver.org/).
   replacement; call `KalendarWeek`/`KalendarMonth`/`KalendarYear`/`KalendarTimeline` directly.
 
 ### Added
+- **`KalendarTheme` / `KalendarColors`** — every view colour now resolves through an ambient
+  token set (selection, today/day/label content, event accent, now-indicator, grid lines, drag
+  ghost). Material apps need no change (tokens derive from the ambient colour scheme); any app can
+  restyle by wrapping views in `KalendarTheme(colors = ...)`.
+- **`KalendarScheduleWeek`** — 7-day time grid paged by week: day columns share one hour gutter,
+  overlap packing per column, day-header row with today emphasised, all-day chips prefixed with
+  day-of-month, now-indicator on today's column.
+- **Saveable selection** — `rememberKalendarSelectionState` now uses `rememberSaveable`, so
+  selection (including an in-progress range) survives rotation and process death.
+- **Golden-image tests** — desktop screenshot tests lock in the month grid (default and
+  events/overflow) and the schedule day view; regenerate intentionally changed visuals with
+  `./gradlew :kalendar:desktopTest -PupdateGoldens=true`.
+- **Live demo deployment** — a `Deploy Demo` GitHub Actions workflow publishes the sample's
+  wasm build to GitHub Pages on every push to `main`; README links the demo.
 - **`KalendarSchedule`** — hourly time-grid day view paged by day: timed events as
   duration-sized blocks with side-by-side packing for overlaps, all-day chips above the grid, a
   minute-refreshed now-indicator on today, and an initial scroll to early morning.

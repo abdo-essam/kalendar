@@ -142,4 +142,42 @@ class KalendarSelectionStateTest {
         state.onDateClick(LocalDate(2026, 9, 1))
         assertEquals(setOf(LocalDate(2026, 9, 1)), state.selectedDates)
     }
+
+    @Test
+    fun saver_roundTrip_restoresSelection() {
+        val original = KalendarSelectionState(KalendarSelectionMode.Multiple, emptySet())
+        original.onDateClick(LocalDate(2026, 8, 12))
+        original.onDateClick(LocalDate(2026, 8, 15))
+
+        val restored = saveAndRestore(original, KalendarSelectionMode.Multiple)
+        assertEquals(original.selectedDates, restored.selectedDates)
+    }
+
+    @Test
+    fun saver_roundTrip_restoresPendingRangeStart() {
+        val original = KalendarSelectionState(KalendarSelectionMode.Range, emptySet())
+        original.onDateClick(LocalDate(2026, 8, 12))
+
+        val restored = saveAndRestore(original, KalendarSelectionMode.Range)
+        restored.onDateClick(LocalDate(2026, 8, 15))
+        assertEquals(
+            setOf(
+                LocalDate(2026, 8, 12),
+                LocalDate(2026, 8, 13),
+                LocalDate(2026, 8, 14),
+                LocalDate(2026, 8, 15),
+            ),
+            restored.selectedDates,
+        )
+    }
+
+    private fun saveAndRestore(
+        state: KalendarSelectionState,
+        mode: KalendarSelectionMode,
+    ): KalendarSelectionState {
+        val saver = KalendarSelectionState.saver(mode)
+        val saved = with(saver) { androidx.compose.runtime.saveable.SaverScope { true }.save(state) }
+        checkNotNull(saved) { "saver produced null" }
+        return checkNotNull(saver.restore(saved))
+    }
 }
