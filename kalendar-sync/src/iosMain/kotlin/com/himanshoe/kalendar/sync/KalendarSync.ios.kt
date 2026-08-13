@@ -19,10 +19,11 @@ package com.himanshoe.kalendar.sync
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
-import kotlinx.datetime.minus
+import kotlinx.datetime.plus
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import platform.EventKit.EKAlarm
@@ -56,11 +57,25 @@ import kotlin.time.Instant
 /**
  * Creates an iOS [KalendarSyncProvider] backed by EventKit.
  *
- * **Required permission** — add to your `Info.plist`:
+ * **Full calendar access is required** — this provider both reads and writes events, so iOS 17's
+ * write-only access level is not sufficient.
+ *
+ * **Required `Info.plist` keys:**
  * ```xml
+ * <!-- Apps linked against SDKs older than iOS 17 -->
  * <key>NSCalendarUsageDescription</key>
  * <string>This app needs calendar access to display and manage your events.</string>
+ *
+ * <!-- Apps linked against the iOS 17 SDK or newer -->
+ * <key>NSCalendarsFullAccessUsageDescription</key>
+ * <string>This app needs calendar access to display and manage your events.</string>
  * ```
+ *
+ * This provider requests access through EventKit's legacy `requestAccessToEntityType` API. On
+ * apps built with the iOS 17+ SDK that API completes without showing a prompt, so request full
+ * access up front — e.g. `EKEventStore.requestFullAccessToEventsWithCompletion:` from your app —
+ * before calling any provider function; once the app holds full access, every provider function
+ * works as usual.
  */
 public fun KalendarSync(): KalendarSyncProvider = IosKalendarSync()
 
@@ -76,6 +91,13 @@ private class IosKalendarSync : KalendarSyncProvider {
     private val eventStore = EKEventStore()
     private val tz get() = TimeZone.currentSystemDefault()
 
+    /**
+     * Returns `true` once the app holds full calendar access (write-only access is not enough —
+     * this provider also reads). When access is undetermined it falls back to EventKit's legacy
+     * `requestAccessToEntityType` request; on apps built with the iOS 17+ SDK that legacy call
+     * completes with `granted = false` without prompting, so such apps must obtain full access
+     * themselves (see the `KalendarSync()` factory KDoc) before using this provider.
+     */
     override suspend fun hasPermission(): Boolean {
         val status = EKEventStore.authorizationStatusForEntityType(EKEntityType.EKEntityTypeEvent)
         if (status == EKAuthorizationStatusFullAccess) return true
@@ -95,7 +117,7 @@ private class IosKalendarSync : KalendarSyncProvider {
         if (!hasPermission()) return KalendarSyncResult.PermissionDenied
         return runCatching {
             val start = startDate.atStartOfDayIn(timeZone).toNSDate()
-            val end = endDate.atStartOfDayIn(timeZone).toNSDate()
+            val end = endDate.plus(1, DateTimeUnit.DAY).atStartOfDayIn(timeZone).toNSDate()
             val calendars = eventStore.calendarsForEntityType(EKEntityType.EKEntityTypeEvent)
 
             @Suppress("UNCHECKED_CAST")
@@ -249,9 +271,11 @@ private class IosKalendarSync : KalendarSyncProvider {
             reminders = toReminders(),
             attendees = toAttendees(),
         )
-        val spanEndDate = endDate?.toLocalDate()
-            ?.let { if (allDay) it.minus(1, DateTimeUnit.DAY) else it }
-            ?.takeIf { allDay && it > date }
+        val spanEndDate = if (allDay) {
+            endDate?.toLocalDateTime()?.let { allDayInclusiveEndDate(startDate = date, endDateTime = it) }
+        } else {
+            null
+        }
         return BasicKalendarSyncEvent(
             id = eventIdentifier,
             date = date,
@@ -397,6 +421,11 @@ private class IosKalendarSync : KalendarSyncProvider {
     private fun NSDate.toLocalDate(): LocalDate =
         Instant.fromEpochSeconds(timeIntervalSince1970.toLong())
             .toLocalDateTime(tz).date
+
+    /** Converts an [NSDate] to a [LocalDateTime] using the device's current time zone. */
+    private fun NSDate.toLocalDateTime(): LocalDateTime =
+        Instant.fromEpochSeconds(timeIntervalSince1970.toLong())
+            .toLocalDateTime(tz)
 
     /** Converts an [NSDate] to a [LocalTime] using the device's current time zone. */
     private fun NSDate.toLocalTime(): LocalTime =

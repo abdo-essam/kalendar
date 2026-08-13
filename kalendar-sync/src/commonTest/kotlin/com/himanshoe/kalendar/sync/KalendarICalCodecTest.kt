@@ -26,7 +26,7 @@ import kotlin.test.assertTrue
 class KalendarICalCodecTest {
 
     @Test
-    fun encode_timedEvent_containsDtStartAndDtEnd() {
+    fun encode_timedEvent_containsFloatingDtStartAndDtEnd() {
         val event = BasicKalendarSyncEvent(
             date = LocalDate(2026, 8, 12),
             eventName = "Standup",
@@ -34,9 +34,38 @@ class KalendarICalCodecTest {
             endTime = LocalTime(9, 30),
         )
         val ics = KalendarICalCodec.encode(listOf(event))
-        assertTrue(ics.contains("DTSTART:20260812T090000Z"))
-        assertTrue(ics.contains("DTEND:20260812T093000Z"))
+        assertTrue(ics.contains("DTSTART:20260812T090000\n"))
+        assertTrue(ics.contains("DTEND:20260812T093000\n"))
         assertTrue(ics.contains("SUMMARY:Standup"))
+    }
+
+    @Test
+    fun encode_timedEvent_neverEmitsUtcSuffixOnWallClockTimes() {
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 8, 12),
+            eventName = "Standup",
+            startTime = LocalTime(9, 0),
+            endTime = LocalTime(9, 30),
+        )
+        val ics = KalendarICalCodec.encode(listOf(event))
+        assertTrue(!ics.contains("090000Z") && !ics.contains("093000Z"))
+    }
+
+    @Test
+    fun decode_legacyZSuffixedDateTimes_treatedAsFloatingLocalTime() {
+        val ics = """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            SUMMARY:Legacy
+            DTSTART:20260812T090000Z
+            DTEND:20260812T093000Z
+            END:VEVENT
+            END:VCALENDAR
+        """.trimIndent()
+        val decoded = KalendarICalCodec.decode(ics).single()
+        assertEquals(LocalDate(2026, 8, 12), decoded.date)
+        assertEquals(LocalTime(9, 0), decoded.startTime)
+        assertEquals(LocalTime(9, 30), decoded.endTime)
     }
 
     @Test
@@ -159,6 +188,35 @@ class KalendarICalCodecTest {
     }
 
     @Test
+    fun encode_timedRecurringEventWithExceptions_emitsDateTimeExdateMatchingDtStart() {
+        val original = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 5),
+            eventName = "Standup",
+            startTime = LocalTime(9, 0),
+            endTime = LocalTime(9, 30),
+            recurrenceRule = KalendarRule(frequency = KalendarRecurrenceFrequency.DAILY),
+            exceptionDates = listOf(LocalDate(2026, 1, 7), LocalDate(2026, 1, 9)),
+        )
+        val ics = KalendarICalCodec.encode(listOf(original))
+        assertTrue(ics.contains("EXDATE:20260107T090000,20260109T090000"))
+        assertTrue(!ics.contains("EXDATE;VALUE=DATE"))
+    }
+
+    @Test
+    fun roundTrip_timedRecurringEventWithExceptions_preservesExceptionDates() {
+        val original = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 5),
+            eventName = "Standup",
+            startTime = LocalTime(9, 0),
+            endTime = LocalTime(9, 30),
+            recurrenceRule = KalendarRule(frequency = KalendarRecurrenceFrequency.DAILY),
+            exceptionDates = listOf(LocalDate(2026, 1, 7), LocalDate(2026, 1, 9)),
+        )
+        val decoded = KalendarICalCodec.decode(KalendarICalCodec.encode(listOf(original))).single()
+        assertEquals(listOf(LocalDate(2026, 1, 7), LocalDate(2026, 1, 9)), decoded.exceptionDates)
+    }
+
+    @Test
     fun roundTrip_preservesExceptionDates() {
         val original = BasicKalendarSyncEvent(
             date = LocalDate(2026, 1, 5),
@@ -243,6 +301,54 @@ class KalendarICalCodecTest {
         """.trimIndent()
         val decoded = KalendarICalCodec.decode(ics).single()
         assertEquals(listOf(60, 90), decoded.reminders.map { it.minutesBefore })
+    }
+
+    @Test
+    fun decode_dayBasedAndSecondsBearingTriggers_convertToMinutes() {
+        val ics = """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            SUMMARY:Alarmed
+            DTSTART;VALUE=DATE:20260812
+            BEGIN:VALARM
+            ACTION:DISPLAY
+            TRIGGER:-P1D
+            END:VALARM
+            BEGIN:VALARM
+            ACTION:DISPLAY
+            TRIGGER:-P1DT2H30M
+            END:VALARM
+            BEGIN:VALARM
+            ACTION:DISPLAY
+            TRIGGER:-PT30M0S
+            END:VALARM
+            END:VEVENT
+            END:VCALENDAR
+        """.trimIndent()
+        val decoded = KalendarICalCodec.decode(ics).single()
+        assertEquals(listOf(1440, 1590, 30), decoded.reminders.map { it.minutesBefore })
+    }
+
+    @Test
+    fun decode_positiveOrAbsoluteTriggers_areDropped() {
+        val ics = """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            SUMMARY:Alarmed
+            DTSTART;VALUE=DATE:20260812
+            BEGIN:VALARM
+            ACTION:DISPLAY
+            TRIGGER:PT15M
+            END:VALARM
+            BEGIN:VALARM
+            ACTION:DISPLAY
+            TRIGGER;VALUE=DATE-TIME:20260812T083000Z
+            END:VALARM
+            END:VEVENT
+            END:VCALENDAR
+        """.trimIndent()
+        val decoded = KalendarICalCodec.decode(ics).single()
+        assertTrue(decoded.reminders.isEmpty())
     }
 
     @Test

@@ -147,6 +147,38 @@ class KalendarRecurrenceExpanderTest {
     }
 
     @Test
+    fun expandOccurrences_countConsumedBeforeRangeStart_yieldsNoPhantomOccurrences() {
+        // The COUNT=3 series is exhausted by Jan 3, so a February window must be empty.
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 1),
+            eventName = "Limited",
+            recurrenceRule = KalendarRule(frequency = KalendarRecurrenceFrequency.DAILY, count = 3),
+        )
+        val occurrences = event.expandOccurrences(
+            rangeStart = LocalDate(2026, 2, 1),
+            rangeEnd = LocalDate(2026, 2, 28),
+        )
+        assertTrue(occurrences.isEmpty())
+    }
+
+    @Test
+    fun expandOccurrences_countPartiallyConsumedBeforeRangeStart_returnsOnlyRemainingOccurrences() {
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 1),
+            eventName = "Limited",
+            recurrenceRule = KalendarRule(frequency = KalendarRecurrenceFrequency.DAILY, count = 5),
+        )
+        val occurrences = event.expandOccurrences(
+            rangeStart = LocalDate(2026, 1, 3),
+            rangeEnd = LocalDate(2026, 1, 31),
+        )
+        assertEquals(
+            listOf(LocalDate(2026, 1, 3), LocalDate(2026, 1, 4), LocalDate(2026, 1, 5)),
+            occurrences.map { it.date },
+        )
+    }
+
+    @Test
     fun expandOccurrences_count_stopsAfterNOccurrences() {
         val event = BasicKalendarSyncEvent(
             date = LocalDate(2026, 1, 1),
@@ -211,6 +243,131 @@ class KalendarRecurrenceExpanderTest {
                 LocalDate(2026, 1, 19),
                 LocalDate(2026, 1, 21),
             ),
+            occurrences.map { it.date },
+        )
+    }
+
+    @Test
+    fun expandOccurrences_monthlyWithByDay_everyMatchingWeekdayOfEachMonth() {
+        // 2026-01-02 is a Friday; MONTHLY BYDAY=FR fires on every Friday of every month.
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 2),
+            eventName = "Monthly Friday",
+            recurrenceRule = KalendarRule(
+                frequency = KalendarRecurrenceFrequency.MONTHLY,
+                byDay = listOf(KalendarWeekDay.FRIDAY),
+            ),
+        )
+        val occurrences = event.expandOccurrences(
+            rangeStart = LocalDate(2026, 1, 1),
+            rangeEnd = LocalDate(2026, 2, 28),
+        )
+        assertEquals(
+            listOf(
+                LocalDate(2026, 1, 2),
+                LocalDate(2026, 1, 9),
+                LocalDate(2026, 1, 16),
+                LocalDate(2026, 1, 23),
+                LocalDate(2026, 1, 30),
+                LocalDate(2026, 2, 6),
+                LocalDate(2026, 2, 13),
+                LocalDate(2026, 2, 20),
+                LocalDate(2026, 2, 27),
+            ),
+            occurrences.map { it.date },
+        )
+    }
+
+    @Test
+    fun expandOccurrences_monthlyByDayWithInterval_skipsUnalignedMonths() {
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 2),
+            eventName = "Bi-monthly Friday",
+            recurrenceRule = KalendarRule(
+                frequency = KalendarRecurrenceFrequency.MONTHLY,
+                interval = 2,
+                byDay = listOf(KalendarWeekDay.FRIDAY),
+            ),
+        )
+        val occurrences = event.expandOccurrences(
+            rangeStart = LocalDate(2026, 1, 1),
+            rangeEnd = LocalDate(2026, 3, 31),
+        )
+        assertEquals(
+            listOf(
+                LocalDate(2026, 1, 2),
+                LocalDate(2026, 1, 9),
+                LocalDate(2026, 1, 16),
+                LocalDate(2026, 1, 23),
+                LocalDate(2026, 1, 30),
+                LocalDate(2026, 3, 6),
+                LocalDate(2026, 3, 13),
+                LocalDate(2026, 3, 20),
+                LocalDate(2026, 3, 27),
+            ),
+            occurrences.map { it.date },
+        )
+    }
+
+    @Test
+    fun expandOccurrences_yearlyWithMultipleByMonths_emitsEachListedMonth() {
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 3, 1),
+            eventName = "Twice a year",
+            recurrenceRule = KalendarRule(
+                frequency = KalendarRecurrenceFrequency.YEARLY,
+                byMonth = listOf(3, 9),
+            ),
+        )
+        val occurrences = event.expandOccurrences(
+            rangeStart = LocalDate(2026, 1, 1),
+            rangeEnd = LocalDate(2027, 12, 31),
+        )
+        assertEquals(
+            listOf(
+                LocalDate(2026, 3, 1),
+                LocalDate(2026, 9, 1),
+                LocalDate(2027, 3, 1),
+                LocalDate(2027, 9, 1),
+            ),
+            occurrences.map { it.date },
+        )
+    }
+
+    @Test
+    fun expandOccurrences_yearlyByMonth_startMonthOutsideFilter_emitsListedMonthOnly() {
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 15),
+            eventName = "June only",
+            recurrenceRule = KalendarRule(
+                frequency = KalendarRecurrenceFrequency.YEARLY,
+                byMonth = listOf(6),
+            ),
+        )
+        val occurrences = event.expandOccurrences(
+            rangeStart = LocalDate(2026, 1, 1),
+            rangeEnd = LocalDate(2026, 12, 31),
+        )
+        assertEquals(listOf(LocalDate(2026, 6, 15)), occurrences.map { it.date })
+    }
+
+    @Test
+    fun expandOccurrences_yearlyByMonthWithInterval_skipsUnalignedYears() {
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 3, 1),
+            eventName = "Every other year",
+            recurrenceRule = KalendarRule(
+                frequency = KalendarRecurrenceFrequency.YEARLY,
+                interval = 2,
+                byMonth = listOf(3),
+            ),
+        )
+        val occurrences = event.expandOccurrences(
+            rangeStart = LocalDate(2026, 1, 1),
+            rangeEnd = LocalDate(2030, 12, 31),
+        )
+        assertEquals(
+            listOf(LocalDate(2026, 3, 1), LocalDate(2028, 3, 1), LocalDate(2030, 3, 1)),
             occurrences.map { it.date },
         )
     }
@@ -345,6 +502,23 @@ class KalendarRecurrenceExpanderTest {
         assertEquals(3, occurrences.size)
         assertTrue(occurrences.all { it.reminders == reminders })
         assertTrue(occurrences.all { it.attendees == attendees })
+    }
+
+    @Test
+    fun expandOccurrences_occurrencesCarryExceptionDates() {
+        val exceptions = listOf(LocalDate(2026, 1, 3))
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 1),
+            eventName = "Daily",
+            recurrenceRule = KalendarRule(frequency = KalendarRecurrenceFrequency.DAILY, count = 5),
+            exceptionDates = exceptions,
+        )
+        val occurrences = event.expandOccurrences(
+            rangeStart = LocalDate(2026, 1, 1),
+            rangeEnd = LocalDate(2026, 1, 31),
+        )
+        assertEquals(4, occurrences.size)
+        assertTrue(occurrences.all { it.exceptionDates == exceptions })
     }
 
     @Test

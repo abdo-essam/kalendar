@@ -17,18 +17,25 @@
 package com.himanshoe.kalendar.sync
 
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalTime
+import kotlinx.datetime.TimeZone
 import kotlinx.datetime.daysUntil
 import kotlinx.datetime.number
+import kotlinx.datetime.toInstant
+import kotlinx.datetime.toLocalDateTime
 
 private const val ICAL_DATE_LENGTH = 8
+private const val ICAL_TIME_LENGTH = 6
 private const val YEAR_END_IDX = 4
 private const val MONTH_END_IDX = 6
 private const val YEAR_DIGIT_WIDTH = 4
 private const val TWO_DIGIT_WIDTH = 2
+private const val MINUTE_END_IDX = 4
 private const val SECONDS_PER_MINUTE = 60L
 private const val SECONDS_PER_HOUR = 3_600L
 private const val SECONDS_PER_DAY = 86_400L
+private const val SECONDS_PER_WEEK = 604_800L
 private const val DEFAULT_TIMED_DURATION_SECONDS = 3_600L
 
 /**
@@ -122,10 +129,15 @@ internal fun recurrenceDurationString(event: KalendarSyncEvent): String {
 /**
  * Builds the iCal EXDATE value list Android's `CalendarContract` stores in its `Events.EXDATE`
  * column: comma-joined `yyyyMMdd` values for all-day events, or comma-joined
- * `yyyyMMdd'T'HHmmss'Z'` values (at the event's start time) for timed events.
- * Returns `null` when the event has no [KalendarSyncEvent.exceptionDates].
+ * `yyyyMMdd'T'HHmmss'Z'` values for timed events. Timed values are true UTC instants: the
+ * excluded occurrence's local start (`exceptionDate` at the event's start time) is resolved
+ * through [timeZone] — the zone the provider stores in `EVENT_TIMEZONE` — so the provider's
+ * instant-based EXDATE matching finds the occurrence. Returns `null` when the event has no
+ * [KalendarSyncEvent.exceptionDates].
+ *
+ * @param timeZone The zone the event's occurrences are anchored in on the target device.
  */
-internal fun recurrenceExdateString(event: KalendarSyncEvent): String? {
+internal fun recurrenceExdateString(event: KalendarSyncEvent, timeZone: TimeZone): String? {
     if (event.exceptionDates.isEmpty()) {
         return null
     }
@@ -133,15 +145,55 @@ internal fun recurrenceExdateString(event: KalendarSyncEvent): String? {
         event.exceptionDates.joinToString(",") { it.toIcalDateString() }
     } else {
         val time = event.startTime ?: LocalTime(hour = 0, minute = 0)
-        val suffix = "T${time.hour.zeroPadded(TWO_DIGIT_WIDTH)}${time.minute.zeroPadded(TWO_DIGIT_WIDTH)}" +
-            "${time.second.zeroPadded(TWO_DIGIT_WIDTH)}Z"
-        event.exceptionDates.joinToString(",") { "${it.toIcalDateString()}$suffix" }
+        event.exceptionDates.joinToString(",") { exceptionDate ->
+            val utc = LocalDateTime(date = exceptionDate, time = time)
+                .toInstant(timeZone)
+                .toLocalDateTime(TimeZone.UTC)
+            "${utc.date.toIcalDateString()}T${utc.time.toIcalTimeString()}Z"
+        }
     }
 }
 
 /**
- * Parses an RFC 2445 DURATION value (`P#D`, `PT#H`, `PT#M`, `PT#S`, or combinations such as
- * `P1DT12H`) into total seconds. Returns `null` for anything else, including an empty duration.
+ * Parses one EXDATE list entry back to the local exception date in [timeZone]. Accepts the plain
+ * date form (`yyyyMMdd`), the UTC date-time form this library writes (`yyyyMMdd'T'HHmmss'Z'`,
+ * converted from UTC back to [timeZone] so exclusions written across a midnight-crossing offset
+ * land on the right local day), and tolerates floating date-times or trailing junk by falling
+ * back to the leading date digits. Returns `null` for unparseable input.
+ */
+internal fun parseExdateValue(value: String, timeZone: TimeZone): LocalDate? {
+    val trimmed = value.trim()
+    val date = parseIcalDateString(trimmed) ?: return null
+    val utcTime = if (trimmed.endsWith("Z")) parseIcalUtcTimePart(trimmed) else null
+    return if (utcTime == null) {
+        date
+    } else {
+        LocalDateTime(date = date, time = utcTime)
+            .toInstant(TimeZone.UTC)
+            .toLocalDateTime(timeZone)
+            .date
+    }
+}
+
+/** Parses the `HHmmss` digits after the `T` of a UTC date-time value, or `null` if malformed. */
+private fun parseIcalUtcTimePart(value: String): LocalTime? {
+    val timePart = value.substringAfter('T', "").trimEnd('Z')
+    if (timePart.length < ICAL_TIME_LENGTH) {
+        return null
+    }
+    return runCatching {
+        LocalTime(
+            hour = timePart.substring(0, TWO_DIGIT_WIDTH).toInt(),
+            minute = timePart.substring(TWO_DIGIT_WIDTH, MINUTE_END_IDX).toInt(),
+            second = timePart.substring(MINUTE_END_IDX, ICAL_TIME_LENGTH).toInt(),
+        )
+    }.getOrNull()
+}
+
+/**
+ * Parses an RFC 2445 DURATION value (`P#W`, `P#D`, `PT#H`, `PT#M`, `PT#S`, or combinations such
+ * as `P1DT12H`) into total seconds. Returns `null` for anything else, including an empty
+ * duration.
  */
 internal fun parseRecurrenceDurationSeconds(value: String): Long? {
     val match = DURATION_REGEX.matchEntire(value.trim()) ?: return null
@@ -149,16 +201,21 @@ internal fun parseRecurrenceDurationSeconds(value: String): Long? {
     if (components.all { it.isEmpty() }) {
         return null
     }
-    val unitSeconds = listOf(SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE, 1L)
+    val unitSeconds = listOf(SECONDS_PER_WEEK, SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE, 1L)
     return components.zip(unitSeconds) { component, unit -> (component.toLongOrNull() ?: 0L) * unit }.sum()
 }
 
-private val DURATION_REGEX = Regex("""P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?""")
+private val DURATION_REGEX = Regex("""P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?""")
 
 /** Formats this date in the iCal basic form `yyyyMMdd`. */
 internal fun LocalDate.toIcalDateString(): String =
     "${year.zeroPadded(YEAR_DIGIT_WIDTH)}${month.number.zeroPadded(TWO_DIGIT_WIDTH)}" +
         day.zeroPadded(TWO_DIGIT_WIDTH)
+
+/** Formats this time in the iCal basic form `HHmmss`. */
+internal fun LocalTime.toIcalTimeString(): String =
+    "${hour.zeroPadded(TWO_DIGIT_WIDTH)}${minute.zeroPadded(TWO_DIGIT_WIDTH)}" +
+        second.zeroPadded(TWO_DIGIT_WIDTH)
 
 /**
  * Parses an iCal basic date (`yyyyMMdd`, with an optional `T...` time suffix that is ignored)

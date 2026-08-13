@@ -140,6 +140,29 @@ project adheres to [Semantic Versioning](https://semver.org/).
 - The header's previous-arrow disabled itself one page too early when `minDate` fell mid-period
   (e.g. a `minDate` of the 15th made its own month unreachable), and `animateScrollTo` with an
   out-of-bounds date scrolled past the configured `minDate`/`maxDate` instead of clamping to it.
+- `KalendarRecurrenceExpander` with a `count`-limited rule invented occurrences when the query
+  window started after the series began: the count was only consumed inside the window, so a
+  `DAILY COUNT=3` series from January 1st still produced events in February. The count is now
+  consumed from the series start.
+- Recurring rules that combine `interval` with MONTHLY `byDay`, or YEARLY `byMonth`, never
+  produced any occurrences (the expander stepped by whole months/years and missed the filter
+  days). YEARLY `byMonth` also correctly pins the day-of-month from the series start per RFC 5545.
+- All-day events written to Android used local-midnight timestamps instead of the UTC midnights
+  `CalendarContract` requires, shifting them a day in negative-offset timezones; reads now convert
+  back through UTC as well.
+- Timed recurrence exceptions (`exceptionDates`) written to Android used wall-clock time with a
+  `Z` suffix, so the platform matched no instance and the exclusions silently failed; EXDATE
+  values now convert through the device timezone to real UTC instants (and parse back the same
+  way).
+- Fetching events on iOS excluded the final day of the requested range (predicate ended at the
+  range end's start-of-day instead of the day after).
+- The iCal codec stamped `Z` onto wall-clock times on export, silently shifting every timed event
+  for consumers in non-UTC timezones; it now emits RFC 5545 floating times (legacy `Z` input
+  still decodes).
+- Expanded recurrence occurrences dropped their template's `exceptionDates`; `DURATION` values
+  using weeks (`P1W`) failed to parse; day-based `VALARM` triggers (`-P1D`) were ignored; Android
+  fetch hid recurring series that started before the query window; iOS all-day fetches reported
+  an end date one day off.
 - `kalendar-sync` did not actually compile for iOS or wasmJS — `commonMain` used JVM-only
   `String.format`/`SecurityException`, and the iOS EventKit integration referenced
   `EKAuthorizationStatusAuthorized` (deprecated in iOS 17, replaced by `EKAuthorizationStatusFullAccess`)

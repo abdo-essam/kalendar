@@ -18,6 +18,7 @@ package com.himanshoe.kalendar.sync
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kotlin.io.path.createTempFile
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -200,6 +201,29 @@ class KalendarSyncDesktopTest {
     @Test
     fun hasPermission_withoutPath_isFalse() = runBlocking {
         assertEquals(false, KalendarSync(icsFilePath = null).hasPermission())
+    }
+
+    @Test
+    fun insertEvent_timedRecurringWithExceptions_roundTripsRuleTimesAndExceptions() = runBlocking {
+        val sync = KalendarSync(icsFilePath = tempIcsPath())
+        sync.insertEvent(
+            BasicKalendarSyncEvent(
+                date = LocalDate(2026, 6, 15),
+                eventName = "Standup",
+                startTime = LocalTime(9, 0),
+                endTime = LocalTime(9, 30),
+                recurrenceRule = KalendarRule(frequency = KalendarRecurrenceFrequency.DAILY),
+                exceptionDates = listOf(LocalDate(2026, 6, 17)),
+            ),
+        )
+
+        val fetchResult = sync.fetchEvents(LocalDate(2026, 6, 1), LocalDate(2026, 6, 30))
+        assertIs<KalendarSyncResult.Success<List<KalendarSyncEvent>>>(fetchResult)
+        val fetched = fetchResult.data.single()
+        assertEquals(LocalTime(9, 0), fetched.startTime)
+        assertEquals(LocalTime(9, 30), fetched.endTime)
+        assertEquals(KalendarRule(frequency = KalendarRecurrenceFrequency.DAILY), fetched.recurrenceRule)
+        assertEquals(listOf(LocalDate(2026, 6, 17)), fetched.exceptionDates)
     }
 
     @Test

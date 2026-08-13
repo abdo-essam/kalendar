@@ -26,13 +26,18 @@ import kotlinx.datetime.plus
 /**
  * Pure Kotlin iCalendar (RFC 5545) encoder and decoder.
  * No platform APIs — works on Android, iOS, Desktop, and wasmJS.
+ *
+ * Timed events are written and read as **floating local times** (RFC 5545 section 3.3.5 form 1:
+ * no `Z` suffix, no `TZID`): every consumer interprets them in its own local zone. `TZID`
+ * parameters are not supported and are ignored on decode; for backwards compatibility with
+ * files this library previously wrote, a trailing `Z` on `DTSTART`/`DTEND`/`EXDATE` values is
+ * also accepted and treated as floating.
  */
 private const val END_OF_DAY_HOUR = 23
 private const val END_OF_DAY_MINUTE = 59
 private const val YEAR_END_IDX = 4
 private const val MONTH_END_IDX = 6
-private const val TWO_DIGIT_WIDTH = 2
-private const val MINUTES_PER_HOUR = 60
+private const val SECONDS_PER_MINUTE = 60L
 
 internal object KalendarICalCodec {
 
@@ -73,7 +78,7 @@ internal object KalendarICalCodec {
         }
         event.recurrenceRule?.let { appendLine("RRULE:${it.toRRuleString()}") }
         if (event.exceptionDates.isNotEmpty()) {
-            appendLine("EXDATE;VALUE=DATE:${event.exceptionDates.joinToString(",") { it.toIcalDateString() }}")
+            appendLine(exdateLine(event))
         }
         for (reminder in event.reminders) {
             appendLine("BEGIN:VALARM")
@@ -83,6 +88,23 @@ internal object KalendarICalCodec {
             appendLine("END:VALARM")
         }
         appendLine("END:VEVENT")
+    }
+
+    /**
+     * Builds the EXDATE property with a value type matching DTSTART's, as RFC 5545 requires:
+     * `VALUE=DATE` dates for all-day events, and floating DATE-TIME values at the event's start
+     * time for timed events (strict consumers match exclusions against the occurrence's
+     * DATE-TIME start and ignore mismatched value types).
+     */
+    private fun exdateLine(event: KalendarSyncEvent): String {
+        if (event.isAllDay) {
+            return "EXDATE;VALUE=DATE:${event.exceptionDates.joinToString(",") { it.toIcalDateString() }}"
+        }
+        val startTime = event.startTime ?: LocalTime(0, 0)
+        val values = event.exceptionDates.joinToString(",") { exceptionDate ->
+            LocalDateTime(date = exceptionDate, time = startTime).toIcalDateTime()
+        }
+        return "EXDATE:$values"
     }
 
     /**
@@ -173,25 +195,24 @@ internal object KalendarICalCodec {
     }
 
     /**
-     * Parses a `TRIGGER` line inside a `VALARM` block into minutes-before-start, handling the
-     * `-PT#M`, `-PT#H`, and `-PT#H#M` duration forms. Returns `null` for any other line in the
-     * alarm block, and for triggers that are absolute, positive (after the event), or otherwise
-     * unparseable.
+     * Parses a `TRIGGER` line inside a `VALARM` block into minutes-before-start, handling any
+     * negative RFC 2445 duration — week, day, hour, minute, and second components in any
+     * combination (`-PT30M`, `-P1D`, `-P1DT2H30M`, `-PT30M0S`, ...). Returns `null` for any
+     * other line in the alarm block, and for triggers that are absolute, positive (after the
+     * event), or otherwise unparseable.
      */
     private fun parseAlarmTriggerMinutes(line: String): Int? {
         val parsed = parseLine(line)
-        if (parsed == null || parsed.first != "TRIGGER") return null
-        val match = TRIGGER_DURATION_REGEX.matchEntire(parsed.third.trim()) ?: return null
-        val hoursRaw = match.groupValues[1]
-        val minutesRaw = match.groupValues[2]
-        return if (hoursRaw.isEmpty() && minutesRaw.isEmpty()) {
-            null
-        } else {
-            (hoursRaw.toIntOrNull() ?: 0) * MINUTES_PER_HOUR + (minutesRaw.toIntOrNull() ?: 0)
+        if (parsed == null || parsed.first != "TRIGGER") {
+            return null
         }
+        val raw = parsed.third.trim()
+        if (!raw.startsWith("-")) {
+            return null
+        }
+        val seconds = parseRecurrenceDurationSeconds(raw.removePrefix("-")) ?: return null
+        return (seconds / SECONDS_PER_MINUTE).toInt()
     }
-
-    private val TRIGGER_DURATION_REGEX = Regex("""-PT(?:(\d+)H)?(?:(\d+)M)?""")
 
     /**
      * Parses an `ATTENDEE` property into a [KalendarAttendee]: the optional `CN=` parameter
@@ -237,10 +258,18 @@ internal object KalendarICalCodec {
         return Triple(key, params, value)
     }
 
+    /**
+     * Formats a floating local DATE-TIME (`yyyyMMdd'T'HHmmss`, no `Z`): the value is wall-clock
+     * time interpreted in each consumer's own zone, per RFC 5545 section 3.3.5 form 1.
+     */
     private fun LocalDateTime.toIcalDateTime(): String =
-        "${date.toIcalDateString()}T${hour.zeroPadded(TWO_DIGIT_WIDTH)}" +
-            "${minute.zeroPadded(TWO_DIGIT_WIDTH)}${second.zeroPadded(TWO_DIGIT_WIDTH)}Z"
+        "${date.toIcalDateString()}T${time.toIcalTimeString()}"
 
+    /**
+     * Parses the time portion of a DATE-TIME value as floating local time. A trailing `Z` is
+     * stripped and ignored — files this library used to write carried a spurious `Z` on
+     * wall-clock values, so both forms decode identically.
+     */
     private fun parseIcalTime(value: String): LocalTime? = runCatching {
         val timePart = value.substringAfter('T', "").trimEnd('Z')
         if (timePart.length < MONTH_END_IDX) return null

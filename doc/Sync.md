@@ -8,7 +8,7 @@ cloud account required. Works standalone; it doesn't depend on `kalendar` or `ka
 | Platform | Backing store | Read/write | Permission |
 |---|---|---|---|
 | Android | [`CalendarContract`](https://developer.android.com/reference/android/provider/CalendarContract) | Yes | `READ_CALENDAR` / `WRITE_CALENDAR` |
-| iOS | [EventKit](https://developer.apple.com/documentation/eventkit) | Yes | `NSCalendarUsageDescription` |
+| iOS | [EventKit](https://developer.apple.com/documentation/eventkit) | Yes | `NSCalendarUsageDescription` (pre-iOS 17 SDK) / `NSCalendarsFullAccessUsageDescription` (iOS 17+ SDK; full access required — see the `KalendarSync()` factory KDoc) |
 | Desktop (JVM) | An `.ics` file you choose | Yes, when `icsFilePath` is set | None |
 | Web (wasmJS) | — | No | — |
 
@@ -165,7 +165,12 @@ template lands as a real recurring series, not a one-off:
 
 - **Android** stores the rule in `CalendarContract`'s `RRULE` column, together with the RFC 2445
   `DURATION` the provider requires in place of `DTEND` for recurring events, and `exceptionDates`
-  as an `EXDATE` column. `fetchEvents` maps all three back onto the event.
+  as an `EXDATE` column. `fetchEvents` maps all three back onto the event. Because a recurring
+  series is stored as a single row whose start is the **series** start, `fetchEvents` returns
+  recurring templates whenever the series starts on or before the requested window's end — not
+  only when it starts inside the window — so series created before the window remain visible.
+  Expand each returned template with `expandOccurrences(rangeStart, rangeEnd)` to materialise the
+  occurrences that actually fall inside the window.
 - **iOS** maps the rule to an `EKRecurrenceRule` (frequency, interval, `count`/`until` end,
   `byDay`/`byMonthDay`/`byMonth`), and `fetchEvents` maps it back. **`exceptionDates` is not
   written on iOS**: EventKit has no per-rule EXDATE API — mirroring the attendees limitation —
@@ -206,6 +211,16 @@ Pure in-memory, no permission or `KalendarSyncProvider` needed, works on every p
 val icsText = exportToIcs(events)
 val events = importFromIcs(icsText)
 ```
+
+Timed events are written and read as **floating local times** (RFC 5545 `DTSTART:20260812T090000`
+— no `Z` suffix, no `TZID`): each consuming application interprets them in its own local time
+zone, matching how `KalendarSyncEvent` itself carries zone-less `LocalDate`/`LocalTime` values.
+`TZID` parameters are not supported and are ignored on import; for backwards compatibility with
+files older versions of this library exported, a trailing `Z` is also accepted and treated as
+floating. `EXDATE` values are written with a value type matching `DTSTART`, as RFC 5545 requires:
+plain dates for all-day events and floating date-times (at the event's start time) for timed
+events; both forms are accepted on import, as are day-based `VALARM` trigger durations such as
+`-P1D`.
 
 ## Parameters
 
