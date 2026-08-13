@@ -195,6 +195,119 @@ class KalendarICalCodecTest {
     }
 
     @Test
+    fun encode_reminder_emitsValarmBlockWithMinuteTrigger() {
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 8, 12),
+            eventName = "Standup",
+            reminders = listOf(KalendarReminder(minutesBefore = 30)),
+        )
+        val ics = KalendarICalCodec.encode(listOf(event))
+        assertTrue(ics.contains("BEGIN:VALARM"))
+        assertTrue(ics.contains("ACTION:DISPLAY"))
+        assertTrue(ics.contains("TRIGGER:-PT30M"))
+        assertTrue(ics.contains("END:VALARM"))
+    }
+
+    @Test
+    fun roundTrip_preservesMultipleReminders() {
+        val original = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 8, 12),
+            eventName = "Standup",
+            reminders = listOf(KalendarReminder(minutesBefore = 10), KalendarReminder(minutesBefore = 90)),
+        )
+        val decoded = KalendarICalCodec.decode(KalendarICalCodec.encode(listOf(original))).single()
+        assertEquals(original.reminders, decoded.reminders)
+    }
+
+    @Test
+    fun decode_hourAndMixedTriggers_convertToMinutes() {
+        val ics = """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            SUMMARY:Alarmed
+            DTSTART;VALUE=DATE:20260812
+            BEGIN:VALARM
+            ACTION:DISPLAY
+            TRIGGER:-PT1H
+            END:VALARM
+            BEGIN:VALARM
+            ACTION:DISPLAY
+            TRIGGER:-PT1H30M
+            END:VALARM
+            BEGIN:VALARM
+            ACTION:DISPLAY
+            TRIGGER:NOT_A_DURATION
+            END:VALARM
+            END:VEVENT
+            END:VCALENDAR
+        """.trimIndent()
+        val decoded = KalendarICalCodec.decode(ics).single()
+        assertEquals(listOf(60, 90), decoded.reminders.map { it.minutesBefore })
+    }
+
+    @Test
+    fun roundTrip_attendeeWithName_preservesNameAndEmail() {
+        val original = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 8, 12),
+            eventName = "Planning",
+            attendees = listOf(KalendarAttendee(email = "jane@example.com", name = "Jane Doe")),
+        )
+        val ics = KalendarICalCodec.encode(listOf(original))
+        assertTrue(ics.contains("ATTENDEE;CN=Jane Doe:mailto:jane@example.com"))
+        val decoded = KalendarICalCodec.decode(ics).single()
+        assertEquals(original.attendees, decoded.attendees)
+    }
+
+    @Test
+    fun roundTrip_attendeeWithoutName_omitsCnParameter() {
+        val original = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 8, 12),
+            eventName = "Planning",
+            attendees = listOf(KalendarAttendee(email = "anon@example.com")),
+        )
+        val ics = KalendarICalCodec.encode(listOf(original))
+        assertTrue(ics.contains("ATTENDEE:mailto:anon@example.com"))
+        val decoded = KalendarICalCodec.decode(ics).single()
+        assertEquals(original.attendees, decoded.attendees)
+    }
+
+    @Test
+    fun roundTrip_attendeeNameWithComma_escapesAndUnescapes() {
+        val original = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 8, 12),
+            eventName = "Planning",
+            attendees = listOf(KalendarAttendee(email = "doe@example.com", name = "Doe, Jane")),
+        )
+        val ics = KalendarICalCodec.encode(listOf(original))
+        assertTrue(ics.contains("ATTENDEE;CN=Doe\\, Jane:mailto:doe@example.com"))
+        val decoded = KalendarICalCodec.decode(ics).single()
+        assertEquals(original.attendees, decoded.attendees)
+    }
+
+    @Test
+    fun decode_uppercaseMailtoPrefix_isStripped() {
+        val ics = """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            SUMMARY:Planning
+            DTSTART;VALUE=DATE:20260812
+            ATTENDEE;CN=Jane:MAILTO:jane@example.com
+            END:VEVENT
+            END:VCALENDAR
+        """.trimIndent()
+        val decoded = KalendarICalCodec.decode(ics).single()
+        assertEquals(listOf(KalendarAttendee(email = "jane@example.com", name = "Jane")), decoded.attendees)
+    }
+
+    @Test
+    fun roundTrip_noRemindersOrAttendees_decodesEmptyLists() {
+        val original = BasicKalendarSyncEvent(date = LocalDate(2026, 8, 12), eventName = "Plain")
+        val decoded = KalendarICalCodec.decode(KalendarICalCodec.encode(listOf(original))).single()
+        assertTrue(decoded.reminders.isEmpty())
+        assertTrue(decoded.attendees.isEmpty())
+    }
+
+    @Test
     fun decode_malformedContent_ignoresGarbageLines() {
         val ics = """
             BEGIN:VCALENDAR

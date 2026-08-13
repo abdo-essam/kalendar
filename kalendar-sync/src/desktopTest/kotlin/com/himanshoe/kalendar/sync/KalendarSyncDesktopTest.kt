@@ -128,6 +128,71 @@ class KalendarSyncDesktopTest {
     }
 
     @Test
+    fun insertEvent_withRemindersAndAttendees_returnsThemOnFetch() = runBlocking {
+        val sync = KalendarSync(icsFilePath = tempIcsPath())
+        val reminders = listOf(KalendarReminder(minutesBefore = 30), KalendarReminder(minutesBefore = 90))
+        val attendees = listOf(
+            KalendarAttendee(email = "jane@example.com", name = "Jane Doe"),
+            KalendarAttendee(email = "anon@example.com"),
+        )
+        sync.insertEvent(
+            BasicKalendarSyncEvent(
+                date = LocalDate(2026, 6, 15),
+                eventName = "Kickoff",
+                reminders = reminders,
+                attendees = attendees,
+            ),
+        )
+
+        val fetchResult = sync.fetchEvents(LocalDate(2026, 6, 1), LocalDate(2026, 6, 30))
+        assertIs<KalendarSyncResult.Success<List<KalendarSyncEvent>>>(fetchResult)
+        val fetched = fetchResult.data.single()
+        assertEquals(reminders, fetched.reminders)
+        assertEquals(attendees, fetched.attendees)
+    }
+
+    @Test
+    fun updateEvent_preservesRemindersAndAttendees() = runBlocking {
+        val sync = KalendarSync(icsFilePath = tempIcsPath())
+        val id = (
+            sync.insertEvent(BasicKalendarSyncEvent(date = LocalDate(2026, 6, 15), eventName = "Kickoff")) as
+                KalendarSyncResult.Success<String>
+            ).data
+
+        sync.updateEvent(
+            id,
+            BasicKalendarSyncEvent(
+                date = LocalDate(2026, 6, 15),
+                eventName = "Kickoff v2",
+                reminders = listOf(KalendarReminder(minutesBefore = 5)),
+                attendees = listOf(KalendarAttendee(email = "lead@example.com", name = "Lead")),
+            ),
+        )
+
+        val fetchResult = sync.fetchEvents(LocalDate(2026, 6, 1), LocalDate(2026, 6, 30))
+        assertIs<KalendarSyncResult.Success<List<KalendarSyncEvent>>>(fetchResult)
+        val updated = fetchResult.data.single()
+        assertEquals(listOf(KalendarReminder(minutesBefore = 5)), updated.reminders)
+        assertEquals(listOf(KalendarAttendee(email = "lead@example.com", name = "Lead")), updated.attendees)
+    }
+
+    @Test
+    fun listCalendars_withPath_returnsSingleCalendarNamedAfterFile() = runBlocking {
+        val path = tempIcsPath()
+        val result = KalendarSync(icsFilePath = path).listCalendars()
+        assertIs<KalendarSyncResult.Success<List<KalendarSyncCalendar>>>(result)
+        val calendar = result.data.single()
+        assertEquals("default", calendar.id)
+        assertEquals(path.substringAfterLast('/'), calendar.name)
+        assertNull(calendar.colorArgb)
+    }
+
+    @Test
+    fun listCalendars_withoutPath_returnsNotSupported() = runBlocking {
+        assertEquals(KalendarSyncResult.NotSupported, KalendarSync(icsFilePath = null).listCalendars())
+    }
+
+    @Test
     fun hasPermission_withPath_isTrue() = runBlocking {
         assertTrue(KalendarSync(icsFilePath = tempIcsPath()).hasPermission())
     }

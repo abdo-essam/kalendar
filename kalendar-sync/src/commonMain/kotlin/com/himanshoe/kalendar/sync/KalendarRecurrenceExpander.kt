@@ -190,6 +190,8 @@ private fun KalendarSyncEvent.copyWithDate(date: LocalDate): KalendarSyncEvent {
         endTime = endTime,
         recurrenceRule = recurrenceRule,
         endDate = span,
+        reminders = reminders,
+        attendees = attendees,
     )
 }
 

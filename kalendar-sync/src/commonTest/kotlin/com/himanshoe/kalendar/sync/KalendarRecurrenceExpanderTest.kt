@@ -328,6 +328,26 @@ class KalendarRecurrenceExpanderTest {
     }
 
     @Test
+    fun expandOccurrences_preservesRemindersAndAttendeesOnEveryOccurrence() {
+        val reminders = listOf(KalendarReminder(minutesBefore = 15), KalendarReminder(minutesBefore = 60))
+        val attendees = listOf(KalendarAttendee(email = "jane@example.com", name = "Jane"))
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 1),
+            eventName = "Daily",
+            recurrenceRule = KalendarRule(frequency = KalendarRecurrenceFrequency.DAILY, count = 3),
+            reminders = reminders,
+            attendees = attendees,
+        )
+        val occurrences = event.expandOccurrences(
+            rangeStart = LocalDate(2026, 1, 1),
+            rangeEnd = LocalDate(2026, 1, 31),
+        )
+        assertEquals(3, occurrences.size)
+        assertTrue(occurrences.all { it.reminders == reminders })
+        assertTrue(occurrences.all { it.attendees == attendees })
+    }
+
+    @Test
     fun expandOccurrences_rangeStartMidway_onlyIncludesOccurrencesFromRangeStart() {
         val event = BasicKalendarSyncEvent(
             date = LocalDate(2026, 1, 1),

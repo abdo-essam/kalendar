@@ -77,6 +77,27 @@ public interface KalendarSyncEvent {
      */
     public val exceptionDates: List<LocalDate>
         get() = emptyList()
+
+    /**
+     * Reminders attached to this event, each firing a fixed number of minutes before the
+     * event starts. Defaults to empty.
+     *
+     * Written and read on Android (`CalendarContract.Reminders`), iOS (`EKAlarm`), and the
+     * Desktop `.ics` provider; encoded as `VALARM` blocks by the iCal codec.
+     */
+    public val reminders: List<KalendarReminder>
+        get() = emptyList()
+
+    /**
+     * People invited to this event. Defaults to empty.
+     *
+     * Written and read on Android (`CalendarContract.Attendees`) and the Desktop `.ics`
+     * provider; encoded as `ATTENDEE` lines by the iCal codec. **On iOS attendees are
+     * read-only** — EventKit does not allow adding attendees programmatically, so writes are
+     * ignored there; fetched events still populate this list.
+     */
+    public val attendees: List<KalendarAttendee>
+        get() = emptyList()
 }
 
 /**
@@ -93,6 +114,10 @@ public interface KalendarSyncEvent {
  * @param endDate The last date this event occupies, inclusive, for a multi-day all-day event.
  *   Defaults to `null` (single-day event).
  * @param exceptionDates Dates to skip when [recurrenceRule] is expanded. Defaults to empty.
+ * @param reminders Reminders firing a fixed number of minutes before the event starts.
+ *   Defaults to empty.
+ * @param attendees People invited to this event. Defaults to empty. Read-only on iOS —
+ *   see [KalendarSyncEvent.attendees].
  */
 public data class BasicKalendarSyncEvent(
     override val id: String? = null,
@@ -104,4 +129,6 @@ public data class BasicKalendarSyncEvent(
     override val recurrenceRule: KalendarRule? = null,
     override val endDate: LocalDate? = null,
     override val exceptionDates: List<LocalDate> = emptyList(),
+    override val reminders: List<KalendarReminder> = emptyList(),
+    override val attendees: List<KalendarAttendee> = emptyList(),
 ) : KalendarSyncEvent

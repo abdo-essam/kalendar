@@ -25,10 +25,13 @@ import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.minus
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
+import platform.EventKit.EKAlarm
 import platform.EventKit.EKAuthorizationStatusFullAccess
+import platform.EventKit.EKCalendar
 import platform.EventKit.EKEntityType
 import platform.EventKit.EKEvent
 import platform.EventKit.EKEventStore
+import platform.EventKit.EKParticipant
 import platform.EventKit.EKSpan
 import platform.Foundation.NSDate
 import platform.Foundation.NSTimeIntervalSince1970
@@ -51,6 +54,8 @@ public fun KalendarSync(): KalendarSyncProvider = IosKalendarSync()
 private const val END_OF_DAY_HOUR = 23
 private const val END_OF_DAY_MINUTE = 59
 private const val SECONDS_PER_DAY = 86_400L
+private const val SECONDS_PER_MINUTE = 60.0
+private const val MAILTO_PREFIX = "mailto:"
 
 @OptIn(ExperimentalForeignApi::class)
 private class IosKalendarSync : KalendarSyncProvider {
@@ -89,7 +94,31 @@ private class IosKalendarSync : KalendarSyncProvider {
         }.getOrElse { KalendarSyncResult.Error("Failed to fetch events", it) }
     }
 
-    override suspend fun insertEvent(event: KalendarSyncEvent): KalendarSyncResult<String> {
+    /**
+     * Lists all event calendars in the store. [KalendarSyncCalendar.colorArgb] is always
+     * `null` here: EventKit exposes calendar colours only as `CGColor`, whose colour-space
+     * handling has no reliable ARGB mapping, so no conversion is attempted.
+     */
+    override suspend fun listCalendars(): KalendarSyncResult<List<KalendarSyncCalendar>> {
+        if (!hasPermission()) return KalendarSyncResult.PermissionDenied
+        return runCatching {
+            val calendars = eventStore.calendarsForEntityType(EKEntityType.EKEntityTypeEvent)
+                ?.filterIsInstance<EKCalendar>()
+                .orEmpty()
+            KalendarSyncResult.Success(
+                calendars.map {
+                    KalendarSyncCalendar(id = it.calendarIdentifier, name = it.title, colorArgb = null)
+                },
+            )
+        }.getOrElse { KalendarSyncResult.Error(message = "Failed to list calendars", cause = it) }
+    }
+
+    /**
+     * Inserts [event] into the calendar identified by [calendarId], or the store's default
+     * calendar when `null` or not found. [KalendarSyncEvent.attendees] is ignored: EventKit
+     * does not allow adding attendees programmatically.
+     */
+    override suspend fun insertEvent(event: KalendarSyncEvent, calendarId: String?): KalendarSyncResult<String> {
         if (!hasPermission()) return KalendarSyncResult.PermissionDenied
         return runCatching {
             val ekEvent = EKEvent.eventWithEventStore(eventStore).apply {
@@ -106,7 +135,11 @@ private class IosKalendarSync : KalendarSyncProvider {
                 } else {
                     localTimeToNSDate(event.date, event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE))
                 }
-                calendar = eventStore.defaultCalendarForNewEvents
+                calendar = calendarId?.let { eventStore.calendarWithIdentifier(it) }
+                    ?: eventStore.defaultCalendarForNewEvents
+                event.reminders.forEach { reminder ->
+                    addAlarm(EKAlarm.alarmWithRelativeOffset(-reminder.minutesBefore * SECONDS_PER_MINUTE))
+                }
             }
 
             suspendCoroutine<KalendarSyncResult<String>> { cont ->
@@ -137,6 +170,10 @@ private class IosKalendarSync : KalendarSyncProvider {
                 (event.endDate ?: event.date).atStartOfDayIn(tz).plusDayNSDate()
             } else {
                 localTimeToNSDate(event.date, event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE))
+            }
+            ekEvent.alarms?.filterIsInstance<EKAlarm>()?.forEach { ekEvent.removeAlarm(it) }
+            event.reminders.forEach { reminder ->
+                ekEvent.addAlarm(EKAlarm.alarmWithRelativeOffset(-reminder.minutesBefore * SECONDS_PER_MINUTE))
             }
             val saved = eventStore.saveEvent(ekEvent, EKSpan.EKSpanThisEvent, true, null)
             if (saved) {
@@ -170,6 +207,8 @@ private class IosKalendarSync : KalendarSyncProvider {
             id = eventIdentifier,
             date = kotlin.time.Clock.System.now().toLocalDateTime(tz).date,
             eventName = title ?: "",
+            reminders = toReminders(),
+            attendees = toAttendees(),
         )
         val spanEndDate = endDate?.toLocalDate()
             ?.let { if (allDay) it.minus(1, DateTimeUnit.DAY) else it }
@@ -182,8 +221,40 @@ private class IosKalendarSync : KalendarSyncProvider {
             startTime = if (allDay) null else startDate?.toLocalTime(),
             endTime = if (allDay) null else endDate?.toLocalTime(),
             endDate = spanEndDate,
+            reminders = toReminders(),
+            attendees = toAttendees(),
         )
     }
+
+    /**
+     * Maps this event's alarms back to [KalendarReminder]s. Only relative offsets at or before
+     * the event start translate to a minutes-before value; alarms after the start are dropped.
+     */
+    private fun EKEvent.toReminders(): List<KalendarReminder> =
+        alarms?.filterIsInstance<EKAlarm>()?.mapNotNull { alarm ->
+            val offset = alarm.relativeOffset
+            if (offset <= 0.0) {
+                KalendarReminder(minutesBefore = (-offset / SECONDS_PER_MINUTE).toInt())
+            } else {
+                null
+            }
+        }.orEmpty()
+
+    /**
+     * Maps this event's participants to [KalendarAttendee]s, stripping the `mailto:` prefix
+     * from each participant URL. EventKit only ever reads attendees — see
+     * [KalendarSyncEvent.attendees].
+     */
+    private fun EKEvent.toAttendees(): List<KalendarAttendee> =
+        attendees?.filterIsInstance<EKParticipant>()?.mapNotNull { participant ->
+            participant.URL.absoluteString
+                ?.removeMailtoPrefix()
+                ?.takeIf { it.isNotBlank() }
+                ?.let { email -> KalendarAttendee(email = email, name = participant.name) }
+        }.orEmpty()
+
+    private fun String.removeMailtoPrefix(): String =
+        if (startsWith(MAILTO_PREFIX, ignoreCase = true)) substring(MAILTO_PREFIX.length) else this
 
     /** Converts a [kotlinx.datetime.Instant] to an [NSDate] for use with EventKit APIs. */
     private fun Instant.toNSDate(): NSDate = epochSecondsToNSDate(epochSeconds.toDouble())

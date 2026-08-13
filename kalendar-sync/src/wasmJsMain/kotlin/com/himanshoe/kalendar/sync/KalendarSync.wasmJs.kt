@@ -37,7 +37,10 @@ private class WasmKalendarSync : KalendarSyncProvider {
         timeZone: TimeZone,
     ): KalendarSyncResult<List<KalendarSyncEvent>> = KalendarSyncResult.NotSupported
 
-    override suspend fun insertEvent(event: KalendarSyncEvent): KalendarSyncResult<String> =
+    override suspend fun listCalendars(): KalendarSyncResult<List<KalendarSyncCalendar>> =
+        KalendarSyncResult.NotSupported
+
+    override suspend fun insertEvent(event: KalendarSyncEvent, calendarId: String?): KalendarSyncResult<String> =
         KalendarSyncResult.NotSupported
 
     override suspend fun updateEvent(eventId: String, event: KalendarSyncEvent): KalendarSyncResult<Unit> =

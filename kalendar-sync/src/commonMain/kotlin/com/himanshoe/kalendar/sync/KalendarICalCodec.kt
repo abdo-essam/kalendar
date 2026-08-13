@@ -34,6 +34,7 @@ private const val YEAR_END_IDX = 4
 private const val MONTH_END_IDX = 6
 private const val YEAR_DIGIT_WIDTH = 4
 private const val TWO_DIGIT_WIDTH = 2
+private const val MINUTES_PER_HOUR = 60
 
 internal object KalendarICalCodec {
 
@@ -57,6 +58,10 @@ internal object KalendarICalCodec {
         appendLine("UID:${event.id ?: generateUid(event)}")
         appendLine("SUMMARY:${icalEscape(event.eventName)}")
         event.eventDescription?.let { appendLine("DESCRIPTION:${icalEscape(it)}") }
+        for (attendee in event.attendees) {
+            val cnParam = attendee.name?.let { ";CN=${icalEscape(it)}" } ?: ""
+            appendLine("ATTENDEE$cnParam:mailto:${attendee.email}")
+        }
 
         if (event.isAllDay) {
             appendLine("DTSTART;VALUE=DATE:${event.date.toIcalDate()}")
@@ -72,6 +77,13 @@ internal object KalendarICalCodec {
         if (event.exceptionDates.isNotEmpty()) {
             appendLine("EXDATE;VALUE=DATE:${event.exceptionDates.joinToString(",") { it.toIcalDate() }}")
         }
+        for (reminder in event.reminders) {
+            appendLine("BEGIN:VALARM")
+            appendLine("ACTION:DISPLAY")
+            appendLine("DESCRIPTION:Reminder")
+            appendLine("TRIGGER:-PT${reminder.minutesBefore}M")
+            appendLine("END:VALARM")
+        }
         appendLine("END:VEVENT")
     }
 
@@ -83,12 +95,19 @@ internal object KalendarICalCodec {
         val events = mutableListOf<KalendarSyncEvent>()
         val lines = unfoldLines(icsContent)
         var inEvent = false
+        var inAlarm = false
         var props = VEventProps()
         for (line in lines) {
             when {
                 line == "BEGIN:VEVENT" -> {
                     inEvent = true
+                    inAlarm = false
                     props = VEventProps()
+                }
+                line == "BEGIN:VALARM" && inEvent -> inAlarm = true
+                line == "END:VALARM" && inAlarm -> inAlarm = false
+                inAlarm -> parseAlarmTriggerMinutes(line)?.let {
+                    props = props.copy(reminderMinutes = props.reminderMinutes + it)
                 }
                 line == "END:VEVENT" && inEvent -> {
                     inEvent = false
@@ -111,6 +130,8 @@ internal object KalendarICalCodec {
         val isAllDay: Boolean = false,
         val rruleRaw: String? = null,
         val exDatesRaw: List<String> = emptyList(),
+        val reminderMinutes: List<Int> = emptyList(),
+        val attendees: List<KalendarAttendee> = emptyList(),
     ) {
         fun updated(key: String, params: Set<String>, value: String): VEventProps = when (key) {
             "UID" -> copy(uid = value)
@@ -120,6 +141,7 @@ internal object KalendarICalCodec {
             "DTEND" -> copy(dtEnd = value)
             "RRULE" -> copy(rruleRaw = value)
             "EXDATE" -> copy(exDatesRaw = exDatesRaw + value)
+            "ATTENDEE" -> copy(attendees = attendees + parseAttendee(params, value))
             else -> this
         }
     }
@@ -147,8 +169,48 @@ internal object KalendarICalCodec {
             recurrenceRule = props.rruleRaw?.let { parseRRule(it) },
             endDate = endDate,
             exceptionDates = exceptionDates,
+            reminders = props.reminderMinutes.map { KalendarReminder(minutesBefore = it) },
+            attendees = props.attendees,
         )
     }
+
+    /**
+     * Parses a `TRIGGER` line inside a `VALARM` block into minutes-before-start, handling the
+     * `-PT#M`, `-PT#H`, and `-PT#H#M` duration forms. Returns `null` for any other line in the
+     * alarm block, and for triggers that are absolute, positive (after the event), or otherwise
+     * unparseable.
+     */
+    private fun parseAlarmTriggerMinutes(line: String): Int? {
+        val parsed = parseLine(line)
+        if (parsed == null || parsed.first != "TRIGGER") return null
+        val match = TRIGGER_DURATION_REGEX.matchEntire(parsed.third.trim()) ?: return null
+        val hoursRaw = match.groupValues[1]
+        val minutesRaw = match.groupValues[2]
+        return if (hoursRaw.isEmpty() && minutesRaw.isEmpty()) {
+            null
+        } else {
+            (hoursRaw.toIntOrNull() ?: 0) * MINUTES_PER_HOUR + (minutesRaw.toIntOrNull() ?: 0)
+        }
+    }
+
+    private val TRIGGER_DURATION_REGEX = Regex("""-PT(?:(\d+)H)?(?:(\d+)M)?""")
+
+    /**
+     * Parses an `ATTENDEE` property into a [KalendarAttendee]: the optional `CN=` parameter
+     * carries the display name, and the value is the email address with a case-insensitive
+     * `mailto:` prefix stripped.
+     */
+    private fun parseAttendee(params: Set<String>, value: String): KalendarAttendee {
+        val name = params.firstOrNull { it.startsWith("CN=") }
+            ?.removePrefix("CN=")
+            ?.let { icalUnescape(it) }
+        return KalendarAttendee(email = value.removeMailtoPrefix(), name = name)
+    }
+
+    private fun String.removeMailtoPrefix(): String =
+        if (startsWith(MAILTO_PREFIX, ignoreCase = true)) substring(MAILTO_PREFIX.length) else this
+
+    private const val MAILTO_PREFIX = "mailto:"
 
     /**
      * Unfolds RFC 5545 line continuations (CRLF or LF followed by whitespace)

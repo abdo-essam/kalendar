@@ -50,6 +50,17 @@ private class DesktopKalendarSync(private val icsFilePath: String?) : KalendarSy
 
     override suspend fun hasPermission(): Boolean = icsFilePath != null
 
+    /**
+     * Returns a single calendar representing the backing `.ics` file (id `"default"`, named
+     * after the file), or [KalendarSyncResult.NotSupported] when no `icsFilePath` was given.
+     */
+    override suspend fun listCalendars(): KalendarSyncResult<List<KalendarSyncCalendar>> {
+        val path = icsFilePath ?: return KalendarSyncResult.NotSupported
+        return KalendarSyncResult.Success(
+            listOf(KalendarSyncCalendar(id = "default", name = File(path).name)),
+        )
+    }
+
     override suspend fun fetchEvents(
         startDate: LocalDate,
         endDate: LocalDate,
@@ -62,7 +73,12 @@ private class DesktopKalendarSync(private val icsFilePath: String?) : KalendarSy
         }.getOrElse { KalendarSyncResult.Error("Failed to read ICS file: ${it.message}", it) }
     }
 
-    override suspend fun insertEvent(event: KalendarSyncEvent): KalendarSyncResult<String> {
+    /**
+     * The single calendar backing this provider — the `.ics` file itself. [calendarId] is
+     * accepted for interface compatibility and ignored, since a file store has exactly one
+     * calendar.
+     */
+    override suspend fun insertEvent(event: KalendarSyncEvent, calendarId: String?): KalendarSyncResult<String> {
         val path = icsFilePath ?: return KalendarSyncResult.NotSupported
         return runCatching {
             val uid = "${event.date}-${event.eventName.hashCode().toUInt()}-${System.currentTimeMillis()}"
@@ -76,6 +92,8 @@ private class DesktopKalendarSync(private val icsFilePath: String?) : KalendarSy
                 recurrenceRule = event.recurrenceRule,
                 endDate = event.endDate,
                 exceptionDates = event.exceptionDates,
+                reminders = event.reminders,
+                attendees = event.attendees,
             )
             val updated = readAllEvents(path) + newEvent
             File(path).writeText(exportToIcs(updated))
@@ -100,6 +118,8 @@ private class DesktopKalendarSync(private val icsFilePath: String?) : KalendarSy
                 recurrenceRule = event.recurrenceRule,
                 endDate = event.endDate,
                 exceptionDates = event.exceptionDates,
+                reminders = event.reminders,
+                attendees = event.attendees,
             )
             val updated = existing.map { if (it.id == eventId) replaced else it }
             File(path).writeText(exportToIcs(updated))

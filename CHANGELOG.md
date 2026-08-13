@@ -29,6 +29,16 @@ project adheres to [Semantic Versioning](https://semver.org/).
   `./gradlew :kalendar:desktopTest -PupdateGoldens=true`.
 - **Live demo deployment** — a `Deploy Demo` GitHub Actions workflow publishes the sample's
   wasm build to GitHub Pages on every push to `main`; README links the demo.
+- **Calendar picker in `kalendar-sync`** — `KalendarSyncProvider.listCalendars()` returns the
+  device's calendars (`KalendarSyncCalendar`), and `insertEvent` takes an optional `calendarId`
+  to write into a specific calendar instead of the platform default.
+- **Reminders in `kalendar-sync`** — `KalendarSyncEvent.reminders` (`KalendarReminder`, minutes
+  before start) written/read on Android (`CalendarContract.Reminders`), iOS (`EKAlarm`), and the
+  Desktop `.ics` provider; encoded as RFC 5545 `VALARM` blocks by the iCal codec.
+- **Attendees in `kalendar-sync`** — `KalendarSyncEvent.attendees` (`KalendarAttendee`) on
+  Android (`CalendarContract.Attendees`) and via `ATTENDEE` lines in the iCal codec. On iOS
+  attendees are read-only (EventKit cannot add them programmatically): populated on fetch,
+  ignored on write.
 - **`KalendarSchedule`** — hourly time-grid day view paged by day: timed events as
   duration-sized blocks with side-by-side packing for overlaps, all-day chips above the grid, a
   minute-refreshed now-indicator on today, and an initial scroll to early morning.

@@ -66,11 +66,32 @@ public interface KalendarSyncProvider {
     ): KalendarSyncResult<List<KalendarSyncEvent>>
 
     /**
-     * Inserts [event] into the default device calendar.
+     * Lists the calendars on this device that events can be read from or written into.
      *
+     * - **Android** — visible calendars with contributor access or higher, including their
+     *   display colour.
+     * - **iOS** — all event calendars; [KalendarSyncCalendar.colorArgb] is always `null`
+     *   because EventKit exposes calendar colours only as `CGColor`.
+     * - **Desktop** — a single calendar representing the backing `.ics` file when
+     *   `icsFilePath` is set, [KalendarSyncResult.NotSupported] otherwise.
+     * - **Web** — [KalendarSyncResult.NotSupported].
+     *
+     * @return [KalendarSyncResult.Success] carrying the available calendars.
+     */
+    public suspend fun listCalendars(): KalendarSyncResult<List<KalendarSyncCalendar>>
+
+    /**
+     * Inserts [event] into a device calendar.
+     *
+     * @param calendarId Identifier of the target calendar, as returned in
+     *   [KalendarSyncCalendar.id] by [listCalendars]. Pass `null` (the default) to insert
+     *   into the platform's default calendar.
      * @return [KalendarSyncResult.Success] carrying the new event's device-assigned ID.
      */
-    public suspend fun insertEvent(event: KalendarSyncEvent): KalendarSyncResult<String>
+    public suspend fun insertEvent(
+        event: KalendarSyncEvent,
+        calendarId: String? = null,
+    ): KalendarSyncResult<String>
 
     /**
      * Updates the device-calendar event identified by [eventId] with the fields from [event].

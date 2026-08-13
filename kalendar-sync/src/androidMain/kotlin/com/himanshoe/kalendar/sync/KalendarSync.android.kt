@@ -111,14 +111,17 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                         val endDate = millisToLocalDate(endMs, timeZone)
                             .minus(1, DateTimeUnit.DAY)
                             .takeIf { allDay && it > date }
+                        val eventRowId = cursor.getLong(idIdx)
                         events += BasicKalendarSyncEvent(
-                            id = cursor.getLong(idIdx).toString(),
+                            id = eventRowId.toString(),
                             date = date,
                             eventName = cursor.getString(titleIdx) ?: "",
                             eventDescription = cursor.getString(descIdx)?.takeIf { it.isNotBlank() },
                             startTime = if (allDay) null else millisToLocalTime(startMs, timeZone),
                             endTime = if (allDay) null else millisToLocalTime(endMs, timeZone),
                             endDate = endDate,
+                            reminders = readReminders(eventRowId),
+                            attendees = readAttendees(eventRowId),
                         )
                     }
                 }
@@ -127,11 +130,48 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
         }
     }
 
-    override suspend fun insertEvent(event: KalendarSyncEvent): KalendarSyncResult<String> {
+    override suspend fun listCalendars(): KalendarSyncResult<List<KalendarSyncCalendar>> {
         if (!hasPermission()) return KalendarSyncResult.PermissionDenied
         return withContext(Dispatchers.IO) {
             runCatching {
-                val calendarId = defaultCalendarId()
+                val projection = arrayOf(
+                    CalendarContract.Calendars._ID,
+                    CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+                    CalendarContract.Calendars.CALENDAR_COLOR,
+                )
+                val selection = "${CalendarContract.Calendars.VISIBLE} = 1 AND " +
+                    "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= " +
+                    "${CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR}"
+
+                val calendars = mutableListOf<KalendarSyncCalendar>()
+                context.contentResolver.query(
+                    CalendarContract.Calendars.CONTENT_URI,
+                    projection,
+                    selection,
+                    null,
+                    "${CalendarContract.Calendars.CALENDAR_DISPLAY_NAME} ASC",
+                )?.use { cursor ->
+                    val idIdx = cursor.getColumnIndex(CalendarContract.Calendars._ID)
+                    val nameIdx = cursor.getColumnIndex(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME)
+                    val colorIdx = cursor.getColumnIndex(CalendarContract.Calendars.CALENDAR_COLOR)
+                    while (cursor.moveToNext()) {
+                        calendars += KalendarSyncCalendar(
+                            id = cursor.getLong(idIdx).toString(),
+                            name = cursor.getString(nameIdx) ?: "",
+                            colorArgb = if (cursor.isNull(colorIdx)) null else cursor.getInt(colorIdx).toUInt().toLong(),
+                        )
+                    }
+                }
+                KalendarSyncResult.Success(calendars.toList())
+            }.getOrElse { KalendarSyncResult.Error(message = "Failed to list calendars", cause = it) }
+        }
+    }
+
+    override suspend fun insertEvent(event: KalendarSyncEvent, calendarId: String?): KalendarSyncResult<String> {
+        if (!hasPermission()) return KalendarSyncResult.PermissionDenied
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val targetCalendarId = resolveCalendarId(calendarId)
                     ?: return@withContext KalendarSyncResult.Error("No writable calendar found on device")
 
                 val startMs = if (event.isAllDay) {
@@ -146,7 +186,7 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                 }
 
                 val values = ContentValues().apply {
-                    put(CalendarContract.Events.CALENDAR_ID, calendarId)
+                    put(CalendarContract.Events.CALENDAR_ID, targetCalendarId)
                     put(CalendarContract.Events.TITLE, event.eventName)
                     put(CalendarContract.Events.DESCRIPTION, event.eventDescription ?: "")
                     put(CalendarContract.Events.DTSTART, startMs)
@@ -157,7 +197,12 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
 
                 val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
                     ?: return@withContext KalendarSyncResult.Error("Insert returned a null URI")
-                KalendarSyncResult.Success(uri.lastPathSegment ?: "")
+                val newEventId = uri.lastPathSegment ?: ""
+                newEventId.toLongOrNull()?.let { rowId ->
+                    writeReminders(rowId, event.reminders)
+                    writeAttendees(rowId, event.attendees)
+                }
+                KalendarSyncResult.Success(newEventId)
             }.getOrElse { KalendarSyncResult.Error("Failed to insert event", it) }
         }
     }
@@ -190,6 +235,10 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                 }
                 val updated = context.contentResolver.update(uri, values, null, null)
                 if (updated > 0) {
+                    eventId.toLongOrNull()?.let { rowId ->
+                        replaceReminders(rowId, event.reminders)
+                        replaceAttendees(rowId, event.attendees)
+                    }
                     KalendarSyncResult.Success(Unit)
                 } else {
                     KalendarSyncResult.Error("Event with id=$eventId not found")
@@ -214,6 +263,105 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                 }
             }.getOrElse { KalendarSyncResult.Error("Failed to delete event", it) }
         }
+    }
+
+    /**
+     * Resolves the calendar to insert into: the caller-supplied [calendarId] when given
+     * (parsed to the numeric row ID [CalendarContract] uses), otherwise [defaultCalendarId].
+     */
+    private fun resolveCalendarId(calendarId: String?): Long? =
+        if (calendarId != null) calendarId.toLongOrNull() else defaultCalendarId()
+
+    /**
+     * Reads the [CalendarContract.Reminders] rows for [eventId], skipping rows whose minutes
+     * value is negative (the provider's "default reminder" sentinel).
+     */
+    private fun readReminders(eventId: Long): List<KalendarReminder> {
+        val reminders = mutableListOf<KalendarReminder>()
+        context.contentResolver.query(
+            CalendarContract.Reminders.CONTENT_URI,
+            arrayOf(CalendarContract.Reminders.MINUTES),
+            "${CalendarContract.Reminders.EVENT_ID} = ?",
+            arrayOf(eventId.toString()),
+            null,
+        )?.use { cursor ->
+            val minutesIdx = cursor.getColumnIndex(CalendarContract.Reminders.MINUTES)
+            while (cursor.moveToNext()) {
+                val minutes = cursor.getInt(minutesIdx)
+                if (minutes >= 0) {
+                    reminders += KalendarReminder(minutesBefore = minutes)
+                }
+            }
+        }
+        return reminders
+    }
+
+    /** Reads the [CalendarContract.Attendees] rows for [eventId], skipping rows without an email. */
+    private fun readAttendees(eventId: Long): List<KalendarAttendee> {
+        val attendees = mutableListOf<KalendarAttendee>()
+        context.contentResolver.query(
+            CalendarContract.Attendees.CONTENT_URI,
+            arrayOf(CalendarContract.Attendees.ATTENDEE_NAME, CalendarContract.Attendees.ATTENDEE_EMAIL),
+            "${CalendarContract.Attendees.EVENT_ID} = ?",
+            arrayOf(eventId.toString()),
+            null,
+        )?.use { cursor ->
+            val nameIdx = cursor.getColumnIndex(CalendarContract.Attendees.ATTENDEE_NAME)
+            val emailIdx = cursor.getColumnIndex(CalendarContract.Attendees.ATTENDEE_EMAIL)
+            while (cursor.moveToNext()) {
+                val email = cursor.getString(emailIdx)?.takeIf { it.isNotBlank() }
+                if (email != null) {
+                    attendees += KalendarAttendee(
+                        email = email,
+                        name = cursor.getString(nameIdx)?.takeIf { it.isNotBlank() },
+                    )
+                }
+            }
+        }
+        return attendees
+    }
+
+    private fun writeReminders(eventId: Long, reminders: List<KalendarReminder>) {
+        for (reminder in reminders) {
+            val values = ContentValues().apply {
+                put(CalendarContract.Reminders.EVENT_ID, eventId)
+                put(CalendarContract.Reminders.MINUTES, reminder.minutesBefore)
+                put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+            }
+            context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, values)
+        }
+    }
+
+    private fun writeAttendees(eventId: Long, attendees: List<KalendarAttendee>) {
+        for (attendee in attendees) {
+            val values = ContentValues().apply {
+                put(CalendarContract.Attendees.EVENT_ID, eventId)
+                put(CalendarContract.Attendees.ATTENDEE_NAME, attendee.name ?: "")
+                put(CalendarContract.Attendees.ATTENDEE_EMAIL, attendee.email)
+                put(CalendarContract.Attendees.ATTENDEE_RELATIONSHIP, CalendarContract.Attendees.RELATIONSHIP_ATTENDEE)
+                put(CalendarContract.Attendees.ATTENDEE_TYPE, CalendarContract.Attendees.TYPE_NONE)
+                put(CalendarContract.Attendees.ATTENDEE_STATUS, CalendarContract.Attendees.ATTENDEE_STATUS_INVITED)
+            }
+            context.contentResolver.insert(CalendarContract.Attendees.CONTENT_URI, values)
+        }
+    }
+
+    private fun replaceReminders(eventId: Long, reminders: List<KalendarReminder>) {
+        context.contentResolver.delete(
+            CalendarContract.Reminders.CONTENT_URI,
+            "${CalendarContract.Reminders.EVENT_ID} = ?",
+            arrayOf(eventId.toString()),
+        )
+        writeReminders(eventId, reminders)
+    }
+
+    private fun replaceAttendees(eventId: Long, attendees: List<KalendarAttendee>) {
+        context.contentResolver.delete(
+            CalendarContract.Attendees.CONTENT_URI,
+            "${CalendarContract.Attendees.EVENT_ID} = ?",
+            arrayOf(eventId.toString()),
+        )
+        writeAttendees(eventId, attendees)
     }
 
     /**

@@ -56,6 +56,67 @@ id?.let { sync.updateEvent(it, updatedEvent) }
 id?.let { sync.deleteEvent(it) }
 ```
 
+### Choosing a calendar
+
+`listCalendars` returns the calendars available on the device; pass a `KalendarSyncCalendar.id`
+as `insertEvent`'s `calendarId` argument to write into a specific calendar instead of the
+platform default:
+
+```kotlin
+val calendars = sync.listCalendars().getOrNull().orEmpty()
+val work = calendars.firstOrNull { it.name == "Work" }
+
+sync.insertEvent(event, calendarId = work?.id)
+```
+
+On Android, visible calendars with contributor access or higher are listed, with their display
+colour in `colorArgb` (packed 32-bit ARGB). On iOS, `colorArgb` is always `null` — EventKit
+exposes calendar colours only as `CGColor`, which has no reliable cross-platform ARGB mapping.
+On Desktop, the single backing `.ics` file is returned as one calendar (id `"default"`, named
+after the file) and `calendarId` is ignored; on Web, `listCalendars` returns
+`KalendarSyncResult.NotSupported`.
+
+### Reminders
+
+Attach `KalendarReminder`s to fire notifications a fixed number of minutes before the event
+starts. They're carried through insert/update/fetch on Android (`CalendarContract.Reminders`),
+iOS (`EKAlarm`), and the Desktop `.ics` provider, and encoded as RFC 5545 `VALARM` blocks by
+`exportToIcs`/`importFromIcs`:
+
+```kotlin
+BasicKalendarSyncEvent(
+    date = LocalDate(2026, 8, 12),
+    eventName = "Team offsite",
+    reminders = listOf(
+        KalendarReminder(minutesBefore = 30),
+        KalendarReminder(minutesBefore = 90),
+    ),
+)
+```
+
+Updating an event replaces its existing reminders with the ones on the passed event.
+
+### Attendees
+
+Attach `KalendarAttendee`s to invite people to an event. On Android they're written and read as
+`CalendarContract.Attendees` rows; the iCal codec encodes them as `ATTENDEE;CN=Name:mailto:email`
+lines, so they also round-trip through the Desktop `.ics` provider:
+
+```kotlin
+BasicKalendarSyncEvent(
+    date = LocalDate(2026, 8, 12),
+    eventName = "Team offsite",
+    attendees = listOf(
+        KalendarAttendee(email = "jane@example.com", name = "Jane Doe"),
+        KalendarAttendee(email = "anon@example.com"),
+    ),
+)
+```
+
+**On iOS attendees are read-only**: EventKit does not allow adding attendees programmatically,
+so `attendees` is ignored on insert/update there — but events fetched from the device calendar
+still populate the list from the event's participants.
+
 ### Multi-day events
 
 Set `endDate` for an event spanning more than one day — it's carried through insert/update/fetch
@@ -137,6 +198,8 @@ val events = importFromIcs(icsText)
 | `isAllDay` | `Boolean` | Derived: `true` when both times are `null`. |
 | `recurrenceRule` | `KalendarRule?` | `null` for non-recurring events. |
 | `exceptionDates` | `List<LocalDate>` | Dates to skip when `recurrenceRule` is expanded. Defaults to empty. |
+| `reminders` | `List<KalendarReminder>` | Reminders firing `minutesBefore` minutes before the event starts. Defaults to empty. |
+| `attendees` | `List<KalendarAttendee>` | People invited to the event (`email`, optional `name`). Defaults to empty. Read-only on iOS — writes are ignored there. |
 
 ### `KalendarRule`
 
