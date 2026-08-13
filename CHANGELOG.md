@@ -111,7 +111,7 @@ project adheres to [Semantic Versioning](https://semver.org/).
   iCal encode/decode (`exportToIcs`/`importFromIcs`) available on every platform including wasmJS.
   `KalendarSyncEvent.endDate` carries multi-day spans through insert/update/fetch and iCal
   round-trips on every platform provider.
-- Sample app now has a view switcher covering every view type (Week, Month, Year, Timeline, Agenda).
+- Sample app now has a view switcher covering every view type (Week, Month, Year, Timeline, Schedule, Week grid, Agenda).
 - `explicitApi()` mode enabled across all three published modules — every public declaration now
   requires an explicit visibility modifier and return type, guarding against accidental API leaks.
 - `kotlinx-binary-compatibility-validator` wired into all three published modules and CI
@@ -121,6 +121,25 @@ project adheres to [Semantic Versioning](https://semver.org/).
   (ktlint-based) ruleset to read.
 
 ### Fixed
+- Drag gesture handlers on the Schedule views and the month grid captured their first
+  composition's state forever (a `pointerInput` coroutine launches once and never sees later
+  lambdas): after the events list changed, the next drag moved/dropped events using stale blocks
+  and stale callbacks. All gesture callbacks now read through `rememberUpdatedState`, and a
+  regression UI test drags the same block twice across an events update.
+- On `KalendarScheduleWeek`, dragging a block horizontally computed the day shift from the
+  block's own width instead of the day column's width, so drags across days landed on the wrong
+  day whenever events overlapped (blocks share a column side by side). Day shift is also now
+  clamped to ±6 days.
+- Dragging a block to the bottom of the day reported an end time of 23:59 on the same day instead
+  of 00:00 on the next day, silently shortening the event by a minute.
+- Drag snapping rounded twice (pixels → minutes → snap step), drifting up to half a step for snap
+  steps that don't divide 60; it now rounds once, directly to the snap step.
+- `KalendarTimeline` crashed (`IndexOutOfBoundsException`) or wrapped to a negative index when
+  scrolled to the edge of a `minDate`/`maxDate`-bounded range, and when only one bound was set the
+  index math could overflow `Int`. Index arithmetic is now done in `Long` and clamped.
+- The header's previous-arrow disabled itself one page too early when `minDate` fell mid-period
+  (e.g. a `minDate` of the 15th made its own month unreachable), and `animateScrollTo` with an
+  out-of-bounds date scrolled past the configured `minDate`/`maxDate` instead of clamping to it.
 - `kalendar-sync` did not actually compile for iOS or wasmJS — `commonMain` used JVM-only
   `String.format`/`SecurityException`, and the iOS EventKit integration referenced
   `EKAuthorizationStatusAuthorized` (deprecated in iOS 17, replaced by `EKAuthorizationStatusFullAccess`)

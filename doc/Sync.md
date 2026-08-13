@@ -149,9 +149,16 @@ val occurrences = template.expandOccurrences(
 ```
 
 `KalendarRule` supports `DAILY`/`WEEKLY`/`MONTHLY`/`YEARLY` frequencies, `interval`, `count`/`until`
-termination (mutually exclusive), and the RFC 5545 `byDay`/`byMonthDay`/`byMonth` filters.
+termination (mutually exclusive), and the RFC 5545 `byDay`/`byMonthDay`/`byMonth` filters. The
+filters follow RFC 5545 semantics: `WEEKLY` + `byDay` fires on the listed weekdays of each week,
+`MONTHLY` + `byMonthDay` on the listed days of each month, `MONTHLY` + `byDay` on **every**
+matching weekday of each month (e.g. every Friday), and `YEARLY` + `byMonth` in each listed month
+on the start date's day-of-month — even when the series starts in a month outside the filter.
 `interval` composes with the filters — e.g. `WEEKLY` + `byDay` + `interval = 2` fires only in every
-other week, and `MONTHLY` + `byMonthDay` + `interval = 2` only in every other month.
+other week, `MONTHLY` + `byDay`/`byMonthDay` + `interval = 2` only in every other month, and a
+filtered `YEARLY` rule with `interval = 2` only in every other year. `count` is always consumed
+from the series start: expanding a window that begins after a `count`-limited series has ended
+yields no occurrences.
 
 `recurrenceRule` is written to the device calendar by `insertEvent`/`updateEvent`, so a recurring
 template lands as a real recurring series, not a one-off:

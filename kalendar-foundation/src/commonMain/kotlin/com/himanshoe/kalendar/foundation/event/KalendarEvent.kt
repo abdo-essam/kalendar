@@ -71,18 +71,16 @@ public interface KalendarEvent {
 
     /**
      * An optional colour used to tint the event's indicator dot on the day cell.
-     * When `null`, the calendar falls back to [com.himanshoe.kalendar.foundation.component.config.KalendarDayConfig.indicatorColor]
-     * or the colour registered for [calendarId] in
-     * [com.himanshoe.kalendar.foundation.component.config.KalendarConfig.calendarColors].
+     * When `null`, the calendar falls back to a default indicator colour.
      * Defaults to `null`.
      */
     public val eventColor: Color? get() = null
 
     /**
      * An optional identifier that links this event to a named calendar source (e.g. "work",
-     * "personal"). When non-null the indicator dot colour is resolved from
-     * [com.himanshoe.kalendar.foundation.component.config.KalendarConfig.calendarColors] using
-     * this id, unless [eventColor] is set (which takes precedence). Defaults to `null`.
+     * "personal"). Carried as metadata so consumers can group or tint events per source
+     * (for example via [com.himanshoe.kalendar.foundation.component.config.KalendarConfig.calendarColors]);
+     * the built-in views colour indicators from [eventColor] only. Defaults to `null`.
      */
     public val calendarId: String? get() = null
 }
@@ -95,11 +93,10 @@ public interface KalendarEvent {
  * @property eventDescription An optional longer description. Defaults to `null`.
  * @property startTime Optional start date-time used for within-day ordering. Defaults to `null`.
  * @property endTime Optional end date-time shown alongside [startTime]. Defaults to `null`.
- * @property eventColor Optional colour for the event's indicator dot. Overrides [calendarId]
- *   colour lookup when non-null. Defaults to `null`.
- * @property calendarId Optional source calendar identifier. When set, the indicator dot colour
- *   is looked up in [com.himanshoe.kalendar.foundation.component.config.KalendarConfig.calendarColors]
- *   unless [eventColor] is non-null. Defaults to `null`.
+ * @property eventColor Optional colour for the event's indicator dot. Defaults to `null`
+ *   (a default indicator colour is used).
+ * @property calendarId Optional source calendar identifier, carried as metadata for consumers
+ *   that group or tint events per source. Defaults to `null`.
  * @property endDate The last date this event occupies, inclusive, for a multi-day event.
  *   Defaults to `null` (single-day event).
  */

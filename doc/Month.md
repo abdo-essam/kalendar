@@ -233,6 +233,7 @@ KalendarMonth(
 | `onDateClick` | `(LocalDate, List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped. |
 | `onDateRangeSelect` | `((start: LocalDate, current: LocalDate) -> Unit)?` | `null` | Press-and-hold then drag to select a range; called continuously as the drag moves. See [Drag-to-select a range](#drag-to-select-a-range). |
 | `onDateRangeSelectEnd` | `(() -> Unit)?` | `null` | Called once when a drag started by `onDateRangeSelect` ends. |
+| `onEventDrop` | `((events: List<KalendarEvent>, newDate: LocalDate) -> Unit)?` | `null` | Press-and-hold a date with events, then drag and release over another date to reschedule. See [Drag-to-reschedule events](#drag-to-reschedule-events). |
 | `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Disabled dates, arrow visibility, adjacent-month dates, today button, locale formatters, background. |
 | `dayContent` | `(@Composable (KalendarDayScope) -> Unit)?` | `null` | Fully replaces the built-in day cell. |
 

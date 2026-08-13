@@ -51,9 +51,11 @@ import kotlinx.datetime.LocalDate
  *   Defaults to `null`.
  * @param showWeekNumbers When `true`, an extra left column showing ISO 8601 week numbers is
  *   rendered. Defaults to `false`.
- * @param calendarColors A map from calendar-source id to display colour. Used to tint event
- *   indicator dots when [com.himanshoe.kalendar.foundation.event.KalendarEvent.calendarId] is
- *   set and [com.himanshoe.kalendar.foundation.event.KalendarEvent.eventColor] is `null`.
+ * @param calendarColors A map from calendar-source id
+ *   ([com.himanshoe.kalendar.foundation.event.KalendarEvent.calendarId]) to display colour.
+ *   Stored for consumers that want a per-calendar palette; the built-in Agenda view does not
+ *   read it — it colours event rows from
+ *   [com.himanshoe.kalendar.foundation.event.KalendarEvent.eventColor] only.
  *   Defaults to an empty map.
  * @param dayConfig Visual configuration for individual day cells.
  * @param headerConfig Visual configuration for the month/week header.

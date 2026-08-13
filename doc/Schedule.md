@@ -94,6 +94,7 @@ and the now-indicator uses `KalendarColors.nowIndicator`.
 | `state` | `KalendarViewState` | `rememberKalendarScheduleState(selectedDate)` | Navigation state — pages by single day. |
 | `events` | `KalendarEvents` | `emptyList()` | Events; only those on the visible day are rendered. |
 | `onEventClick` | `(KalendarEvent) -> Unit` | no-op | Called when an event block or all-day chip is tapped. |
+| `onEventTimeChange` | `((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?` | `null` | Enables drag-to-move and bottom-edge drag-to-resize; called on release with the event's new start/end. See [Drag to move and resize](#drag-to-move-and-resize). |
 | `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Arrows, today button, month-name formatter, background. `disabledDates`/`showAdjacentMonthDates` have no effect here. |
 | `hourHeight` | `Dp` | `64.dp` | Vertical space per hour; block heights scale with it. |
 

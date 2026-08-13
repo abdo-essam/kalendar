@@ -39,7 +39,9 @@ So unless you fancy scribbling your dates on a Howler, let Kalendar handle your 
 Try every view in your browser (Compose for Web/wasm build of the sample app):
 **[hi-manshu.github.io/Kalendar](https://hi-manshu.github.io/Kalendar/)** — deployed from `main`
 by the `Deploy Demo` workflow. (Requires GitHub Pages to be set to "GitHub Actions" in the repo
-settings the first time.)
+settings the first time.) The same deployment also publishes the Dokka API reference under
+[`/api/kalendar/`](https://hi-manshu.github.io/Kalendar/api/kalendar/) and
+[`/api/kalendar-foundation/`](https://hi-manshu.github.io/Kalendar/api/kalendar-foundation/).
 
 ## Standalone views (recommended)
 
@@ -52,8 +54,10 @@ settings the first time.)
 
 All views are restylable via **[KalendarTheme](doc/Theme.md)** colour tokens — no Material dependency required in your app's design system.
 
-These are called directly (`KalendarMonth(...)`, not `Kalendar(type = ...)`) and share no code with
-`kalendar-foundation` — see their docs for usage.
+These are called directly (`KalendarMonth(...)`, not `Kalendar(type = ...)`). They use the event
+model from `kalendar-foundation` (`KalendarEvent`/`BasicKalendarEvent`), which `kalendar`
+re-exports as an `api` dependency — adding `com.himanshoe:kalendar` alone is enough. See their
+docs for usage.
 
 ## Kalendar(type = ...)
 
