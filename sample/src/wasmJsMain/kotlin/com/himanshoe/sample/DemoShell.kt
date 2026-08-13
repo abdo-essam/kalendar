@@ -46,8 +46,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.browser.window
 
+private const val GRADIENT_START_COLOR = 0xFF1A1036
+private const val GRADIENT_MID_COLOR = 0xFF2D1B54
+private const val GRADIENT_END_COLOR = 0xFF0F1B3D
+
 private val PageGradient = Brush.linearGradient(
-    colors = listOf(Color(0xFF1A1036), Color(0xFF2D1B54), Color(0xFF0F1B3D)),
+    colors = listOf(
+        Color(GRADIENT_START_COLOR),
+        Color(GRADIENT_MID_COLOR),
+        Color(GRADIENT_END_COLOR),
+    ),
 )
 private val PhoneWidth = 400.dp
 private val PhoneHeight = 780.dp

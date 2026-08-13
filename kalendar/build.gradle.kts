@@ -131,7 +131,8 @@ tasks.register<JavaExec>("detekt") {
 
     val input = projectDir
     val config = "${rootProject.projectDir}/detekt.yml"
-    val exclude = ".*/build/.*,.*/resources/.*"
+    // detekt CLI --excludes takes globs, not regexes; the old regex form matched nothing
+    val exclude = "**/build/**,**/resources/**"
     val report = "sarif:${layout.buildDirectory.file("reports/detekt/detekt.sarif").get()}"
     val params = listOf(
         "-i",
