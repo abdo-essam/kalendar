@@ -31,6 +31,16 @@ import kotlinx.datetime.plus
 private const val KALENDAR_TIMELINE_CENTER_INDEX: Int = Int.MAX_VALUE / 2
 
 /**
+ * Converts a months-from-anchor offset into a valid list index, clamping to `[0, itemCount)` with
+ * overflow-safe [Long] math — with only `maxDate` set the base index sits near [Int.MAX_VALUE],
+ * so an out-of-bounds date can otherwise wrap negative and crash the lazy list.
+ */
+internal fun clampedTimelineIndex(baseIndex: Int, monthsFromAnchor: Int, itemCount: Int): Int {
+    val raw = baseIndex.toLong() + monthsFromAnchor.toLong()
+    return raw.coerceIn(0L, (itemCount - 1).toLong()).toInt()
+}
+
+/**
  * Hoisted scroll state for [KalendarTimeline].
  *
  * Wraps a [LazyListState] and exposes it in date terms: [visibleDate] is the start of the month
@@ -99,8 +109,12 @@ public fun rememberKalendarTimelineState(
             Int.MAX_VALUE
         }
     }
-    val initialIndex = remember(indexAnchor, baseIndex, anchor) {
-        baseIndex + monthsBetween(from = indexAnchor, to = anchor)
+    val initialIndex = remember(indexAnchor, baseIndex, anchor, itemCount) {
+        clampedTimelineIndex(
+            baseIndex = baseIndex,
+            monthsFromAnchor = monthsBetween(from = indexAnchor, to = anchor),
+            itemCount = itemCount,
+        )
     }
     val lazyListState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
 
@@ -109,7 +123,13 @@ public fun rememberKalendarTimelineState(
             lazyListState = lazyListState,
             itemCount = itemCount,
             indexToDate = { index -> indexAnchor.plus(index - baseIndex, DateTimeUnit.MONTH) },
-            dateToIndex = { date -> baseIndex + monthsBetween(from = indexAnchor, to = date) },
+            dateToIndex = { date ->
+                clampedTimelineIndex(
+                    baseIndex = baseIndex,
+                    monthsFromAnchor = monthsBetween(from = indexAnchor, to = date),
+                    itemCount = itemCount,
+                )
+            },
             startDayOfWeek = startDayOfWeek,
             minDate = minDate,
             maxDate = maxDate,

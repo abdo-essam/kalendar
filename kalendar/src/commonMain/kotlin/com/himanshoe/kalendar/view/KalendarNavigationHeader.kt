@@ -67,7 +67,8 @@ private const val JUMP_PICKER_MONTH_COLUMNS = 4
 private val ICON_SLOT_WIDTH = 48.dp
 
 /**
- * Fresh header used by [KalendarWeek], [KalendarMonth], and [KalendarYear]: a title plus
+ * Fresh header used by [KalendarWeek], [KalendarMonth], [KalendarYear], [KalendarSchedule],
+ * and [KalendarScheduleWeek]: a title plus
  * previous/next arrow buttons wired to [state]'s pager, and an optional today button.
  *
  * The title is centered via [Box] alignment rather than [Row]'s `SpaceBetween` (which centers in

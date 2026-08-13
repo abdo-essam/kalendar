@@ -43,7 +43,7 @@ import kotlinx.datetime.Month
  * one year as a vertically scrollable column of month grids.
  *
  * ```kotlin
- * val state = rememberKalendarYearState(selectedDate = today)
+ * val state = rememberKalendarYearState(initialDate = today)
  * var selected by remember { mutableStateOf(setOf(today)) }
  *
  * KalendarYear(

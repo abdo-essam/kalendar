@@ -16,18 +16,26 @@
 
 package com.himanshoe.kalendar.view
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class KalendarViewUiTest {
 
@@ -134,5 +142,120 @@ class KalendarViewUiTest {
         }
         rule.onNodeWithContentDescription("March 11, 2026").performClick()
         assertEquals(LocalDate(2026, 3, 11), clicked)
+    }
+
+    @Test
+    fun monthView_jumpPicker_tapTitleThenMonth_navigatesAcrossYears() {
+        rule.setContent {
+            KalendarMonth(selectedDate = march)
+        }
+        rule.onNodeWithText("March 2026").performClick()
+        rule.onNodeWithContentDescription("Previous year").performClick()
+        rule.onNodeWithText("Jun").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("June 2025").assertExists()
+    }
+
+    @Test
+    fun scheduleView_longPressDragBlock_reportsSnappedLaterTimesWithSameDuration() {
+        var reportedStart: LocalDateTime? = null
+        var reportedEnd: LocalDateTime? = null
+        rule.setContent {
+            KalendarSchedule(
+                selectedDate = march,
+                events = listOf(
+                    BasicKalendarEvent(
+                        date = march,
+                        eventName = "Sync",
+                        startTime = LocalDateTime(2026, 3, 10, 9, 0),
+                        endTime = LocalDateTime(2026, 3, 10, 10, 0),
+                    ),
+                ),
+                onEventTimeChange = { _, newStart, newEnd ->
+                    reportedStart = newStart
+                    reportedEnd = newEnd
+                },
+            )
+        }
+        rule.onNodeWithText("Sync").performTouchInput {
+            down(center)
+            advanceEventTime(LONG_PRESS_MS)
+            moveBy(Offset(0f, DRAG_DISTANCE_PX))
+            up()
+        }
+        rule.waitForIdle()
+
+        val start = assertNotNull(reportedStart, "onEventTimeChange never fired")
+        val end = assertNotNull(reportedEnd)
+        assertTrue(start > LocalDateTime(2026, 3, 10, 9, 0), "drag down should move the event later, was $start")
+        assertEquals(0, start.minute % SNAP_MINUTES, "start should snap to $SNAP_MINUTES-minute steps, was $start")
+        assertEquals(ONE_HOUR_MINUTES, durationMinutes(start, end), "move must preserve duration")
+    }
+
+    @Test
+    fun scheduleView_secondDragAfterEventsUpdate_usesUpdatedBlockNotFirstComposition() {
+        val starts = mutableListOf<LocalDateTime>()
+        rule.setContent {
+            var events by remember {
+                mutableStateOf(
+                    listOf(
+                        BasicKalendarEvent(
+                            date = march,
+                            eventName = "Sync",
+                            startTime = LocalDateTime(2026, 3, 10, 9, 0),
+                            endTime = LocalDateTime(2026, 3, 10, 10, 0),
+                        ),
+                    ),
+                )
+            }
+            KalendarSchedule(
+                selectedDate = march,
+                events = events,
+                onEventTimeChange = { event, newStart, newEnd ->
+                    starts += newStart
+                    events = listOf(
+                        BasicKalendarEvent(
+                            date = newStart.date,
+                            eventName = event.eventName,
+                            startTime = newStart,
+                            endTime = newEnd,
+                        ),
+                    )
+                },
+            )
+        }
+
+        repeat(2) {
+            rule.onNodeWithText("Sync").performTouchInput {
+                down(center)
+                advanceEventTime(LONG_PRESS_MS)
+                moveBy(Offset(0f, DRAG_DISTANCE_PX))
+                up()
+            }
+            rule.waitForIdle()
+        }
+
+        assertEquals(2, starts.size, "both drags should report a time change")
+        // Regression guard for the stale-capture bug: the gesture handler used to keep the
+        // first composition's block list, so the second drag re-reported the first drag's
+        // result instead of moving the already-moved event further down.
+        assertTrue(
+            starts[1] > starts[0],
+            "second drag must start from the updated event time (got ${starts[0]} then ${starts[1]})",
+        )
+    }
+
+    private fun durationMinutes(start: LocalDateTime, end: LocalDateTime): Int {
+        val startTotal = start.hour * MINUTES_PER_HOUR + start.minute
+        val endTotal = end.hour * MINUTES_PER_HOUR + end.minute
+        val dayCarry = if (end.date > start.date) MINUTES_PER_DAY else 0
+        return endTotal + dayCarry - startTotal
+    }
+
+    private companion object {
+        const val LONG_PRESS_MS = 1_000L
+        const val DRAG_DISTANCE_PX = 96f
+        const val SNAP_MINUTES = 15
+        const val ONE_HOUR_MINUTES = 60
     }
 }

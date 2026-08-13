@@ -63,7 +63,7 @@ private const val STICKY_TITLE_CROSSFADE_MS = 150
  * unlimited in either direction when left unset (the default).
  *
  * ```kotlin
- * val state = rememberKalendarTimelineState(selectedDate = today)
+ * val state = rememberKalendarTimelineState(initialDate = today)
  * var selected by remember { mutableStateOf(setOf(today)) }
  *
  * KalendarTimeline(

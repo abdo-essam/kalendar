@@ -37,7 +37,7 @@ import kotlinx.datetime.plus
  * a horizontal swipe on the row move the same underlying pager, so they always stay in sync.
  *
  * ```kotlin
- * val state = rememberKalendarWeekState(selectedDate = today)
+ * val state = rememberKalendarWeekState(initialDate = today)
  * var selected by remember { mutableStateOf(setOf(today)) }
  *
  * KalendarWeek(

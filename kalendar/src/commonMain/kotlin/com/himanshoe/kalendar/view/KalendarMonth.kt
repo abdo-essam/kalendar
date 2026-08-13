@@ -34,7 +34,7 @@ import kotlinx.datetime.LocalDate
  * a horizontal swipe on the grid move the same underlying pager, so they always stay in sync.
  *
  * ```kotlin
- * val state = rememberKalendarMonthState(selectedDate = today)
+ * val state = rememberKalendarMonthState(initialDate = today)
  * var selected by remember { mutableStateOf(setOf(today)) }
  *
  * KalendarMonth(

@@ -41,12 +41,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
@@ -58,7 +60,6 @@ import kotlinx.coroutines.delay
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
@@ -93,9 +94,10 @@ private const val RESIZE_STRIP_DP = 12
  * @param events Events for the calendar; only those on the visible day are rendered.
  * @param onEventClick Called when an event block or all-day chip is tapped.
  * @param onEventTimeChange When non-null, blocks become draggable: press-and-hold then drag to
- *   move an event (snapped to 15-minute steps), or press-and-hold the block's bottom edge and
- *   drag to change its duration. Called on release with the event and its new start/end —
- *   update your event source to complete the change; the calendar never mutates events itself.
+ *   move an event (snapped to [KalendarViewConfig.scheduleDragSnapMinutes] steps), or
+ *   press-and-hold the block's bottom edge and drag to change its duration. Called on release
+ *   with the event and its new start/end — update your event source to complete the change; the
+ *   calendar never mutates events itself.
  * @param config Shared visual/behavioural settings. [KalendarViewConfig.disabledDates] and
  *   [KalendarViewConfig.showAdjacentMonthDates] have no effect here; arrows, the today button,
  *   month-name formatting, and background apply as usual.
@@ -161,6 +163,9 @@ public fun KalendarSchedule(
  * @param state Navigation state from [rememberKalendarWeekState] — pages by week.
  * @param events Events for the calendar; only those in the visible week are rendered.
  * @param onEventClick Called when an event block or all-day chip is tapped.
+ * @param onEventTimeChange When non-null, blocks become draggable exactly as on
+ *   [KalendarSchedule], and a horizontal drag additionally moves the event across day columns —
+ *   the release callback's new start/end carry the shifted date.
  * @param config Shared visual/behavioural settings. [KalendarViewConfig.disabledDates] and
  *   [KalendarViewConfig.showAdjacentMonthDates] have no effect here.
  * @param hourHeight Vertical space for one hour of the grid; block heights scale with it.
@@ -438,28 +443,28 @@ private fun ScheduleBlockLayout(
     if (blocks.isEmpty()) {
         return
     }
-    var dragState by remember(blocks) { mutableStateOf<BlockDragState?>(null) }
+    var dragState by remember { mutableStateOf<BlockDragState?>(null) }
+    LaunchedEffect(blocks) { dragState = null }
+
     val density = LocalDensity.current
     val minutePx = with(density) { hourHeight.toPx() } / MINUTES_PER_HOUR
 
-    fun snappedMinutes(rawPx: Float): Int {
-        val minutes = (rawPx / minutePx).roundToInt()
-        return (minutes.toFloat() / snapMinutes).roundToInt() * snapMinutes
-    }
+    val latestBlocks = rememberUpdatedState(blocks)
+    val latestDate = rememberUpdatedState(date)
+    val latestSnapMinutes = rememberUpdatedState(snapMinutes)
+    val latestOnEventTimeChange = rememberUpdatedState(onEventTimeChange)
+    var dayColumnWidthPx by remember { mutableStateOf(0) }
+    val latestDayColumnWidthPx = rememberUpdatedState(dayColumnWidthPx)
 
-    fun adjusted(index: Int): KalendarScheduleBlock {
-        val block = blocks[index]
+    fun adjusted(index: Int): KalendarScheduleBlock? {
+        val block = latestBlocks.value.getOrNull(index) ?: return null
         val drag = dragState?.takeIf { it.index == index } ?: return block
-        val delta = snappedMinutes(drag.rawDeltaYPx)
-        return if (drag.resizing) {
-            val newEnd = (block.endMinutes + delta)
-                .coerceIn(block.startMinutes + MIN_SCHEDULE_BLOCK_MINUTES, MINUTES_PER_DAY)
-            block.copy(endMinutes = newEnd)
-        } else {
-            val duration = block.endMinutes - block.startMinutes
-            val newStart = (block.startMinutes + delta).coerceIn(0, MINUTES_PER_DAY - duration)
-            block.copy(startMinutes = newStart, endMinutes = newStart + duration)
-        }
+        val delta = snappedDragMinutes(
+            rawPx = drag.rawDeltaYPx,
+            minutePx = minutePx,
+            snapMinutes = latestSnapMinutes.value,
+        )
+        return adjustedScheduleBlock(block = block, deltaMinutes = delta, resizing = drag.resizing)
     }
 
     Layout(
@@ -476,19 +481,25 @@ private fun ScheduleBlockLayout(
                             index = index,
                             onDragStateChange = { dragState = it },
                             currentState = { dragState },
-                            onRelease = { state, layoutWidthPx ->
+                            onRelease = { state ->
                                 val result = adjusted(state.index)
-                                val dayShift = if (allowDayShift && layoutWidthPx > 0f) {
-                                    (state.rawDeltaXPx / layoutWidthPx).roundToInt()
-                                } else {
-                                    0
+                                val handler = latestOnEventTimeChange.value
+                                if (result != null && handler != null) {
+                                    val dayShift = if (allowDayShift) {
+                                        dayShiftForDrag(
+                                            rawDeltaXPx = state.rawDeltaXPx,
+                                            dayColumnWidthPx = latestDayColumnWidthPx.value,
+                                        )
+                                    } else {
+                                        0
+                                    }
+                                    val targetDate = latestDate.value.plus(dayShift, DateTimeUnit.DAY)
+                                    val (newStart, newEnd) = dragReleaseTimes(
+                                        block = result,
+                                        targetDate = targetDate,
+                                    )
+                                    handler(result.event, newStart, newEnd)
                                 }
-                                val targetDate = date.plus(dayShift, DateTimeUnit.DAY)
-                                onEventTimeChange(
-                                    result.event,
-                                    LocalDateTime(targetDate, minutesToLocalTime(result.startMinutes)),
-                                    LocalDateTime(targetDate, minutesToLocalTime(result.endMinutes)),
-                                )
                                 dragState = null
                             },
                         )
@@ -496,10 +507,10 @@ private fun ScheduleBlockLayout(
                 )
             }
         },
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().onSizeChanged { dayColumnWidthPx = it.width },
     ) { measurables, constraints ->
         val minuteHeightPx = hourHeight.toPx() / MINUTES_PER_HOUR
-        val rendered = blocks.indices.map { adjusted(it) }
+        val rendered = blocks.indices.map { adjusted(it) ?: blocks[it] }
         val placeables = measurables.mapIndexed { index, measurable ->
             val block = rendered[index]
             val columnWidth = constraints.maxWidth / block.columns
@@ -523,12 +534,16 @@ private fun ScheduleBlockLayout(
  * Long-press-then-drag on a block: a press starting in the bottom [RESIZE_STRIP_DP] of the block
  * resizes (moves the end time), anywhere else moves the whole block. Long-press is required so
  * plain drags still scroll the surrounding grid.
+ *
+ * The lambdas passed here are captured once when the pointer-input coroutine first launches and
+ * never refreshed, so callers must route them through [rememberUpdatedState]-backed reads — see
+ * [ScheduleBlockLayout].
  */
 private fun Modifier.blockDragGestures(
     index: Int,
     onDragStateChange: (BlockDragState?) -> Unit,
     currentState: () -> BlockDragState?,
-    onRelease: (state: BlockDragState, layoutWidthPx: Float) -> Unit,
+    onRelease: (state: BlockDragState) -> Unit,
 ): Modifier = pointerInput(index) {
     detectDragGesturesAfterLongPress(
         onDragStart = { offset ->
@@ -537,7 +552,7 @@ private fun Modifier.blockDragGestures(
             onDragStateChange(BlockDragState(index = index, resizing = resizing))
         },
         onDragEnd = {
-            currentState()?.let { onRelease(it, size.width.toFloat()) }
+            currentState()?.let(onRelease)
         },
         onDragCancel = {
             onDragStateChange(null)
@@ -554,11 +569,6 @@ private fun Modifier.blockDragGestures(
             }
         },
     )
-}
-
-private fun minutesToLocalTime(minutes: Int): LocalTime {
-    val clamped = minutes.coerceIn(0, MINUTES_PER_DAY - 1)
-    return LocalTime(hour = clamped / MINUTES_PER_HOUR, minute = clamped % MINUTES_PER_HOUR)
 }
 
 @Composable

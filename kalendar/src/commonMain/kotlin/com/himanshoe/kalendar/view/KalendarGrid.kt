@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -128,6 +129,11 @@ internal fun KalendarGrid(
 
     var eventDragTarget by remember { mutableStateOf<LocalDate?>(null) }
 
+    val latestHasEvents = rememberUpdatedState(hasEvents)
+    val latestOnEventDrop = rememberUpdatedState(onEventDrop)
+    val latestOnDateRangeDrag = rememberUpdatedState(onDateRangeDrag)
+    val latestOnDateRangeDragEnd = rememberUpdatedState(onDateRangeDragEnd)
+
     val dragModifier = if (onDateRangeDrag != null || onEventDrop != null) {
         Modifier.pointerInput(dates) {
             var dragStartDate: LocalDate? = null
@@ -136,7 +142,7 @@ internal fun KalendarGrid(
                 onDragStart = { offset ->
                     val start = dateAtOffset(offset, containerCoordinates, cellCoordinates)
                     dragStartDate = start
-                    movingEvents = onEventDrop != null && start != null && hasEvents(start)
+                    movingEvents = latestOnEventDrop.value != null && start != null && latestHasEvents.value(start)
                     if (movingEvents) {
                         eventDragTarget = start
                     }
@@ -146,10 +152,10 @@ internal fun KalendarGrid(
                     val target = eventDragTarget
                     if (movingEvents) {
                         if (start != null && target != null && target != start) {
-                            onEventDrop?.invoke(start, target)
+                            latestOnEventDrop.value?.invoke(start, target)
                         }
                     } else {
-                        onDateRangeDragEnd?.invoke()
+                        latestOnDateRangeDragEnd.value?.invoke()
                     }
                     dragStartDate = null
                     movingEvents = false
@@ -157,7 +163,7 @@ internal fun KalendarGrid(
                 },
                 onDragCancel = {
                     if (!movingEvents) {
-                        onDateRangeDragEnd?.invoke()
+                        latestOnDateRangeDragEnd.value?.invoke()
                     }
                     dragStartDate = null
                     movingEvents = false
@@ -169,8 +175,8 @@ internal fun KalendarGrid(
                         ?: return@detectDragGesturesAfterLongPress
                     if (movingEvents) {
                         eventDragTarget = current
-                    } else if (onDateRangeDrag != null) {
-                        onDateRangeDrag(start, current)
+                    } else {
+                        latestOnDateRangeDrag.value?.invoke(start, current)
                     }
                 },
             )

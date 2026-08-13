@@ -21,11 +21,14 @@ import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.LocalTime
 import kotlinx.datetime.Month
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
+import kotlin.math.roundToInt
 import kotlin.time.Clock
 
 /**
@@ -175,6 +178,73 @@ internal fun scheduleBlocks(events: List<KalendarEvent>, date: LocalDate): List<
             columns = it.columns,
         )
     }
+}
+
+/**
+ * Converts an accumulated raw drag distance into a snapped minute delta in a single rounding
+ * step ([rawPx] → snap units directly), avoiding the drift a two-stage px→minutes→snap rounding
+ * introduces for snap values that don't divide 60.
+ */
+internal fun snappedDragMinutes(rawPx: Float, minutePx: Float, snapMinutes: Int): Int {
+    if (minutePx <= 0f || snapMinutes <= 0) {
+        return 0
+    }
+    return (rawPx / (minutePx * snapMinutes)).roundToInt() * snapMinutes
+}
+
+/**
+ * Applies a drag [deltaMinutes] to [block]: resizing moves only the end (clamped to at least
+ * [MIN_SCHEDULE_BLOCK_MINUTES] long and at most midnight), moving shifts the whole block within
+ * the day while preserving its duration.
+ */
+internal fun adjustedScheduleBlock(
+    block: KalendarScheduleBlock,
+    deltaMinutes: Int,
+    resizing: Boolean,
+): KalendarScheduleBlock = if (resizing) {
+    val newEnd = (block.endMinutes + deltaMinutes)
+        .coerceIn(block.startMinutes + MIN_SCHEDULE_BLOCK_MINUTES, MINUTES_PER_DAY)
+    block.copy(endMinutes = newEnd)
+} else {
+    val duration = block.endMinutes - block.startMinutes
+    val newStart = (block.startMinutes + deltaMinutes).coerceIn(0, MINUTES_PER_DAY - duration)
+    block.copy(startMinutes = newStart, endMinutes = newStart + duration)
+}
+
+private const val MAX_DAY_SHIFT = 6
+
+/**
+ * Converts a horizontal drag distance into whole day columns on the week grid, dividing by the
+ * full day-column width and clamped to one week in either direction.
+ */
+internal fun dayShiftForDrag(rawDeltaXPx: Float, dayColumnWidthPx: Int): Int {
+    if (dayColumnWidthPx <= 0) {
+        return 0
+    }
+    return (rawDeltaXPx / dayColumnWidthPx).roundToInt().coerceIn(-MAX_DAY_SHIFT, MAX_DAY_SHIFT)
+}
+
+/**
+ * The (start, end) date-times reported for a released drag. An end at exactly [MINUTES_PER_DAY]
+ * is midnight of the following day — [kotlinx.datetime.LocalTime] cannot express 24:00, so it
+ * must not be silently truncated to 23:59.
+ */
+internal fun dragReleaseTimes(
+    block: KalendarScheduleBlock,
+    targetDate: LocalDate,
+): Pair<LocalDateTime, LocalDateTime> {
+    val start = LocalDateTime(targetDate, minutesToLocalTime(block.startMinutes))
+    val end = if (block.endMinutes >= MINUTES_PER_DAY) {
+        LocalDateTime(targetDate.plus(1, DateTimeUnit.DAY), LocalTime(hour = 0, minute = 0))
+    } else {
+        LocalDateTime(targetDate, minutesToLocalTime(block.endMinutes))
+    }
+    return start to end
+}
+
+internal fun minutesToLocalTime(minutes: Int): LocalTime {
+    val clamped = minutes.coerceIn(0, MINUTES_PER_DAY - 1)
+    return LocalTime(hour = clamped / MINUTES_PER_HOUR, minute = clamped % MINUTES_PER_HOUR)
 }
 
 /**

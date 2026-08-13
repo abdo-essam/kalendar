@@ -25,7 +25,9 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
 
 /**
- * Shared visual and behavioural knobs for [KalendarWeek], [KalendarMonth], and [KalendarYear].
+ * Shared visual and behavioural knobs for every standalone view — [KalendarWeek],
+ * [KalendarMonth], [KalendarYear], [KalendarTimeline], [KalendarSchedule], and
+ * [KalendarScheduleWeek]. Options that only apply to some views say so.
  *
  * @param disabledDates A predicate called for each date. When it returns `true` the date is
  *   rendered at reduced opacity and taps are ignored. Defaults to `{ false }`.

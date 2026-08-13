@@ -52,22 +52,33 @@ public class KalendarViewState internal constructor(
     /** The start date of the page currently visible in the pager. */
     public val visibleDate: LocalDate by derivedStateOf { pageToDate(pagerState.currentPage) }
 
-    /** Whether stepping one page backward stays at or after [minDate]. */
+    /**
+     * Whether stepping one page backward stays within [minDate]'s page. Compared in page space so
+     * a mid-period [minDate] (e.g. the 15th of a month) still allows reaching the page that
+     * contains it.
+     */
     public val canScrollBackward: Boolean by derivedStateOf {
-        minDate == null || pageToDate(pagerState.currentPage - 1) >= minDate
+        minDate == null || pagerState.currentPage - 1 >= dateToPage(minDate)
     }
 
-    /** Whether stepping one page forward stays at or before [maxDate]. */
+    /** Whether stepping one page forward stays within [maxDate]'s page. */
     public val canScrollForward: Boolean by derivedStateOf {
-        maxDate == null || pageToDate(pagerState.currentPage + 1) <= maxDate
+        maxDate == null || pagerState.currentPage + 1 <= dateToPage(maxDate)
     }
 
-    /** Animates the pager so the page containing [date] is visible. */
+    /**
+     * Animates the pager so the page containing [date] is visible, clamped to the pages
+     * containing [minDate]/[maxDate] when bounds are set — the today button and the header's
+     * jump picker route through here, so out-of-bounds targets land on the nearest bound.
+     */
     public suspend fun animateScrollTo(date: LocalDate) {
-        pagerState.animateScrollToPage(dateToPage(date))
+        val target = dateToPage(date)
+        val lower = minDate?.let(dateToPage) ?: Int.MIN_VALUE
+        val upper = maxDate?.let(dateToPage) ?: Int.MAX_VALUE
+        pagerState.animateScrollToPage(target.coerceIn(lower, upper))
     }
 
-    /** Animates the pager back to the page containing today's date. */
+    /** Animates the pager back to the page containing today's date, clamped to the bounds. */
     public suspend fun animateScrollToToday() {
         animateScrollTo(todayInSystemTimeZone())
     }
