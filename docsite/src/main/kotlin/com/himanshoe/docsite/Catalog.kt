@@ -21,7 +21,7 @@ const val SITE_BASE_URL = "https://hi-manshu.github.io/Kalendar/"
 const val SITE_BASE_PATH = "/Kalendar/"
 
 /** The project's repository, linked from the top bar and the footer. */
-const val REPO_URL = "https://github.com/hi-manshu/Kalendar"
+const val REPO_URL = "https://github.com/hi-manshu/kalendar"
 
 /** The Wasm playground, assembled in beside the docs by `assembleSite`. */
 const val PLAYGROUND_URL = "playground/index.html"

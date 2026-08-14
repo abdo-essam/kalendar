@@ -169,7 +169,7 @@ private fun DemoHeader(modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(LinkSpacing),
         ) {
             LinkChip(label = "Docs", url = "https://hi-manshu.github.io/Kalendar/")
-            LinkChip(label = "GitHub", url = "https://github.com/hi-manshu/Kalendar")
+            LinkChip(label = "GitHub", url = "https://github.com/hi-manshu/kalendar")
             LinkChip(label = "Sponsor", url = "https://github.com/sponsors/hi-manshu")
             LinkChip(label = "Buy me a coffee", url = "https://buymeacoffee.com/himanshoe")
         }
