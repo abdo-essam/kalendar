@@ -113,7 +113,7 @@ public interface KalendarEvent {
  *   views that keep per-item state. Defaults to `null` (those views fall back to list position).
  */
 @Immutable
-public data class BasicKalendarEvent(
+public class BasicKalendarEvent(
     override val date: LocalDate,
     override val eventName: String,
     override val eventDescription: String? = null,
@@ -123,7 +123,75 @@ public data class BasicKalendarEvent(
     override val calendarId: String? = null,
     override val endDate: LocalDate? = null,
     override val id: String? = null,
-) : KalendarEvent
+) : KalendarEvent {
+
+    /** Returns a copy of this event with the given properties replaced. */
+    public fun copy(
+        date: LocalDate = this.date,
+        eventName: String = this.eventName,
+        eventDescription: String? = this.eventDescription,
+        startTime: LocalDateTime? = this.startTime,
+        endTime: LocalDateTime? = this.endTime,
+        eventColor: Color? = this.eventColor,
+        calendarId: String? = this.calendarId,
+        endDate: LocalDate? = this.endDate,
+        id: String? = this.id,
+    ): BasicKalendarEvent = BasicKalendarEvent(
+        date = date,
+        eventName = eventName,
+        eventDescription = eventDescription,
+        startTime = startTime,
+        endTime = endTime,
+        eventColor = eventColor,
+        calendarId = calendarId,
+        endDate = endDate,
+        id = id,
+    )
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is BasicKalendarEvent) return false
+        if (date != other.date) return false
+        if (eventName != other.eventName) return false
+        if (eventDescription != other.eventDescription) return false
+        if (startTime != other.startTime) return false
+        if (endTime != other.endTime) return false
+        if (eventColor != other.eventColor) return false
+        if (calendarId != other.calendarId) return false
+        if (endDate != other.endDate) return false
+        if (id != other.id) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = date.hashCode()
+        result = HASH_FACTOR * result + eventName.hashCode()
+        result = HASH_FACTOR * result + eventDescription.hashCode()
+        result = HASH_FACTOR * result + startTime.hashCode()
+        result = HASH_FACTOR * result + endTime.hashCode()
+        result = HASH_FACTOR * result + eventColor.hashCode()
+        result = HASH_FACTOR * result + calendarId.hashCode()
+        result = HASH_FACTOR * result + endDate.hashCode()
+        result = HASH_FACTOR * result + id.hashCode()
+        return result
+    }
+
+    override fun toString(): String = "BasicKalendarEvent(" +
+        "date=$date, " +
+        "eventName=$eventName, " +
+        "eventDescription=$eventDescription, " +
+        "startTime=$startTime, " +
+        "endTime=$endTime, " +
+        "eventColor=$eventColor, " +
+        "calendarId=$calendarId, " +
+        "endDate=$endDate, " +
+        "id=$id" +
+        ")"
+
+    private companion object {
+        const val HASH_FACTOR = 31
+    }
+}
 
 /**
  * A list of [KalendarEvent] instances.
