@@ -874,7 +874,7 @@ public object KalendarDatePickerDefaults {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 BasicText(
-                    text = day.date.dayOfMonth.toString(),
+                    text = day.date.day.toString(),
                     style = pickerDayTextStyle(
                         typography = typography,
                         emphasized = day.isSelected || day.isToday,

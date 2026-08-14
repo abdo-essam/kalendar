@@ -230,9 +230,9 @@ internal fun weekTitle(weekStart: LocalDate, shortMonthNameFormatter: (Month) ->
             val endLabel = shortDateLabel(weekEnd, shortMonthNameFormatter)
             "$startLabel – $endLabel, ${weekEnd.year}"
         }
-        else -> "$monthName ${weekStart.dayOfMonth}–${weekEnd.dayOfMonth}, ${weekEnd.year}"
+        else -> "$monthName ${weekStart.day}–${weekEnd.day}, ${weekEnd.year}"
     }
 }
 
 private fun shortDateLabel(date: LocalDate, shortMonthNameFormatter: (Month) -> String): String =
-    "${shortMonthNameFormatter(date.month)} ${date.dayOfMonth}"
+    "${shortMonthNameFormatter(date.month)} ${date.day}"

@@ -472,7 +472,9 @@ public class KalendarShapes(
  *   value above `1f` gives short, wide cells.
  * @property eventIndicatorSize Diameter of one event dot below a day number.
  * @property eventIndicatorSpacing Gap between adjacent event dots.
- * @property eventIndicatorTopPadding Gap between the day number and the row of event dots.
+ * @property eventIndicatorBottomPadding Inset between the row of event dots and the bottom edge
+ *   of the day cell. The dots are anchored to the cell rather than stacked under the number,
+ *   so that the day number's baseline does not move with the event count.
  * @property headerPadding Padding around the navigation header's contents.
  * @property headerIconSlotWidth Width reserved on each side of the header title for arrow and
  *   today buttons; the title's available width is computed from it.
@@ -516,7 +518,7 @@ public class KalendarDimensions(
     public val dayCellAspectRatio: Float = 1f,
     public val eventIndicatorSize: Dp = 4.dp,
     public val eventIndicatorSpacing: Dp = 2.dp,
-    public val eventIndicatorTopPadding: Dp = 3.dp,
+    public val eventIndicatorBottomPadding: Dp = 3.dp,
     public val headerPadding: PaddingValues = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
     public val headerIconSlotWidth: Dp = 48.dp,
     public val headerContentSpacing: Dp = 8.dp,
@@ -548,7 +550,7 @@ public class KalendarDimensions(
         dayCellAspectRatio: Float = this.dayCellAspectRatio,
         eventIndicatorSize: Dp = this.eventIndicatorSize,
         eventIndicatorSpacing: Dp = this.eventIndicatorSpacing,
-        eventIndicatorTopPadding: Dp = this.eventIndicatorTopPadding,
+        eventIndicatorBottomPadding: Dp = this.eventIndicatorBottomPadding,
         headerPadding: PaddingValues = this.headerPadding,
         headerIconSlotWidth: Dp = this.headerIconSlotWidth,
         headerContentSpacing: Dp = this.headerContentSpacing,
@@ -577,7 +579,7 @@ public class KalendarDimensions(
         dayCellAspectRatio = dayCellAspectRatio,
         eventIndicatorSize = eventIndicatorSize,
         eventIndicatorSpacing = eventIndicatorSpacing,
-        eventIndicatorTopPadding = eventIndicatorTopPadding,
+        eventIndicatorBottomPadding = eventIndicatorBottomPadding,
         headerPadding = headerPadding,
         headerIconSlotWidth = headerIconSlotWidth,
         headerContentSpacing = headerContentSpacing,
@@ -611,7 +613,7 @@ public class KalendarDimensions(
         if (dayCellAspectRatio != other.dayCellAspectRatio) return false
         if (eventIndicatorSize != other.eventIndicatorSize) return false
         if (eventIndicatorSpacing != other.eventIndicatorSpacing) return false
-        if (eventIndicatorTopPadding != other.eventIndicatorTopPadding) return false
+        if (eventIndicatorBottomPadding != other.eventIndicatorBottomPadding) return false
         if (headerPadding != other.headerPadding) return false
         if (headerIconSlotWidth != other.headerIconSlotWidth) return false
         if (headerContentSpacing != other.headerContentSpacing) return false
@@ -643,7 +645,7 @@ public class KalendarDimensions(
         result = 31 * result + dayCellAspectRatio.hashCode()
         result = 31 * result + eventIndicatorSize.hashCode()
         result = 31 * result + eventIndicatorSpacing.hashCode()
-        result = 31 * result + eventIndicatorTopPadding.hashCode()
+        result = 31 * result + eventIndicatorBottomPadding.hashCode()
         result = 31 * result + headerPadding.hashCode()
         result = 31 * result + headerIconSlotWidth.hashCode()
         result = 31 * result + headerContentSpacing.hashCode()
@@ -675,7 +677,7 @@ public class KalendarDimensions(
         "dayCellAspectRatio=$dayCellAspectRatio, " +
         "eventIndicatorSize=$eventIndicatorSize, " +
         "eventIndicatorSpacing=$eventIndicatorSpacing, " +
-        "eventIndicatorTopPadding=$eventIndicatorTopPadding, " +
+        "eventIndicatorBottomPadding=$eventIndicatorBottomPadding, " +
         "headerPadding=$headerPadding, " +
         "headerIconSlotWidth=$headerIconSlotWidth, " +
         "headerContentSpacing=$headerContentSpacing, " +
@@ -920,7 +922,7 @@ public object KalendarThemeDefaults {
     public fun shapes(): KalendarShapes = DefaultShapes
 }
 
-private val EVENT_OVERFLOW_FONT_SIZE = 7.sp
+private val EVENT_OVERFLOW_FONT_SIZE = 9.sp
 private val EVENT_BLOCK_CORNER_RADIUS = 4.dp
 private val POPUP_CORNER_RADIUS = 12.dp
 private val AGENDA_CARD_CORNER_RADIUS = 12.dp

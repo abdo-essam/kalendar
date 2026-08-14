@@ -68,7 +68,7 @@ private const val MAX_EVENT_SPAN_DAYS = 366
 internal fun LocalDate.startOfWeek(startDayOfWeek: DayOfWeek): LocalDate =
     minus((dayOfWeek.ordinal - startDayOfWeek.ordinal + DAYS_PER_WEEK) % DAYS_PER_WEEK, DateTimeUnit.DAY)
 
-internal fun LocalDate.startOfMonth(): LocalDate = minus(dayOfMonth - 1, DateTimeUnit.DAY)
+internal fun LocalDate.startOfMonth(): LocalDate = minus(day - 1, DateTimeUnit.DAY)
 
 internal fun LocalDate.startOfYear(): LocalDate = LocalDate(year, 1, 1)
 

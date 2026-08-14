@@ -231,7 +231,7 @@ private class KalendarDayOverflowScopeImpl(
  *     onDateClick = { date, _ -> select(date) },
  *     dayContent = { scope ->
  *         MyDayCell(
- *             day = scope.date.dayOfMonth,
+ *             day = scope.date.day,
  *             modifier = Modifier.kalendarDaySemantics(
  *                 scope = scope,
  *                 onClick = { select(scope.date) },
@@ -466,20 +466,25 @@ public object KalendarDayCellDefaults {
                     interactionSource = interactionSource,
                 ),
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                BasicText(
-                    text = scope.date.dayOfMonth.toString(),
-                    style = textStyle.copy(color = textColor),
-                )
-                val hasEvents = scope.events.isNotEmpty()
-                val onOverflowClick = if (showOverflowPopup && hiddenEventCount > 0) {
-                    { overflowOpen = true }
-                } else {
-                    null
-                }
+            BasicText(
+                text = scope.date.day.toString(),
+                style = textStyle.copy(color = textColor),
+            )
+
+            // Indicators hang off the bottom of the cell rather than sitting under the number in a
+            // shared Column. In a Column the number is centred against *number plus indicators*, so
+            // its height moved with the event count: measured off the golden, one dot lifted the
+            // number 3px and a full set with an overflow label lifted it 10px, leaving a single
+            // week's numbers on three different baselines. With animations on it was worse — the
+            // number visibly slid upward as the dots faded in. Anchoring here decouples the two, so
+            // every number in the grid shares one baseline no matter what the day holds.
+            val hasEvents = scope.events.isNotEmpty()
+            val onOverflowClick = if (showOverflowPopup && hiddenEventCount > 0) {
+                { overflowOpen = true }
+            } else {
+                null
+            }
+            Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                 if (animations.enabled) {
                     AnimatedVisibility(visible = hasEvents) {
                         EventIndicatorRow(
@@ -637,11 +642,15 @@ private fun EventIndicatorRow(
     val strings = kalendarStrings()
 
     Row(
-        modifier = Modifier.padding(top = dimensions.eventIndicatorTopPadding),
+        modifier = Modifier.padding(bottom = dimensions.eventIndicatorBottomPadding),
         horizontalArrangement = Arrangement.spacedBy(dimensions.eventIndicatorSpacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        scope.events.take(maxEventIndicators).forEach { event ->
+        // Indexed rather than `take(n).forEach`: take allocates a sublist on every cell, which is
+        // 42 allocations for a month grid and around 400 for a year. There is no fastTake.
+        val shownCount = minOf(maxEventIndicators, scope.events.size)
+        for (index in 0 until shownCount) {
+            val event = scope.events[index]
             Box(
                 modifier = Modifier
                     .size(dimensions.eventIndicatorSize)

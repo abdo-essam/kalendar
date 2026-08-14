@@ -229,7 +229,7 @@ public class KalendarStrings(
 }
 
 private val defaultDayAccessibilityLabel: (LocalDate, String) -> String =
-    { date, monthName -> "$monthName ${date.dayOfMonth}, ${date.year}" }
+    { date, monthName -> "$monthName ${date.day}, ${date.year}" }
 
 private val defaultDayOfWeekAccessibilityLabel: (DayOfWeek) -> String = { dayOfWeek ->
     dayOfWeek.name.lowercase().replaceFirstChar { it.titlecase() }

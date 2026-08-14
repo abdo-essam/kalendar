@@ -93,7 +93,7 @@ internal fun monthDates(
     visibleDaysOfWeek: Set<DayOfWeek> = ALL_DAYS_OF_WEEK,
 ): List<LocalDate> {
     val lastDayOfMonth = monthStart.plus(1, DateTimeUnit.MONTH).minus(1, DateTimeUnit.DAY)
-    return (0 until lastDayOfMonth.dayOfMonth)
+    return (0 until lastDayOfMonth.day)
         .map { monthStart.plus(it, DateTimeUnit.DAY) }
         .filter { it.dayOfWeek in visibleDaysOfWeek }
 }
