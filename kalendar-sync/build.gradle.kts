@@ -68,8 +68,10 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(libs.kotlinx.datetime)
-            implementation(libs.kotlinx.coroutines.core)
+            // api: LocalDate/LocalTime appear in public signatures and the provider interface
+            // is suspend, so both are part of this module's compile contract.
+            api(libs.kotlinx.datetime)
+            api(libs.kotlinx.coroutines.core)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

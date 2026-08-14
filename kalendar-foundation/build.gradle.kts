@@ -71,14 +71,18 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            // This module is the event model and nothing else. It has no UI, so it takes no
-            // Compose UI dependency — only the annotations, which are compile-time markers the
-            // Compose compiler reads and which therefore need not be on a consumer's runtime
-            // classpath. That is what lets an app's data layer implement KalendarEvent without
-            // dragging Compose into it.
-            compileOnly(compose.runtime)
-            implementation(compose.ui)
-            implementation(libs.kotlinx.datetime)
+            // api throughout: KalendarEvent is annotated @Stable and exposes Color, LocalDate
+            // and LocalDateTime, so all three are part of this module's compile contract and
+            // must reach consumers. With Gradle Module Metadata an implementation dependency
+            // lands in runtimeElements only, so a consumer would fail to compile against types
+            // this module's own public signatures mention.
+            //
+            // compileOnly is wrong here even for the annotations: the Compose compiler reads
+            // @Stable off the classpath to infer stability, so a consumer that cannot see it
+            // treats KalendarEvent as unstable and stops skipping.
+            api(compose.runtime)
+            api(compose.ui)
+            api(libs.kotlinx.datetime)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

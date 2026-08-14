@@ -19,6 +19,7 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpack
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig
 
 plugins {
@@ -127,6 +128,19 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+}
+
+/*
+ * The published playground does not ship `sample.js.map`.
+ *
+ * It was 1.7 MB of a 14 MB payload — twelve per cent of the download — and the only thing it buys a
+ * visitor is readable Kotlin frames in a devtools console they are not looking at. It is switched
+ * off on the production webpack task alone rather than in `commonWebpackConfig`, so
+ * `wasmJsBrowserDevelopmentRun` keeps its source maps and stepping through the playground locally
+ * still works.
+ */
+tasks.named<KotlinWebpack>("wasmJsBrowserProductionWebpack") {
+    sourceMaps = false
 }
 
 val detekt by configurations.creating

@@ -19,11 +19,464 @@
 <head>
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta content="#000000" name="theme-color">
     <title>Kalendar Playground</title>
     <meta content="Try Kalendar — the Compose Multiplatform calendar library — live in your browser." name="description">
-    <link href="styles.css" rel="stylesheet" type="text/css">
-    <script src="sample.js" type="application/javascript"></script>
+
+    <!--
+      Everything the first paint needs is in this file: no stylesheet link, no font, no image, no
+      script. The playground's real payload is a Skia runtime and a Compose application measured in
+      megabytes, and until those land the page has nothing of its own to show. So it shows this — a
+      hand-built shell of the calendar that is about to appear, painted straight out of the HTML
+      response, in the monochrome tokens the playground and the docs site already share.
+
+      The shell copies the shape of the real month view rather than the usual grid of grey boxes:
+      day numbers in a six-row grid with no cell chrome, a filled circle where the selection sits,
+      dots under the days that carry events. The closer the placeholder is to what replaces it, the
+      less the swap reads as a swap.
+
+      `sample.js` is deferred deliberately. As a parser-blocking script in <head> it held <body>
+      back until half a megabyte of bundle had been fetched and run — which is exactly the window
+      this shell exists to fill. Deferred, the shell paints while the bundle downloads.
+    -->
+    <style>
+        :root {
+            --bg: #000;
+            --surface: #0a0a0a;
+            --surface-2: #111;
+            --border: rgba(255, 255, 255, 0.08);
+            --border-strong: rgba(255, 255, 255, 0.16);
+            --text: #ededed;
+            --dim: #707070;
+            --ghost: rgba(255, 255, 255, 0.1);
+            --ghost-soft: rgba(255, 255, 255, 0.04);
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font);
+        }
+
+        /* Compose clears whatever container it mounts into, so it gets one of its own and the shell
+           lives beside it rather than inside it. Mounting into <body> would have the shell torn out
+           the moment Skia finished loading — several frames before anything was drawn to replace
+           it, which is the blank flash wearing a different hat. */
+        #compose-root {
+            position: fixed;
+            inset: 0;
+        }
+
+        #boot-skeleton {
+            position: fixed;
+            inset: 0;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(180deg, #141414 0%, #0a0a0a 45%, #000 100%);
+            opacity: 1;
+            transition: opacity 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+        }
+
+        #boot-skeleton.is-dismissed {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .sk-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px;
+            flex: none;
+        }
+
+        .sk-wordmark {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+        }
+
+        .sk-subtitle {
+            font-size: 12px;
+            color: var(--dim);
+            line-height: 1.4;
+        }
+
+        .sk-chips {
+            display: flex;
+            gap: 8px;
+        }
+
+        .sk-chip {
+            height: 32px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: var(--surface);
+        }
+
+        .sk-chip-1 { width: 62px; }
+        .sk-chip-2 { width: 76px; }
+        .sk-chip-3 { width: 82px; }
+        .sk-chip-4 { width: 124px; }
+
+        .sk-stage {
+            flex: 1 1 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 48px;
+            padding: 4px 24px 24px;
+            min-height: 0;
+        }
+
+        /* Height-driven, exactly as the live `PhoneFrame` is: `fillMaxHeight(0.94)` with an aspect
+           ratio and a width cap. Sizing from the width instead would let the frame grow taller than
+           the stage and lose its bottom bezel off-screen, which is the one thing that stops a phone
+           silhouette reading as a phone. `min-width: 0` because a flex item's automatic minimum
+           size — here the min-content width of a seven-column grid — otherwise beats the aspect
+           ratio and the frame comes out square. */
+        .sk-phone {
+            flex: none;
+            height: 94%;
+            aspect-ratio: 9 / 19.5;
+            max-width: 82vw;
+            min-width: 0;
+            padding: 12px;
+            border: 1px solid #3a3a3a;
+            border-radius: 46px;
+            background: #1a1a1a;
+            box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+        }
+
+        .sk-screen {
+            width: 100%;
+            height: 100%;
+            border-radius: 34px;
+            background: var(--bg);
+            padding: 24px 14px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow: hidden;
+        }
+
+        .sk-month {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 10px;
+            flex: none;
+            padding: 0 6px;
+        }
+
+        .sk-month-label {
+            justify-self: center;
+            width: 62%;
+            height: 15px;
+            border-radius: 5px;
+            background: var(--ghost);
+        }
+
+        .sk-month-nav {
+            display: flex;
+            gap: 8px;
+        }
+
+        .sk-nav-dot {
+            width: 18px;
+            height: 18px;
+            border-radius: 6px;
+            background: var(--ghost-soft);
+        }
+
+        .sk-weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            flex: none;
+            padding-bottom: 2px;
+        }
+
+        .sk-weekday {
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--dim);
+        }
+
+        /* Six rows sharing the remaining height, the way the real month view distributes its weeks —
+           which is also what keeps the lower half of the screen from reading as dead space. */
+        .sk-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            grid-auto-rows: minmax(0, 1fr);
+            flex: 1 1 auto;
+            min-height: 0;
+            place-items: center;
+        }
+
+        .sk-day {
+            position: relative;
+            width: 17px;
+            height: 13px;
+            border-radius: 4px;
+            background: var(--ghost);
+        }
+
+        .sk-day.is-muted {
+            background: var(--ghost-soft);
+        }
+
+        .sk-day.has-event::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 19px;
+            width: 4px;
+            height: 4px;
+            margin-left: -2px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.22);
+        }
+
+        .sk-day.is-today {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.13);
+        }
+
+        /* The controls column the two-pane layout puts beside the calendar. The 900px breakpoint is
+           `TwoPaneMinWidth`, so the shell collapses on exactly the widths the live layout does. */
+        .sk-panel {
+            flex: 0 1 400px;
+            align-self: center;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface);
+        }
+
+        .sk-panel-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .sk-pill {
+            height: 30px;
+            border-radius: 15px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+        }
+
+        .sk-pill-sm { width: 68px; }
+        .sk-pill-md { width: 92px; }
+        .sk-pill-lg { width: 118px; }
+
+        .sk-swatches {
+            display: flex;
+            gap: 10px;
+        }
+
+        .sk-swatch {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+        }
+
+        .sk-code {
+            height: 138px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: #0e0e0e;
+        }
+
+        .sk-status {
+            flex: none;
+            text-align: center;
+            font-size: 12px;
+            color: var(--dim);
+            padding-bottom: 20px;
+        }
+
+        /* One animation drives every placeholder, so the shell breathes as a single surface rather
+           than as forty independently twitching boxes. */
+        .sk-month-label,
+        .sk-nav-dot,
+        .sk-day,
+        .sk-chip,
+        .sk-pill,
+        .sk-swatch,
+        .sk-code,
+        .sk-status {
+            animation: sk-pulse 1.6s ease-in-out infinite;
+        }
+
+        @keyframes sk-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.42; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .sk-month-label,
+            .sk-nav-dot,
+            .sk-day,
+            .sk-chip,
+            .sk-pill,
+            .sk-swatch,
+            .sk-code,
+            .sk-status {
+                animation: none;
+                opacity: 0.75;
+            }
+
+            #boot-skeleton {
+                transition: none;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .sk-panel,
+            .sk-chips {
+                display: none;
+            }
+        }
+    </style>
+    <script defer src="sample.js" type="application/javascript"></script>
 </head>
 <body>
+<div id="compose-root"></div>
+
+<div aria-hidden="true" id="boot-skeleton">
+    <div class="sk-bar">
+        <div>
+            <div class="sk-wordmark">Kalendar</div>
+            <div class="sk-subtitle">Playground</div>
+        </div>
+        <div class="sk-chips">
+            <div class="sk-chip sk-chip-1"></div>
+            <div class="sk-chip sk-chip-2"></div>
+            <div class="sk-chip sk-chip-3"></div>
+            <div class="sk-chip sk-chip-4"></div>
+        </div>
+    </div>
+
+    <div class="sk-stage">
+        <div class="sk-phone">
+            <div class="sk-screen">
+                <div class="sk-month">
+                    <div class="sk-nav-dot"></div>
+                    <div class="sk-month-label"></div>
+                    <div class="sk-month-nav">
+                        <div class="sk-nav-dot"></div>
+                        <div class="sk-nav-dot"></div>
+                    </div>
+                </div>
+
+                <div class="sk-weekdays">
+                    <div class="sk-weekday">M</div>
+                    <div class="sk-weekday">T</div>
+                    <div class="sk-weekday">W</div>
+                    <div class="sk-weekday">T</div>
+                    <div class="sk-weekday">F</div>
+                    <div class="sk-weekday">S</div>
+                    <div class="sk-weekday">S</div>
+                </div>
+
+                <div class="sk-grid">
+                    <div class="sk-day is-muted"></div>
+                    <div class="sk-day is-muted"></div>
+                    <div class="sk-day is-muted"></div>
+                    <div class="sk-day is-muted"></div>
+                    <div class="sk-day is-muted"></div>
+                    <div class="sk-day is-muted"></div>
+                    <div class="sk-day"></div>
+
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+
+                    <div class="sk-day has-event"></div>
+                    <div class="sk-day has-event"></div>
+                    <div class="sk-day has-event"></div>
+                    <div class="sk-day is-today"></div>
+                    <div class="sk-day has-event"></div>
+                    <div class="sk-day has-event"></div>
+                    <div class="sk-day"></div>
+
+                    <div class="sk-day has-event"></div>
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+
+                    <div class="sk-day"></div>
+                    <div class="sk-day has-event"></div>
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+
+                    <div class="sk-day"></div>
+                    <div class="sk-day"></div>
+                    <div class="sk-day is-muted"></div>
+                    <div class="sk-day is-muted"></div>
+                    <div class="sk-day is-muted"></div>
+                    <div class="sk-day is-muted"></div>
+                    <div class="sk-day is-muted"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sk-panel">
+            <div class="sk-panel-row">
+                <div class="sk-pill sk-pill-md"></div>
+                <div class="sk-pill sk-pill-sm"></div>
+                <div class="sk-pill sk-pill-lg"></div>
+            </div>
+            <div class="sk-panel-row">
+                <div class="sk-pill sk-pill-sm"></div>
+                <div class="sk-pill sk-pill-lg"></div>
+                <div class="sk-pill sk-pill-md"></div>
+            </div>
+            <div class="sk-swatches">
+                <div class="sk-swatch"></div>
+                <div class="sk-swatch"></div>
+                <div class="sk-swatch"></div>
+                <div class="sk-swatch"></div>
+                <div class="sk-swatch"></div>
+                <div class="sk-swatch"></div>
+            </div>
+            <div class="sk-code"></div>
+        </div>
+    </div>
+
+    <div class="sk-status">Loading the playground…</div>
+</div>
 </body>
 </html>
