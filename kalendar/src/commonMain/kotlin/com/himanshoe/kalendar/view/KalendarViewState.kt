@@ -72,15 +72,32 @@ public class KalendarViewState internal constructor(
      * jump picker route through here, so out-of-bounds targets land on the nearest bound.
      */
     public suspend fun animateScrollTo(date: LocalDate) {
-        val target = dateToPage(date)
-        val lower = minDate?.let(dateToPage) ?: Int.MIN_VALUE
-        val upper = maxDate?.let(dateToPage) ?: Int.MAX_VALUE
-        pagerState.animateScrollToPage(target.coerceIn(lower, upper))
+        animateToPage(dateToPage(date))
     }
 
     /** Animates the pager back to the page containing today's date, clamped to the bounds. */
     public suspend fun animateScrollToToday() {
         animateScrollTo(todayInSystemTimeZone())
+    }
+
+    /**
+     * Animates one page backward — the previous week, month, year, or day depending on which
+     * `remember*State` created this instance. Clamped to [minDate], so calling it when
+     * [canScrollBackward] is `false` is a no-op rather than an out-of-range scroll.
+     */
+    public suspend fun animateToPreviousPage() {
+        animateToPage(pagerState.currentPage - 1)
+    }
+
+    /** Animates one page forward, clamped to [maxDate]. See [animateToPreviousPage]. */
+    public suspend fun animateToNextPage() {
+        animateToPage(pagerState.currentPage + 1)
+    }
+
+    private suspend fun animateToPage(target: Int) {
+        val lower = minDate?.let(dateToPage) ?: Int.MIN_VALUE
+        val upper = maxDate?.let(dateToPage) ?: Int.MAX_VALUE
+        pagerState.animateScrollToPage(target.coerceIn(lower, upper))
     }
 }
 

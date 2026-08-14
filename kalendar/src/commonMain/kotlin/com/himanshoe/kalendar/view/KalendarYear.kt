@@ -24,11 +24,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
@@ -82,10 +82,12 @@ public fun KalendarYear(
     config: KalendarViewConfig = KalendarViewConfig(),
     dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
 ) {
+    val colors = kalendarColors()
+    val dimensions = kalendarDimensions()
     val today = remember { todayInSystemTimeZone() }
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
 
-    Column(modifier = modifier.background(config.background)) {
+    Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
         KalendarNavigationHeader(
             title = remember(state.visibleDate) { state.visibleDate.year.toString() },
             state = state,
@@ -101,7 +103,7 @@ public fun KalendarYear(
             val yearStart = state.pageToDate(page)
             Column(
                 modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(dimensions.monthSpacing),
             ) {
                 Month.entries.forEach { month ->
                     val monthStart = LocalDate(yearStart.year, month, 1)
@@ -111,8 +113,8 @@ public fun KalendarYear(
                     Column {
                         Text(
                             text = config.monthNameFormatter(monthStart.month),
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.padding(horizontal = 16.dp),
+                            style = kalendarTypography().monthLabel,
+                            modifier = Modifier.padding(dimensions.sectionPadding),
                         )
                         KalendarStaticGrid(
                             dates = dates,

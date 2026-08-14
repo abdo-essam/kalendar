@@ -18,8 +18,6 @@ package com.himanshoe.kalendar.view
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
@@ -55,7 +53,9 @@ import kotlinx.datetime.Month
  *   the Schedule views. Must be at least 1. Defaults to 15.
  * @param eventIndicatorCap Maximum per-event indicator dots below a day number before collapsing
  *   into a `+N` overflow label. Must be at least 1. Defaults to 3.
- * @param background Background brush for the calendar container. Defaults to solid white.
+ * @param background Background brush for the calendar container. Defaults to `null`, meaning
+ *   [KalendarColors.background] — which follows light/dark mode. Set it only when you want
+ *   something a plain colour can't express, such as a gradient.
  */
 @Immutable
 public data class KalendarViewConfig(
@@ -70,7 +70,7 @@ public data class KalendarViewConfig(
     val scheduleInitialScrollHour: Int = DEFAULT_SCHEDULE_SCROLL_HOUR,
     val scheduleDragSnapMinutes: Int = DEFAULT_SCHEDULE_SNAP_MINUTES,
     val eventIndicatorCap: Int = DEFAULT_EVENT_INDICATOR_CAP,
-    val background: Brush = SolidColor(Color.White),
+    val background: Brush? = null,
 ) {
     init {
         require(scheduleInitialScrollHour in 0 until HOURS_PER_DAY) {

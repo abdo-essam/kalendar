@@ -19,27 +19,41 @@ public final class com/himanshoe/kalendar/KalendarType$Agenda : com/himanshoe/ka
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class com/himanshoe/kalendar/view/ComposableSingletons$KalendarNavigationHeaderKt {
-	public static final field INSTANCE Lcom/himanshoe/kalendar/view/ComposableSingletons$KalendarNavigationHeaderKt;
+public final class com/himanshoe/kalendar/view/KalendarAnimations {
+	public static final field $stable I
 	public fun <init> ()V
-	public final fun getLambda$-1165553741$kalendar_release ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$-1820282522$kalendar_release ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$1531280591$kalendar_release ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$1645753307$kalendar_release ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$2107268324$kalendar_release ()Lkotlin/jvm/functions/Function2;
-}
-
-public final class com/himanshoe/kalendar/view/ComposableSingletons$KalendarTimelineKt {
-	public static final field INSTANCE Lcom/himanshoe/kalendar/view/ComposableSingletons$KalendarTimelineKt;
-	public fun <init> ()V
-	public final fun getLambda$1010741467$kalendar_release ()Lkotlin/jvm/functions/Function4;
-	public final fun getLambda$659622570$kalendar_release ()Lkotlin/jvm/functions/Function2;
+	public fun <init> (ZLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/AnimationSpec;FLandroidx/compose/animation/core/AnimationSpec;I)V
+	public synthetic fun <init> (ZLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/AnimationSpec;FLandroidx/compose/animation/core/AnimationSpec;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Landroidx/compose/animation/core/AnimationSpec;
+	public final fun component3 ()Landroidx/compose/animation/core/AnimationSpec;
+	public final fun component4 ()F
+	public final fun component5 ()Landroidx/compose/animation/core/AnimationSpec;
+	public final fun component6 ()I
+	public final fun copy (ZLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/AnimationSpec;FLandroidx/compose/animation/core/AnimationSpec;I)Lcom/himanshoe/kalendar/view/KalendarAnimations;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/view/KalendarAnimations;ZLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/AnimationSpec;FLandroidx/compose/animation/core/AnimationSpec;IILjava/lang/Object;)Lcom/himanshoe/kalendar/view/KalendarAnimations;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEnabled ()Z
+	public final fun getPressScale ()F
+	public final fun getPressScaleSpec ()Landroidx/compose/animation/core/AnimationSpec;
+	public final fun getSelectionColorSpec ()Landroidx/compose/animation/core/AnimationSpec;
+	public final fun getSelectionIndicatorSpec ()Landroidx/compose/animation/core/AnimationSpec;
+	public final fun getTitleTransitionMillis ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class com/himanshoe/kalendar/view/KalendarColors {
 	public static final field $stable I
-	public synthetic fun <init> (JJJJJJJJJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JJJJJJJJJJJFFFFILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JJJJJJJJJJJFFFFLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1-0d7_KjU ()J
+	public final fun component10-0d7_KjU ()J
+	public final fun component11-0d7_KjU ()J
+	public final fun component12 ()F
+	public final fun component13 ()F
+	public final fun component14 ()F
+	public final fun component15 ()F
 	public final fun component2-0d7_KjU ()J
 	public final fun component3-0d7_KjU ()J
 	public final fun component4-0d7_KjU ()J
@@ -48,14 +62,20 @@ public final class com/himanshoe/kalendar/view/KalendarColors {
 	public final fun component7-0d7_KjU ()J
 	public final fun component8-0d7_KjU ()J
 	public final fun component9-0d7_KjU ()J
-	public final fun copy-5r9EGqc (JJJJJJJJJ)Lcom/himanshoe/kalendar/view/KalendarColors;
-	public static synthetic fun copy-5r9EGqc$default (Lcom/himanshoe/kalendar/view/KalendarColors;JJJJJJJJJILjava/lang/Object;)Lcom/himanshoe/kalendar/view/KalendarColors;
+	public final fun copy-HlaysQ4 (JJJJJJJJJJJFFFF)Lcom/himanshoe/kalendar/view/KalendarColors;
+	public static synthetic fun copy-HlaysQ4$default (Lcom/himanshoe/kalendar/view/KalendarColors;JJJJJJJJJJJFFFFILjava/lang/Object;)Lcom/himanshoe/kalendar/view/KalendarColors;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBackground-0d7_KjU ()J
 	public final fun getDayContent-0d7_KjU ()J
 	public final fun getDayLabelContent-0d7_KjU ()J
+	public final fun getDisabledContentAlpha ()F
+	public final fun getDragGhostAlpha ()F
 	public final fun getDragGhostBackground-0d7_KjU ()J
+	public final fun getEventBlockAlpha ()F
+	public final fun getEventBlockDraggingAlpha ()F
 	public final fun getEventIndicator-0d7_KjU ()J
 	public final fun getGridLine-0d7_KjU ()J
+	public final fun getHeaderContent-0d7_KjU ()J
 	public final fun getNowIndicator-0d7_KjU ()J
 	public final fun getOnSelectionBackground-0d7_KjU ()J
 	public final fun getSelectionBackground-0d7_KjU ()J
@@ -94,13 +114,85 @@ public final class com/himanshoe/kalendar/view/KalendarDayScope {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/himanshoe/kalendar/view/KalendarDimensions {
+	public static final field $stable I
+	public synthetic fun <init> (FFFFFLandroidx/compose/foundation/layout/PaddingValues;FFFFFFFLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (FFFFFLandroidx/compose/foundation/layout/PaddingValues;FFFFFFFLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-D9Ej5fM ()F
+	public final fun component10-D9Ej5fM ()F
+	public final fun component11-D9Ej5fM ()F
+	public final fun component12-D9Ej5fM ()F
+	public final fun component13-D9Ej5fM ()F
+	public final fun component14 ()Landroidx/compose/foundation/layout/PaddingValues;
+	public final fun component15-D9Ej5fM ()F
+	public final fun component16 ()Landroidx/compose/foundation/layout/PaddingValues;
+	public final fun component17-D9Ej5fM ()F
+	public final fun component18 ()Landroidx/compose/foundation/layout/PaddingValues;
+	public final fun component19-D9Ej5fM ()F
+	public final fun component2 ()F
+	public final fun component20 ()Landroidx/compose/foundation/layout/PaddingValues;
+	public final fun component3-D9Ej5fM ()F
+	public final fun component4-D9Ej5fM ()F
+	public final fun component5-D9Ej5fM ()F
+	public final fun component6 ()Landroidx/compose/foundation/layout/PaddingValues;
+	public final fun component7-D9Ej5fM ()F
+	public final fun component8-D9Ej5fM ()F
+	public final fun component9-D9Ej5fM ()F
+	public final fun copy-DMYM5Lo (FFFFFLandroidx/compose/foundation/layout/PaddingValues;FFFFFFFLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;)Lcom/himanshoe/kalendar/view/KalendarDimensions;
+	public static synthetic fun copy-DMYM5Lo$default (Lcom/himanshoe/kalendar/view/KalendarDimensions;FFFFFLandroidx/compose/foundation/layout/PaddingValues;FFFFFFFLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;ILjava/lang/Object;)Lcom/himanshoe/kalendar/view/KalendarDimensions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAllDayChipPadding ()Landroidx/compose/foundation/layout/PaddingValues;
+	public final fun getAllDayChipSpacing-D9Ej5fM ()F
+	public final fun getAllDayRowPadding ()Landroidx/compose/foundation/layout/PaddingValues;
+	public final fun getDayCellAspectRatio ()F
+	public final fun getDayCellPadding-D9Ej5fM ()F
+	public final fun getEventBlockAccentWidth-D9Ej5fM ()F
+	public final fun getEventBlockGap-D9Ej5fM ()F
+	public final fun getEventBlockPadding ()Landroidx/compose/foundation/layout/PaddingValues;
+	public final fun getEventBlockResizeHandleHeight-D9Ej5fM ()F
+	public final fun getEventIndicatorSize-D9Ej5fM ()F
+	public final fun getEventIndicatorSpacing-D9Ej5fM ()F
+	public final fun getEventIndicatorTopPadding-D9Ej5fM ()F
+	public final fun getGridLineThickness-D9Ej5fM ()F
+	public final fun getHeaderIconSlotWidth-D9Ej5fM ()F
+	public final fun getHeaderPadding ()Landroidx/compose/foundation/layout/PaddingValues;
+	public final fun getHourGutterWidth-D9Ej5fM ()F
+	public final fun getHourHeight-D9Ej5fM ()F
+	public final fun getMonthSpacing-D9Ej5fM ()F
+	public final fun getNowIndicatorThickness-D9Ej5fM ()F
+	public final fun getSectionPadding ()Landroidx/compose/foundation/layout/PaddingValues;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/himanshoe/kalendar/view/KalendarHeaderScope {
+	public abstract fun getCanScrollBackward ()Z
+	public abstract fun getCanScrollForward ()Z
+	public abstract fun getTitle ()Ljava/lang/String;
+	public abstract fun getVisibleDate ()Lkotlinx/datetime/LocalDate;
+	public abstract fun goTo (Lkotlinx/datetime/LocalDate;)V
+	public abstract fun goToNextPage ()V
+	public abstract fun goToPreviousPage ()V
+	public abstract fun goToToday ()V
+}
+
 public final class com/himanshoe/kalendar/view/KalendarMonthKt {
 	public static final fun KalendarMonth (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/view/KalendarViewState;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lcom/himanshoe/kalendar/view/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
 }
 
+public abstract interface class com/himanshoe/kalendar/view/KalendarScheduleEventScope {
+	public abstract fun getDurationMinutes ()I
+	public abstract fun getEnd ()Lkotlinx/datetime/LocalDateTime;
+	public abstract fun getEvent ()Lcom/himanshoe/kalendar/foundation/event/KalendarEvent;
+	public abstract fun getOverlapColumn ()I
+	public abstract fun getOverlapColumns ()I
+	public abstract fun getStart ()Lkotlinx/datetime/LocalDateTime;
+	public abstract fun isDragging ()Z
+}
+
 public final class com/himanshoe/kalendar/view/KalendarScheduleKt {
-	public static final fun KalendarSchedule-egy_3UM (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/view/KalendarViewState;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Lcom/himanshoe/kalendar/view/KalendarViewConfig;FLandroidx/compose/runtime/Composer;II)V
-	public static final fun KalendarScheduleWeek-egy_3UM (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/view/KalendarViewState;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Lcom/himanshoe/kalendar/view/KalendarViewConfig;FLandroidx/compose/runtime/Composer;II)V
+	public static final fun KalendarSchedule-NQ0pYU4 (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/view/KalendarViewState;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Lcom/himanshoe/kalendar/view/KalendarViewConfig;Landroidx/compose/ui/unit/Dp;Landroidx/compose/runtime/Composer;II)V
+	public static final fun KalendarScheduleWeek-NQ0pYU4 (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/view/KalendarViewState;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Lcom/himanshoe/kalendar/view/KalendarViewConfig;Landroidx/compose/ui/unit/Dp;Landroidx/compose/runtime/Composer;II)V
 }
 
 public abstract interface class com/himanshoe/kalendar/view/KalendarSelectionMode {
@@ -143,14 +235,106 @@ public final class com/himanshoe/kalendar/view/KalendarSelectionStateKt {
 	public static final fun rememberKalendarSelectionState (Lcom/himanshoe/kalendar/view/KalendarSelectionMode;Ljava/util/Set;Landroidx/compose/runtime/Composer;II)Lcom/himanshoe/kalendar/view/KalendarSelectionState;
 }
 
+public final class com/himanshoe/kalendar/view/KalendarShapes {
+	public static final field $stable I
+	public fun <init> (Landroidx/compose/ui/graphics/Shape;Landroidx/compose/ui/graphics/Shape;Landroidx/compose/ui/graphics/Shape;Landroidx/compose/ui/graphics/Shape;)V
+	public final fun component1 ()Landroidx/compose/ui/graphics/Shape;
+	public final fun component2 ()Landroidx/compose/ui/graphics/Shape;
+	public final fun component3 ()Landroidx/compose/ui/graphics/Shape;
+	public final fun component4 ()Landroidx/compose/ui/graphics/Shape;
+	public final fun copy (Landroidx/compose/ui/graphics/Shape;Landroidx/compose/ui/graphics/Shape;Landroidx/compose/ui/graphics/Shape;Landroidx/compose/ui/graphics/Shape;)Lcom/himanshoe/kalendar/view/KalendarShapes;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/view/KalendarShapes;Landroidx/compose/ui/graphics/Shape;Landroidx/compose/ui/graphics/Shape;Landroidx/compose/ui/graphics/Shape;Landroidx/compose/ui/graphics/Shape;ILjava/lang/Object;)Lcom/himanshoe/kalendar/view/KalendarShapes;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDayCell ()Landroidx/compose/ui/graphics/Shape;
+	public final fun getEventBlock ()Landroidx/compose/ui/graphics/Shape;
+	public final fun getEventIndicator ()Landroidx/compose/ui/graphics/Shape;
+	public final fun getPopup ()Landroidx/compose/ui/graphics/Shape;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/view/KalendarStrings {
+	public static final field $stable I
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component10 ()Lkotlin/jvm/functions/Function2;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun component7 ()Ljava/lang/String;
+	public final fun component8 ()Ljava/lang/String;
+	public final fun component9 ()Lkotlin/jvm/functions/Function1;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;)Lcom/himanshoe/kalendar/view/KalendarStrings;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/view/KalendarStrings;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lcom/himanshoe/kalendar/view/KalendarStrings;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDayAccessibilityLabel ()Lkotlin/jvm/functions/Function2;
+	public final fun getEventOverflowLabel ()Lkotlin/jvm/functions/Function1;
+	public final fun getHasEventsSuffix ()Ljava/lang/String;
+	public final fun getNextPage ()Ljava/lang/String;
+	public final fun getNextYear ()Ljava/lang/String;
+	public final fun getOpenJumpPicker ()Ljava/lang/String;
+	public final fun getPreviousPage ()Ljava/lang/String;
+	public final fun getPreviousYear ()Ljava/lang/String;
+	public final fun getToday ()Ljava/lang/String;
+	public final fun getTodaySuffix ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/view/KalendarTheme {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/himanshoe/kalendar/view/KalendarTheme;
+	public final fun getAnimations (Landroidx/compose/runtime/Composer;I)Lcom/himanshoe/kalendar/view/KalendarAnimations;
+	public final fun getColors (Landroidx/compose/runtime/Composer;I)Lcom/himanshoe/kalendar/view/KalendarColors;
+	public final fun getDimensions (Landroidx/compose/runtime/Composer;I)Lcom/himanshoe/kalendar/view/KalendarDimensions;
+	public final fun getShapes (Landroidx/compose/runtime/Composer;I)Lcom/himanshoe/kalendar/view/KalendarShapes;
+	public final fun getStrings (Landroidx/compose/runtime/Composer;I)Lcom/himanshoe/kalendar/view/KalendarStrings;
+	public final fun getTokens (Landroidx/compose/runtime/Composer;I)Lcom/himanshoe/kalendar/view/KalendarThemeTokens;
+	public final fun getTypography (Landroidx/compose/runtime/Composer;I)Lcom/himanshoe/kalendar/view/KalendarTypography;
+}
+
 public final class com/himanshoe/kalendar/view/KalendarThemeDefaults {
 	public static final field $stable I
 	public static final field INSTANCE Lcom/himanshoe/kalendar/view/KalendarThemeDefaults;
+	public final fun animations ()Lcom/himanshoe/kalendar/view/KalendarAnimations;
 	public final fun colors (Landroidx/compose/runtime/Composer;I)Lcom/himanshoe/kalendar/view/KalendarColors;
+	public final fun darkColors ()Lcom/himanshoe/kalendar/view/KalendarColors;
+	public final fun dimensions ()Lcom/himanshoe/kalendar/view/KalendarDimensions;
+	public final fun lightColors ()Lcom/himanshoe/kalendar/view/KalendarColors;
+	public final fun shapes ()Lcom/himanshoe/kalendar/view/KalendarShapes;
+	public final fun strings ()Lcom/himanshoe/kalendar/view/KalendarStrings;
+	public final fun systemColors (Landroidx/compose/runtime/Composer;I)Lcom/himanshoe/kalendar/view/KalendarColors;
+	public final fun typography (Landroidx/compose/runtime/Composer;I)Lcom/himanshoe/kalendar/view/KalendarTypography;
 }
 
 public final class com/himanshoe/kalendar/view/KalendarThemeKt {
-	public static final fun KalendarTheme (Lcom/himanshoe/kalendar/view/KalendarColors;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+	public static final fun KalendarTheme (Lcom/himanshoe/kalendar/view/KalendarColors;Lcom/himanshoe/kalendar/view/KalendarTypography;Lcom/himanshoe/kalendar/view/KalendarShapes;Lcom/himanshoe/kalendar/view/KalendarDimensions;Lcom/himanshoe/kalendar/view/KalendarAnimations;Lcom/himanshoe/kalendar/view/KalendarStrings;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+}
+
+public final class com/himanshoe/kalendar/view/KalendarThemeTokens {
+	public static final field $stable I
+	public fun <init> (Lcom/himanshoe/kalendar/view/KalendarColors;Lcom/himanshoe/kalendar/view/KalendarTypography;Lcom/himanshoe/kalendar/view/KalendarShapes;Lcom/himanshoe/kalendar/view/KalendarDimensions;Lcom/himanshoe/kalendar/view/KalendarAnimations;Lcom/himanshoe/kalendar/view/KalendarStrings;)V
+	public final fun component1 ()Lcom/himanshoe/kalendar/view/KalendarColors;
+	public final fun component2 ()Lcom/himanshoe/kalendar/view/KalendarTypography;
+	public final fun component3 ()Lcom/himanshoe/kalendar/view/KalendarShapes;
+	public final fun component4 ()Lcom/himanshoe/kalendar/view/KalendarDimensions;
+	public final fun component5 ()Lcom/himanshoe/kalendar/view/KalendarAnimations;
+	public final fun component6 ()Lcom/himanshoe/kalendar/view/KalendarStrings;
+	public final fun copy (Lcom/himanshoe/kalendar/view/KalendarColors;Lcom/himanshoe/kalendar/view/KalendarTypography;Lcom/himanshoe/kalendar/view/KalendarShapes;Lcom/himanshoe/kalendar/view/KalendarDimensions;Lcom/himanshoe/kalendar/view/KalendarAnimations;Lcom/himanshoe/kalendar/view/KalendarStrings;)Lcom/himanshoe/kalendar/view/KalendarThemeTokens;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/view/KalendarThemeTokens;Lcom/himanshoe/kalendar/view/KalendarColors;Lcom/himanshoe/kalendar/view/KalendarTypography;Lcom/himanshoe/kalendar/view/KalendarShapes;Lcom/himanshoe/kalendar/view/KalendarDimensions;Lcom/himanshoe/kalendar/view/KalendarAnimations;Lcom/himanshoe/kalendar/view/KalendarStrings;ILjava/lang/Object;)Lcom/himanshoe/kalendar/view/KalendarThemeTokens;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAnimations ()Lcom/himanshoe/kalendar/view/KalendarAnimations;
+	public final fun getColors ()Lcom/himanshoe/kalendar/view/KalendarColors;
+	public final fun getDimensions ()Lcom/himanshoe/kalendar/view/KalendarDimensions;
+	public final fun getShapes ()Lcom/himanshoe/kalendar/view/KalendarShapes;
+	public final fun getStrings ()Lcom/himanshoe/kalendar/view/KalendarStrings;
+	public final fun getTypography ()Lcom/himanshoe/kalendar/view/KalendarTypography;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class com/himanshoe/kalendar/view/KalendarTimelineKt {
@@ -169,6 +353,34 @@ public final class com/himanshoe/kalendar/view/KalendarTimelineState {
 
 public final class com/himanshoe/kalendar/view/KalendarTimelineStateKt {
 	public static final fun rememberKalendarTimelineState (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;Landroidx/compose/runtime/Composer;II)Lcom/himanshoe/kalendar/view/KalendarTimelineState;
+}
+
+public final class com/himanshoe/kalendar/view/KalendarTypography {
+	public static final field $stable I
+	public fun <init> (Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;)V
+	public final fun component1 ()Landroidx/compose/ui/text/TextStyle;
+	public final fun component2 ()Landroidx/compose/ui/text/TextStyle;
+	public final fun component3 ()Landroidx/compose/ui/text/TextStyle;
+	public final fun component4 ()Landroidx/compose/ui/text/TextStyle;
+	public final fun component5 ()Landroidx/compose/ui/text/TextStyle;
+	public final fun component6 ()Landroidx/compose/ui/text/TextStyle;
+	public final fun component7 ()Landroidx/compose/ui/text/TextStyle;
+	public final fun component8 ()Landroidx/compose/ui/text/TextStyle;
+	public final fun component9 ()Landroidx/compose/ui/text/TextStyle;
+	public final fun copy (Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;)Lcom/himanshoe/kalendar/view/KalendarTypography;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/view/KalendarTypography;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;Landroidx/compose/ui/text/TextStyle;ILjava/lang/Object;)Lcom/himanshoe/kalendar/view/KalendarTypography;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDayNumber ()Landroidx/compose/ui/text/TextStyle;
+	public final fun getDayNumberEmphasized ()Landroidx/compose/ui/text/TextStyle;
+	public final fun getDayOfWeekLabel ()Landroidx/compose/ui/text/TextStyle;
+	public final fun getEventLabel ()Landroidx/compose/ui/text/TextStyle;
+	public final fun getEventOverflowLabel ()Landroidx/compose/ui/text/TextStyle;
+	public final fun getHeaderTitle ()Landroidx/compose/ui/text/TextStyle;
+	public final fun getHourLabel ()Landroidx/compose/ui/text/TextStyle;
+	public final fun getMonthLabel ()Landroidx/compose/ui/text/TextStyle;
+	public final fun getWeekDayNumber ()Landroidx/compose/ui/text/TextStyle;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class com/himanshoe/kalendar/view/KalendarViewConfig {
@@ -211,6 +423,8 @@ public final class com/himanshoe/kalendar/view/KalendarViewState {
 	public static final field $stable I
 	public final fun animateScrollTo (Lkotlinx/datetime/LocalDate;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun animateScrollToToday (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun animateToNextPage (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun animateToPreviousPage (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun getCanScrollBackward ()Z
 	public final fun getCanScrollForward ()Z
 	public final fun getMaxDate ()Lkotlinx/datetime/LocalDate;

@@ -23,6 +23,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import kotlinx.datetime.LocalDate
@@ -86,6 +87,7 @@ public fun KalendarMonth(
     config: KalendarViewConfig = KalendarViewConfig(),
     dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
 ) {
+    val colors = kalendarColors()
     val today = remember { todayInSystemTimeZone() }
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     val slidingSelection = if (dayContent == null) selectedDates.singleOrNull() else null
@@ -95,7 +97,7 @@ public fun KalendarMonth(
         { from, to -> onEventDrop(eventsByDate[from].orEmpty(), to) }
     }
 
-    Column(modifier = modifier.background(config.background)) {
+    Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
         KalendarNavigationHeader(
             title = remember(state.visibleDate) { monthTitle(state.visibleDate, config.monthNameFormatter) },
             state = state,

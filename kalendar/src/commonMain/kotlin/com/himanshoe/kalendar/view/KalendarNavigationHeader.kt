@@ -17,6 +17,8 @@
 package com.himanshoe.kalendar.view
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -28,14 +30,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,6 +48,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
@@ -55,16 +56,8 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
 
-private const val TITLE_CROSSFADE_MS = 150
 private const val JUMP_PICKER_MONTH_COLUMNS = 4
-
-/**
- * One [IconButton]'s touch target — deliberately tight (no extra gap padding) since this is
- * subtracted from the title's available width on narrow phones (~320.dp) too; a title long enough
- * to need the full width already has a visible gap from the icon just by not extending into its
- * reserved slot, and [TextOverflow.Ellipsis] covers anything that still doesn't fit.
- */
-private val ICON_SLOT_WIDTH = 48.dp
+private const val JUMP_PICKER_CLICK_LABEL = "Open the month and year picker"
 
 /**
  * Fresh header used by [KalendarWeek], [KalendarMonth], [KalendarYear], [KalendarSchedule],
@@ -88,14 +81,21 @@ internal fun KalendarNavigationHeader(
     showJumpPicker: Boolean = false,
     monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
 ) {
+    val colors = kalendarColors()
+    val dimensions = kalendarDimensions()
+    val animations = kalendarAnimations()
     val scope = rememberCoroutineScope()
     var pickerOpen by remember { mutableStateOf(false) }
-    val leadingReserved = if (showArrows) ICON_SLOT_WIDTH else 0.dp
-    val trailingReserved = (if (showTodayButton) ICON_SLOT_WIDTH else 0.dp) +
-        (if (showArrows) ICON_SLOT_WIDTH else 0.dp)
+    // One slot is one [IconButton]'s touch target — deliberately tight (no extra gap padding)
+    // since it is subtracted from the title's available width on narrow phones (~320.dp) too; a
+    // title long enough to need the full width already has a visible gap from the icon just by not
+    // extending into its reserved slot, and TextOverflow.Ellipsis covers what still doesn't fit.
+    val leadingReserved = if (showArrows) dimensions.headerIconSlotWidth else 0.dp
+    val trailingReserved = (if (showTodayButton) dimensions.headerIconSlotWidth else 0.dp) +
+        (if (showArrows) dimensions.headerIconSlotWidth else 0.dp)
 
     Box(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
+        modifier = modifier.fillMaxWidth().padding(dimensions.headerPadding),
         contentAlignment = Alignment.Center,
     ) {
         Box(
@@ -105,16 +105,25 @@ internal fun KalendarNavigationHeader(
             AnimatedContent(
                 targetState = title,
                 transitionSpec = {
-                    fadeIn(tween(TITLE_CROSSFADE_MS)) togetherWith fadeOut(tween(TITLE_CROSSFADE_MS))
+                    if (animations.enabled) {
+                        val duration = animations.titleTransitionMillis
+                        fadeIn(tween(duration)) togetherWith fadeOut(tween(duration))
+                    } else {
+                        EnterTransition.None togetherWith ExitTransition.None
+                    }
                 },
             ) { animatedTitle ->
                 Text(
                     text = animatedTitle,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = kalendarTypography().headerTitle,
+                    color = colors.headerContent,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = if (showJumpPicker) {
-                        Modifier.clickable { pickerOpen = true }
+                        Modifier.clickable(
+                            onClickLabel = JUMP_PICKER_CLICK_LABEL,
+                            role = Role.Button,
+                        ) { pickerOpen = true }
                     } else {
                         Modifier
                     },
@@ -141,33 +150,37 @@ internal fun KalendarNavigationHeader(
         if (showArrows) {
             IconButton(
                 enabled = state.canScrollBackward,
-                onClick = {
-                    scope.launch {
-                        state.pagerState.animateScrollToPage(state.pagerState.currentPage - 1)
-                    }
-                },
+                onClick = { scope.launch { state.animateToPreviousPage() } },
                 modifier = Modifier.align(Alignment.CenterStart),
             ) {
-                Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous")
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = "Previous",
+                    tint = colors.headerContent,
+                )
             }
         }
 
         Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
             if (showTodayButton) {
                 IconButton(onClick = { scope.launch { state.animateScrollToToday() } }) {
-                    Icon(imageVector = Icons.Filled.Today, contentDescription = "Today")
+                    Icon(
+                        imageVector = Icons.Filled.Today,
+                        contentDescription = "Today",
+                        tint = colors.headerContent,
+                    )
                 }
             }
             if (showArrows) {
                 IconButton(
                     enabled = state.canScrollForward,
-                    onClick = {
-                        scope.launch {
-                            state.pagerState.animateScrollToPage(state.pagerState.currentPage + 1)
-                        }
-                    },
+                    onClick = { scope.launch { state.animateToNextPage() } },
                 ) {
-                    Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next")
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Next",
+                        tint = colors.headerContent,
+                    )
                 }
             }
         }
@@ -184,9 +197,10 @@ private fun JumpPicker(
     monthNameFormatter: (Month) -> String,
     onMonthSelected: (year: Int, month: Month) -> Unit,
 ) {
+    val colors = kalendarColors()
     var year by remember { mutableIntStateOf(initialYear) }
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = kalendarShapes().popup,
         tonalElevation = 3.dp,
         shadowElevation = 6.dp,
     ) {
@@ -196,17 +210,19 @@ private fun JumpPicker(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                         contentDescription = "Previous year",
+                        tint = colors.headerContent,
                     )
                 }
                 Text(
                     text = year.toString(),
-                    style = MaterialTheme.typography.titleMedium,
+                    style = kalendarTypography().headerTitle,
                     modifier = Modifier.padding(horizontal = 8.dp),
                 )
                 IconButton(onClick = { year++ }) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = "Next year",
+                        tint = colors.headerContent,
                     )
                 }
             }

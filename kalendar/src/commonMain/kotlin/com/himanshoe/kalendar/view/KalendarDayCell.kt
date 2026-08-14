@@ -18,7 +18,9 @@ package com.himanshoe.kalendar.view
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -30,8 +32,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -47,9 +47,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
@@ -92,8 +89,9 @@ internal fun KalendarMonthGridCell(
     monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
     maxEventIndicators: Int = DEFAULT_EVENT_INDICATOR_CAP,
 ) {
+    val dimensions = kalendarDimensions()
     if (!isCurrentMonth && !showAdjacentMonthDates) {
-        Box(modifier = Modifier.aspectRatio(1f))
+        Box(modifier = Modifier.aspectRatio(dimensions.dayCellAspectRatio))
         return
     }
     if (dayContent != null) {
@@ -116,13 +114,17 @@ internal fun KalendarMonthGridCell(
 public object KalendarDayCellDefaults {
 
     /**
-     * Renders [scope] as a circular date cell: bold text for today, a filled background that
-     * animates in for the selected state, a brief press-scale for tactile feedback, reduced
-     * opacity and no click handling when disabled, and per-event indicator dots that fade in
-     * below the day number — one dot per event (coloured by
+     * Renders [scope] as a date cell shaped by [KalendarShapes.dayCell]: the day number switches to
+     * [KalendarTypography.dayNumberEmphasized] when the cell is selected or is today, a filled
+     * background animates in for the selected state, a brief [KalendarAnimations.pressScale] gives
+     * tactile feedback, [KalendarColors.disabledContentAlpha] and no click handling apply when
+     * disabled, and per-event indicator dots fade in below the day number — one dot per event
+     * (coloured by
      * [KalendarEvent.eventColor][com.himanshoe.kalendar.foundation.event.KalendarEvent.eventColor],
-     * falling back to [KalendarColors.eventIndicator]), capped at three with a compact `+N`
-     * overflow label. All colours resolve through the ambient [KalendarTheme].
+     * falling back to [KalendarColors.eventIndicator]), capped at [maxEventIndicators] with a
+     * compact `+N` overflow label. Every colour, text style, shape, dimension, and motion spec
+     * resolves through the ambient [KalendarTheme]; with [KalendarAnimations.enabled] set to
+     * `false` the selection fill, the press-scale, and the indicator row all change instantly.
      *
      * @param showSelectionBackground Whether this cell draws its own selection fill. Set to
      *   `false` when a separate sliding indicator (e.g. [KalendarGrid]'s) already renders the
@@ -130,6 +132,9 @@ public object KalendarDayCellDefaults {
      *   color/weight either way.
      * @param monthNameFormatter Formats the month name used in this cell's accessibility
      *   description (e.g. "August 12, 2026"). See [KalendarViewConfig.monthNameFormatter].
+     * @param maxEventIndicators How many event dots this cell draws before the remainder collapses
+     *   into the `+N` overflow label. Defaults to 3; see [KalendarViewConfig.eventIndicatorCap],
+     *   which is what the calendar views pass in.
      */
     @Composable
     public fun Cell(
@@ -141,28 +146,52 @@ public object KalendarDayCellDefaults {
         maxEventIndicators: Int = DEFAULT_EVENT_INDICATOR_CAP,
     ) {
         val colors = kalendarColors()
+        val typography = kalendarTypography()
+        val shapes = kalendarShapes()
+        val dimensions = kalendarDimensions()
+        val animations = kalendarAnimations()
+        val selectionSpec: AnimationSpec<Color> = if (animations.enabled) {
+            animations.selectionColorSpec
+        } else {
+            snap()
+        }
+        val scaleSpec: AnimationSpec<Float> = if (animations.enabled) {
+            animations.pressScaleSpec
+        } else {
+            snap()
+        }
         val background by animateColorAsState(
             targetValue = if (scope.isSelected && showSelectionBackground) {
                 colors.selectionBackground
             } else {
                 Color.Transparent
             },
+            animationSpec = selectionSpec,
+            label = "KalendarDayCellSelectionBackground",
         )
         val textColor = when {
             scope.isSelected -> colors.onSelectionBackground
             scope.isToday -> colors.todayContent
             else -> colors.dayContent
         }
-        val fontWeight =
+        val textStyle =
             if (scope.isSelected || scope.isToday) {
-                FontWeight.Bold
+                typography.dayNumberEmphasized
             } else {
-                FontWeight.Normal
+                typography.dayNumber
             }
 
         val interactionSource = remember { MutableInteractionSource() }
         val isPressed by interactionSource.collectIsPressedAsState()
-        val scale by animateFloatAsState(targetValue = if (isPressed) 0.92f else 1f)
+        val scale by animateFloatAsState(
+            targetValue = if (isPressed) {
+                animations.pressScale
+            } else {
+                1f
+            },
+            animationSpec = scaleSpec,
+            label = "KalendarDayCellPressScale",
+        )
         val contentDescription = remember(scope.date, scope.isToday, scope.events.isNotEmpty()) {
             buildString {
                 append(scope.date.toAccessibleDescription(monthNameFormatter))
@@ -178,17 +207,17 @@ public object KalendarDayCellDefaults {
         Box(
             contentAlignment = Alignment.Center,
             modifier = modifier
-                .aspectRatio(1f)
+                .aspectRatio(dimensions.dayCellAspectRatio)
                 .scale(scale)
                 .alpha(
                     if (scope.isDisabled) {
-                        0.38f
+                        colors.disabledContentAlpha
                     } else {
                         1f
                     }
                 )
-                .padding(2.dp)
-                .clip(CircleShape)
+                .padding(dimensions.dayCellPadding)
+                .clip(shapes.dayCell)
                 .background(background)
                 .semantics {
                     this.contentDescription = contentDescription
@@ -209,38 +238,69 @@ public object KalendarDayCellDefaults {
                 Text(
                     text = scope.date.dayOfMonth.toString(),
                     color = textColor,
-                    fontWeight = fontWeight,
+                    style = textStyle,
                 )
-                AnimatedVisibility(visible = scope.events.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier.padding(top = 3.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        scope.events.take(maxEventIndicators).forEach { event ->
-                            Box(
-                                modifier = Modifier
-                                    .size(4.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        when {
-                                            scope.isSelected -> textColor
-                                            else -> event.eventColor ?: colors.eventIndicator
-                                        }
-                                    ),
-                            )
-                        }
-                        if (scope.events.size > maxEventIndicators) {
-                            Text(
-                                text = "+${scope.events.size - maxEventIndicators}",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 7.sp,
-                                color = if (scope.isSelected) textColor else colors.eventIndicator,
-                            )
-                        }
+                val hasEvents = scope.events.isNotEmpty()
+                if (animations.enabled) {
+                    AnimatedVisibility(visible = hasEvents) {
+                        EventIndicatorRow(
+                            scope = scope,
+                            maxEventIndicators = maxEventIndicators,
+                            textColor = textColor,
+                        )
                     }
+                } else if (hasEvents) {
+                    EventIndicatorRow(
+                        scope = scope,
+                        maxEventIndicators = maxEventIndicators,
+                        textColor = textColor,
+                    )
                 }
             }
+        }
+    }
+}
+
+/**
+ * The row of per-event indicator dots below a day number, plus the compact `+N` label for events
+ * past [maxEventIndicators]. [textColor] is the day number's colour, reused for the dots and the
+ * overflow label on a selected cell so they stay legible against the selection fill.
+ */
+@Composable
+private fun EventIndicatorRow(
+    scope: KalendarDayScope,
+    maxEventIndicators: Int,
+    textColor: Color,
+) {
+    val colors = kalendarColors()
+    val typography = kalendarTypography()
+    val shapes = kalendarShapes()
+    val dimensions = kalendarDimensions()
+
+    Row(
+        modifier = Modifier.padding(top = dimensions.eventIndicatorTopPadding),
+        horizontalArrangement = Arrangement.spacedBy(dimensions.eventIndicatorSpacing),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        scope.events.take(maxEventIndicators).forEach { event ->
+            Box(
+                modifier = Modifier
+                    .size(dimensions.eventIndicatorSize)
+                    .clip(shapes.eventIndicator)
+                    .background(
+                        when {
+                            scope.isSelected -> textColor
+                            else -> event.eventColor ?: colors.eventIndicator
+                        }
+                    ),
+            )
+        }
+        if (scope.events.size > maxEventIndicators) {
+            Text(
+                text = "+${scope.events.size - maxEventIndicators}",
+                style = typography.eventOverflowLabel,
+                color = if (scope.isSelected) textColor else colors.eventIndicator,
+            )
         }
     }
 }

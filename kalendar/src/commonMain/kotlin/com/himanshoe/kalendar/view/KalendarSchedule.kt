@@ -30,10 +30,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
@@ -46,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
@@ -67,9 +66,6 @@ import kotlin.math.roundToInt
 import kotlin.time.Clock
 
 private const val NOW_TICK_MS = 60_000L
-private const val EVENT_BLOCK_BACKGROUND_ALPHA = 0.18f
-private const val EVENT_BLOCK_DRAGGING_ALPHA = 0.45f
-private const val RESIZE_STRIP_DP = 12
 
 /**
  * An hourly time-grid calendar for a single day, navigable by both arrow-click and swipe.
@@ -101,7 +97,8 @@ private const val RESIZE_STRIP_DP = 12
  * @param config Shared visual/behavioural settings. [KalendarViewConfig.disabledDates] and
  *   [KalendarViewConfig.showAdjacentMonthDates] have no effect here; arrows, the today button,
  *   month-name formatting, and background apply as usual.
- * @param hourHeight Vertical space for one hour of the grid; block heights scale with it.
+ * @param hourHeight Vertical space for one hour of the grid; block heights scale with it. Defaults
+ *   to `null`, meaning [KalendarDimensions.hourHeight].
  */
 @Composable
 public fun KalendarSchedule(
@@ -112,9 +109,11 @@ public fun KalendarSchedule(
     onEventClick: (KalendarEvent) -> Unit = {},
     onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
-    hourHeight: Dp = 64.dp,
+    hourHeight: Dp? = null,
 ) {
-    Column(modifier = modifier.background(config.background)) {
+    val colors = kalendarColors()
+    val resolvedHourHeight = hourHeight ?: kalendarDimensions().hourHeight
+    Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
         KalendarNavigationHeader(
             title = remember(state.visibleDate) { dayTitle(state.visibleDate, config.monthNameFormatter) },
             state = state,
@@ -134,7 +133,7 @@ public fun KalendarSchedule(
                 onEventClick = onEventClick,
                 onEventTimeChange = onEventTimeChange,
                 config = config,
-                hourHeight = hourHeight,
+                hourHeight = resolvedHourHeight,
             )
         }
     }
@@ -168,7 +167,8 @@ public fun KalendarSchedule(
  *   the release callback's new start/end carry the shifted date.
  * @param config Shared visual/behavioural settings. [KalendarViewConfig.disabledDates] and
  *   [KalendarViewConfig.showAdjacentMonthDates] have no effect here.
- * @param hourHeight Vertical space for one hour of the grid; block heights scale with it.
+ * @param hourHeight Vertical space for one hour of the grid; block heights scale with it. Defaults
+ *   to `null`, meaning [KalendarDimensions.hourHeight].
  */
 @Composable
 public fun KalendarScheduleWeek(
@@ -179,9 +179,11 @@ public fun KalendarScheduleWeek(
     onEventClick: (KalendarEvent) -> Unit = {},
     onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
-    hourHeight: Dp = 64.dp,
+    hourHeight: Dp? = null,
 ) {
-    Column(modifier = modifier.background(config.background)) {
+    val colors = kalendarColors()
+    val resolvedHourHeight = hourHeight ?: kalendarDimensions().hourHeight
+    Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
         KalendarNavigationHeader(
             title = remember(state.visibleDate) { weekTitle(state.visibleDate, config.monthNameFormatter) },
             state = state,
@@ -201,7 +203,7 @@ public fun KalendarScheduleWeek(
                 onEventClick = onEventClick,
                 onEventTimeChange = onEventTimeChange,
                 config = config,
-                hourHeight = hourHeight,
+                hourHeight = resolvedHourHeight,
             )
         }
     }
@@ -228,6 +230,8 @@ private fun ScheduleWeekPage(
     }
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
+    val colors = kalendarColors()
+    val dimensions = kalendarDimensions()
 
     LaunchedEffect(weekStart) {
         scrollState.scrollTo(with(density) { (hourHeight * config.scheduleInitialScrollHour).roundToPx() })
@@ -235,7 +239,7 @@ private fun ScheduleWeekPage(
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxWidth()) {
-            Box(modifier = Modifier.width(48.dp))
+            Box(modifier = Modifier.width(dimensions.hourGutterWidth))
             days.forEach { day ->
                 WeekDayHeader(
                     day = day,
@@ -248,7 +252,10 @@ private fun ScheduleWeekPage(
         if (allDayEvents.isNotEmpty()) {
             WeekAllDayRow(entries = allDayEvents, onEventClick = onEventClick)
         }
-        HorizontalDivider()
+        HorizontalDivider(
+            thickness = dimensions.gridLineThickness,
+            color = colors.gridLine,
+        )
         Row(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState)) {
             HourGutter(hourHeight = hourHeight, hourLabelFormatter = config.hourLabelFormatter)
             days.forEach { day ->
@@ -257,7 +264,10 @@ private fun ScheduleWeekPage(
                 }
                 Box(modifier = Modifier.weight(1f).height(hourHeight * HOURS_PER_DAY)) {
                     HourLines(hourHeight = hourHeight)
-                    VerticalDivider(color = kalendarColors().gridLine)
+                    VerticalDivider(
+                        thickness = dimensions.gridLineThickness,
+                        color = colors.gridLine,
+                    )
                     ScheduleBlockLayout(
                         blocks = blocks,
                         hourHeight = hourHeight,
@@ -282,18 +292,19 @@ private fun WeekDayHeader(
     modifier: Modifier = Modifier,
 ) {
     val colors = kalendarColors()
+    val typography = kalendarTypography()
     Column(
         modifier = modifier.padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             text = config.dayOfWeekLabelFormatter(day.dayOfWeek),
-            style = MaterialTheme.typography.labelSmall,
+            style = typography.dayOfWeekLabel,
             color = colors.dayLabelContent,
         )
         Text(
             text = day.dayOfMonth.toString(),
-            style = MaterialTheme.typography.labelLarge,
+            style = typography.weekDayNumber,
             color = if (isToday) colors.todayContent else colors.dayContent,
         )
     }
@@ -304,23 +315,27 @@ private fun WeekAllDayRow(
     entries: List<Pair<LocalDate, KalendarEvent>>,
     onEventClick: (KalendarEvent) -> Unit,
 ) {
+    val colors = kalendarColors()
+    val dimensions = kalendarDimensions()
+    val chipStyle = kalendarTypography().eventLabel
+    val chipShape = kalendarShapes().eventBlock
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.fillMaxWidth().padding(dimensions.allDayRowPadding),
+        horizontalArrangement = Arrangement.spacedBy(dimensions.allDayChipSpacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         entries.forEach { (day, event) ->
-            val accent = event.eventColor ?: kalendarColors().eventIndicator
+            val accent = event.eventColor ?: colors.eventIndicator
             Text(
                 text = "${day.dayOfMonth} · ${event.eventName}",
-                style = MaterialTheme.typography.labelSmall,
+                style = chipStyle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(accent.copy(alpha = EVENT_BLOCK_BACKGROUND_ALPHA))
+                    .clip(chipShape)
+                    .background(accent.copy(alpha = colors.eventBlockAlpha))
                     .clickable { onEventClick(event) }
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                    .padding(dimensions.allDayChipPadding),
             )
         }
     }
@@ -341,6 +356,8 @@ private fun SchedulePage(
     val blocks = remember(dayEvents, day) { scheduleBlocks(events = dayEvents, date = day) }
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
+    val colors = kalendarColors()
+    val dimensions = kalendarDimensions()
 
     LaunchedEffect(day) {
         scrollState.scrollTo(with(density) { (hourHeight * config.scheduleInitialScrollHour).roundToPx() })
@@ -349,7 +366,10 @@ private fun SchedulePage(
     Column(modifier = Modifier.fillMaxSize()) {
         if (allDayEvents.isNotEmpty()) {
             AllDayRow(events = allDayEvents, onEventClick = onEventClick)
-            HorizontalDivider()
+            HorizontalDivider(
+                thickness = dimensions.gridLineThickness,
+                color = colors.gridLine,
+            )
         }
         Row(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState)) {
             HourGutter(hourHeight = hourHeight, hourLabelFormatter = config.hourLabelFormatter)
@@ -371,23 +391,27 @@ private fun SchedulePage(
 
 @Composable
 private fun AllDayRow(events: List<KalendarEvent>, onEventClick: (KalendarEvent) -> Unit) {
+    val colors = kalendarColors()
+    val dimensions = kalendarDimensions()
+    val chipStyle = kalendarTypography().eventLabel
+    val chipShape = kalendarShapes().eventBlock
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.fillMaxWidth().padding(dimensions.allDayRowPadding),
+        horizontalArrangement = Arrangement.spacedBy(dimensions.allDayChipSpacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         events.forEach { event ->
-            val accent = event.eventColor ?: kalendarColors().eventIndicator
+            val accent = event.eventColor ?: colors.eventIndicator
             Text(
                 text = event.eventName,
-                style = MaterialTheme.typography.labelSmall,
+                style = chipStyle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(accent.copy(alpha = EVENT_BLOCK_BACKGROUND_ALPHA))
+                    .clip(chipShape)
+                    .background(accent.copy(alpha = colors.eventBlockAlpha))
                     .clickable { onEventClick(event) }
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                    .padding(dimensions.allDayChipPadding),
             )
         }
     }
@@ -395,13 +419,15 @@ private fun AllDayRow(events: List<KalendarEvent>, onEventClick: (KalendarEvent)
 
 @Composable
 private fun HourGutter(hourHeight: Dp, hourLabelFormatter: (Int) -> String) {
-    Column(modifier = Modifier.width(48.dp)) {
+    val labelStyle = kalendarTypography().hourLabel
+    val labelColor = kalendarColors().dayLabelContent
+    Column(modifier = Modifier.width(kalendarDimensions().hourGutterWidth)) {
         repeat(HOURS_PER_DAY) { hour ->
             Box(modifier = Modifier.height(hourHeight).fillMaxWidth()) {
                 Text(
                     text = hourLabelFormatter(hour),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = kalendarColors().dayLabelContent,
+                    style = labelStyle,
+                    color = labelColor,
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
             }
@@ -411,10 +437,15 @@ private fun HourGutter(hourHeight: Dp, hourLabelFormatter: (Int) -> String) {
 
 @Composable
 private fun HourLines(hourHeight: Dp) {
+    val gridLineColor = kalendarColors().gridLine
+    val gridLineThickness = kalendarDimensions().gridLineThickness
     Column(modifier = Modifier.fillMaxSize()) {
         repeat(HOURS_PER_DAY) {
-            HorizontalDivider(color = kalendarColors().gridLine)
-            Box(modifier = Modifier.height(hourHeight - 1.dp))
+            HorizontalDivider(
+                thickness = gridLineThickness,
+                color = gridLineColor,
+            )
+            Box(modifier = Modifier.height(hourHeight - gridLineThickness))
         }
     }
 }
@@ -448,6 +479,7 @@ private fun ScheduleBlockLayout(
 
     val density = LocalDensity.current
     val minutePx = with(density) { hourHeight.toPx() } / MINUTES_PER_HOUR
+    val resizeHandleHeight = kalendarDimensions().eventBlockResizeHandleHeight
 
     val latestBlocks = rememberUpdatedState(blocks)
     val latestDate = rememberUpdatedState(date)
@@ -479,6 +511,7 @@ private fun ScheduleBlockLayout(
                     } else {
                         Modifier.blockDragGestures(
                             index = index,
+                            resizeHandleHeight = resizeHandleHeight,
                             onDragStateChange = { dragState = it },
                             currentState = { dragState },
                             onRelease = { state ->
@@ -531,9 +564,13 @@ private fun ScheduleBlockLayout(
 }
 
 /**
- * Long-press-then-drag on a block: a press starting in the bottom [RESIZE_STRIP_DP] of the block
- * resizes (moves the end time), anywhere else moves the whole block. Long-press is required so
- * plain drags still scroll the surrounding grid.
+ * Long-press-then-drag on a block: a press starting within [resizeHandleHeight] of the block's
+ * bottom edge resizes (moves the end time), anywhere else moves the whole block. Long-press is
+ * required so plain drags still scroll the surrounding grid.
+ *
+ * This is not a composable, so [resizeHandleHeight] is resolved from
+ * [KalendarDimensions.eventBlockResizeHandleHeight] by the caller and passed in; it keys the
+ * pointer input so a theme change re-arms the detector rather than leaving a stale strip height.
  *
  * The lambdas passed here are captured once when the pointer-input coroutine first launches and
  * never refreshed, so callers must route them through [rememberUpdatedState]-backed reads — see
@@ -541,13 +578,14 @@ private fun ScheduleBlockLayout(
  */
 private fun Modifier.blockDragGestures(
     index: Int,
+    resizeHandleHeight: Dp,
     onDragStateChange: (BlockDragState?) -> Unit,
     currentState: () -> BlockDragState?,
     onRelease: (state: BlockDragState) -> Unit,
-): Modifier = pointerInput(index) {
+): Modifier = pointerInput(index, resizeHandleHeight) {
     detectDragGesturesAfterLongPress(
         onDragStart = { offset ->
-            val resizeStripPx = RESIZE_STRIP_DP.dp.toPx()
+            val resizeStripPx = resizeHandleHeight.toPx()
             val resizing = offset.y > size.height - resizeStripPx
             onDragStateChange(BlockDragState(index = index, resizing = resizing))
         },
@@ -578,24 +616,26 @@ private fun ScheduleEventBlock(
     isDragging: Boolean = false,
     dragModifier: Modifier = Modifier,
 ) {
-    val accent = block.event.eventColor ?: kalendarColors().eventIndicator
-    val backgroundAlpha = if (isDragging) EVENT_BLOCK_DRAGGING_ALPHA else EVENT_BLOCK_BACKGROUND_ALPHA
+    val colors = kalendarColors()
+    val dimensions = kalendarDimensions()
+    val accent = block.event.eventColor ?: colors.eventIndicator
+    val backgroundAlpha = if (isDragging) colors.eventBlockDraggingAlpha else colors.eventBlockAlpha
     Row(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 1.dp)
-            .clip(RoundedCornerShape(4.dp))
+            .padding(horizontal = dimensions.eventBlockGap)
+            .clip(kalendarShapes().eventBlock)
             .background(accent.copy(alpha = backgroundAlpha))
             .then(dragModifier)
             .clickable { onEventClick(block.event) },
     ) {
-        Box(modifier = Modifier.width(3.dp).fillMaxSize().background(accent))
+        Box(modifier = Modifier.width(dimensions.eventBlockAccentWidth).fillMaxSize().background(accent))
         Text(
             text = block.event.eventName,
-            style = MaterialTheme.typography.labelSmall,
+            style = kalendarTypography().eventLabel,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            modifier = Modifier.padding(dimensions.eventBlockPadding),
         )
     }
 }
@@ -615,7 +655,7 @@ private fun NowIndicator(day: LocalDate, hourHeight: Dp) {
     val minutes = now.hour * MINUTES_PER_HOUR + now.minute
     val offset = hourHeight * (minutes.toFloat() / MINUTES_PER_HOUR)
     HorizontalDivider(
-        thickness = 2.dp,
+        thickness = kalendarDimensions().nowIndicatorThickness,
         color = kalendarColors().nowIndicator,
         modifier = Modifier.padding(top = offset),
     )

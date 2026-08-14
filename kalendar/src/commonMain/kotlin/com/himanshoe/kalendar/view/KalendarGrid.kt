@@ -17,9 +17,9 @@
 package com.himanshoe.kalendar.view
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.VectorConverter
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
@@ -32,8 +32,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -57,21 +55,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
-
-private const val EVENT_GHOST_ALPHA = 0.6f
 
 /**
  * Fresh 7-column grid engine backing [KalendarWeek] and [KalendarMonth].
  *
- * When [selectedDate] is non-null, a single circular indicator is drawn behind the grid and
- * animates its position to that date's cell whenever [selectedDate] changes — snapping instantly
- * the first time a position is known (e.g. when a new page is composed) and sliding smoothly on
- * every change after that, so tapping a different date in the same grid looks like the selection
- * moving rather than each cell fading independently. Pass `null` to disable the indicator (e.g.
- * for multi-select, where more than one cell can be highlighted at once).
+ * When [selectedDate] is non-null, a single indicator shaped by [KalendarShapes.dayCell] is drawn
+ * behind the grid and animates its position to that date's cell whenever [selectedDate] changes —
+ * snapping instantly the first time a position is known (e.g. when a new page is composed) and
+ * sliding smoothly on every change after that, so tapping a different date in the same grid looks
+ * like the selection moving rather than each cell fading independently. The slide follows
+ * [KalendarAnimations.selectionIndicatorSpec], and snaps outright when [KalendarAnimations.enabled]
+ * is `false`. Pass `null` to disable the indicator (e.g. for multi-select, where more than one cell
+ * can be highlighted at once).
  *
  * When [onDateRangeDrag] is non-null, press-and-hold on a cell then drag to select a range: it's
  * called continuously with (the date under the initial press, the date under the pointer now) as
@@ -98,6 +95,10 @@ internal fun KalendarGrid(
     cell: @Composable (LocalDate) -> Unit,
 ) {
     val colors = kalendarColors()
+    val typography = kalendarTypography()
+    val shapes = kalendarShapes()
+    val dimensions = kalendarDimensions()
+    val animations = kalendarAnimations()
     val labelDays = remember(startDayOfWeek) { daysOfWeekStartingAt(startDayOfWeek) }
     var containerCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val cellCoordinates = remember { mutableStateMapOf<LocalDate, LayoutCoordinates>() }
@@ -113,8 +114,12 @@ internal fun KalendarGrid(
 
     val indicatorOffset = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
     var hasSnappedIndicator by remember { mutableStateOf(false) }
-    val indicatorSpec = remember {
-        spring<Offset>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessHigh)
+    val indicatorSpec: AnimationSpec<Offset> = remember(animations) {
+        if (animations.enabled) {
+            animations.selectionIndicatorSpec
+        } else {
+            snap()
+        }
     }
 
     LaunchedEffect(targetPosition) {
@@ -194,8 +199,8 @@ internal fun KalendarGrid(
                         val placeable = measurable.measure(Constraints.fixed(targetSize.width, targetSize.height))
                         layout(placeable.width, placeable.height) { placeable.place(0, 0) }
                     }
-                    .padding(2.dp)
-                    .clip(CircleShape)
+                    .padding(dimensions.dayCellPadding)
+                    .clip(shapes.dayCell)
                     .background(colors.selectionBackground),
             )
         }
@@ -212,9 +217,9 @@ internal fun KalendarGrid(
                         )
                         layout(placeable.width, placeable.height) { placeable.place(0, 0) }
                     }
-                    .padding(2.dp)
-                    .clip(CircleShape)
-                    .background(colors.dragGhostBackground.copy(alpha = EVENT_GHOST_ALPHA)),
+                    .padding(dimensions.dayCellPadding)
+                    .clip(shapes.dayCell)
+                    .background(colors.dragGhostBackground.copy(alpha = colors.dragGhostAlpha)),
             )
         }
 
@@ -227,9 +232,10 @@ internal fun KalendarGrid(
             items(labelDays) { day ->
                 Text(
                     text = dayLabelFormatter(day),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = typography.dayOfWeekLabel,
+                    color = colors.dayLabelContent,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().alpha(0.6f),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             items(items = dates, key = { it.toEpochDays() }) { date ->
@@ -275,15 +281,18 @@ internal fun KalendarStaticGrid(
     cell: @Composable (LocalDate) -> Unit,
 ) {
     val labelDays = remember(startDayOfWeek) { daysOfWeekStartingAt(startDayOfWeek) }
+    val colors = kalendarColors()
+    val typography = kalendarTypography()
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth()) {
             labelDays.forEach { day ->
                 Text(
                     text = dayLabelFormatter(day),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = typography.dayOfWeekLabel,
+                    color = colors.dayLabelContent,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f).alpha(0.6f),
+                    modifier = Modifier.weight(1f),
                 )
             }
         }

@@ -17,6 +17,8 @@
 package com.himanshoe.kalendar.view
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -35,20 +37,17 @@ import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.SolidColor
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
-
-private const val STICKY_TITLE_CROSSFADE_MS = 150
 
 /**
  * A continuous, vertically-scrolling calendar spanning many months, forward and backward from
@@ -57,6 +56,8 @@ private const val STICKY_TITLE_CROSSFADE_MS = 150
  *
  * Unlike [KalendarWeek]/[KalendarMonth]/[KalendarYear], there are no arrow buttons — the scroll
  * itself is the only navigation, so [KalendarViewConfig.showNavigationArrows] has no effect here.
+ * There is no month/year jump picker either — the sticky header's title is not tappable — so
+ * [KalendarViewConfig.showJumpPicker] is likewise ignored.
  * A sticky header showing the topmost visible month (and, when [KalendarViewConfig.showTodayButton]
  * is enabled, a button that scrolls back to today) stays pinned above the scrolling content. How
  * far the list scrolls is controlled by [rememberKalendarTimelineState]'s `minDate`/`maxDate` —
@@ -88,7 +89,7 @@ private const val STICKY_TITLE_CROSSFADE_MS = 150
  *   recompositions rather than building a fresh [Set] every time.
  * @param onDateClick Called when a non-disabled date is tapped, with the events on that date.
  * @param config Shared visual/behavioural settings — disabled dates, background, today button.
- *   Arrow visibility has no effect (see above).
+ *   Arrow visibility and the jump picker have no effect (see above).
  * @param dayContent Replaces the default day-cell rendering. Receives a [KalendarDayScope]
  *   describing the date being rendered.
  */
@@ -103,14 +104,19 @@ public fun KalendarTimeline(
     config: KalendarViewConfig = KalendarViewConfig(),
     dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
 ) {
+    val colors = kalendarColors()
+    val typography = kalendarTypography()
+    val dimensions = kalendarDimensions()
+    val animations = kalendarAnimations()
     val today = remember { todayInSystemTimeZone() }
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     val scope = rememberCoroutineScope()
+    val background = config.background ?: SolidColor(colors.background)
 
     Box(modifier = modifier) {
         LazyColumn(
             state = state.lazyListState,
-            modifier = Modifier.fillMaxWidth().background(config.background),
+            modifier = Modifier.fillMaxWidth().background(background),
         ) {
             items(count = state.itemCount, key = { index -> index }) { index ->
                 val monthStart = state.indexToDate(index)
@@ -120,8 +126,8 @@ public fun KalendarTimeline(
                 Column {
                     Text(
                         text = monthTitle(monthStart, config.monthNameFormatter),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        style = typography.headerTitle,
+                        modifier = Modifier.padding(dimensions.sectionPadding),
                     )
                     KalendarStaticGrid(
                         dates = dates,
@@ -155,8 +161,8 @@ public fun KalendarTimeline(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(config.background)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .background(background)
+                    .padding(dimensions.sectionPadding),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -166,18 +172,31 @@ public fun KalendarTimeline(
                 AnimatedContent(
                     targetState = stickyTitle,
                     transitionSpec = {
-                        fadeIn(tween(STICKY_TITLE_CROSSFADE_MS)) togetherWith fadeOut(tween(STICKY_TITLE_CROSSFADE_MS))
+                        if (animations.enabled) {
+                            val duration = animations.titleTransitionMillis
+                            fadeIn(tween(duration)) togetherWith fadeOut(tween(duration))
+                        } else {
+                            EnterTransition.None togetherWith ExitTransition.None
+                        }
                     },
                 ) { animatedTitle ->
-                    Text(text = animatedTitle, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = animatedTitle,
+                        style = typography.headerTitle,
+                        color = colors.headerContent,
+                    )
                 }
                 if (config.showTodayButton) {
                     IconButton(onClick = { scope.launch { state.scrollToToday() } }) {
-                        Icon(imageVector = Icons.Filled.Today, contentDescription = "Today")
+                        Icon(
+                            imageVector = Icons.Filled.Today,
+                            contentDescription = "Today",
+                            tint = colors.headerContent,
+                        )
                     }
                 }
             }
-            HorizontalDivider()
+            HorizontalDivider(color = colors.gridLine)
         }
     }
 }
