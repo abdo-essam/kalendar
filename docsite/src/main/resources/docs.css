@@ -1,4 +1,5 @@
-/* Kalendar documentation — dark-first, hairline borders, one accent used sparingly. */
+/* Kalendar documentation — dark-first, monochrome, hairline borders. Colour is never
+   load-bearing: hierarchy comes from brightness, weight and space. */
 
 :root {
   --bg: #000;
@@ -10,22 +11,22 @@
   --muted: #a1a1a1;
   --dim: #707070;
 
-  --accent: #a78bfa;
-  --accent-2: #818cf8;
-  --accent-ink: #c4b5fd;
-  --accent-soft: rgba(167, 139, 250, 0.14);
-  --accent-line: rgba(167, 139, 250, 0.45);
-  --on-accent: #0a0118;
+  --accent: #ededed;
+  --accent-2: #8f8f8f;
+  --accent-ink: #fff;
+  --accent-soft: rgba(255, 255, 255, 0.08);
+  --accent-line: rgba(255, 255, 255, 0.42);
+  --on-accent: #000;
 
   --veil: rgba(0, 0, 0, 0.72);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 
-  --tok-kw: #c084fc;
-  --tok-str: #86efac;
-  --tok-num: #fbbf24;
-  --tok-comment: #6b7280;
-  --tok-anno: #7dd3fc;
-  --tok-type: #93c5fd;
+  --tok-kw: #fff;
+  --tok-str: #a1a1a1;
+  --tok-num: #c4c4c4;
+  --tok-comment: #5a5a5a;
+  --tok-anno: #8f8f8f;
+  --tok-type: #d4d4d4;
 
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -50,22 +51,22 @@
   --muted: #525252;
   --dim: #8f8f8f;
 
-  --accent: #6d28d9;
-  --accent-2: #4338ca;
-  --accent-ink: #5b21b6;
-  --accent-soft: rgba(109, 40, 217, 0.09);
-  --accent-line: rgba(109, 40, 217, 0.4);
+  --accent: #171717;
+  --accent-2: #6b6b6b;
+  --accent-ink: #000;
+  --accent-soft: rgba(0, 0, 0, 0.06);
+  --accent-line: rgba(0, 0, 0, 0.38);
   --on-accent: #fff;
 
   --veil: rgba(255, 255, 255, 0.75);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 
-  --tok-kw: #7c3aed;
-  --tok-str: #15803d;
-  --tok-num: #b45309;
-  --tok-comment: #8b8b8b;
-  --tok-anno: #0369a1;
-  --tok-type: #1d4ed8;
+  --tok-kw: #000;
+  --tok-str: #5c5c5c;
+  --tok-num: #3d3d3d;
+  --tok-comment: #9b9b9b;
+  --tok-anno: #6b6b6b;
+  --tok-type: #262626;
 }
 
 *,
@@ -752,8 +753,8 @@ h4:hover > .anchor,
   max-width: 620px;
   max-height: 620px;
   border-radius: 50%;
-  filter: blur(70px);
-  opacity: 0.5;
+  filter: blur(80px);
+  opacity: 0.16;
   animation: drift 24s var(--ease) infinite alternate;
 }
 
@@ -774,7 +775,7 @@ h4:hover > .anchor,
 .aurora span:nth-child(3) {
   left: 36%;
   top: 18%;
-  background: radial-gradient(circle, #6750a4 0%, transparent 70%);
+  background: radial-gradient(circle, #ffffff 0%, transparent 70%);
   animation-delay: -16s;
   animation-duration: 36s;
 }
@@ -808,10 +809,16 @@ h4:hover > .anchor,
   font-weight: 700;
   letter-spacing: -0.045em;
   line-height: 1.02;
-  background: linear-gradient(180deg, var(--text) 30%, var(--accent) 160%);
+  background: linear-gradient(180deg, #fff 22%, var(--dim) 132%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+:root[data-theme="light"] .hero-title {
+  background: linear-gradient(180deg, #000 22%, var(--dim) 132%);
+  -webkit-background-clip: text;
+  background-clip: text;
 }
 
 .hero-tagline {
@@ -854,14 +861,14 @@ h4:hover > .anchor,
 }
 
 .btn--primary {
-  border-color: transparent;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  border-color: var(--accent);
+  background: var(--accent);
   color: var(--on-accent);
   font-weight: 600;
 }
 
 .btn--primary:hover {
-  filter: brightness(1.08);
+  opacity: 0.86;
   border-color: transparent;
 }
 
