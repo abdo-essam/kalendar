@@ -1,4 +1,12 @@
-name: Deploy Demo - GitHub Pages
+name: Deploy Docs & Playground
+
+# Renders the documentation site, builds the Compose/Wasm playground and the API reference, and
+# publishes all three to GitHub Pages: the docs at the root, the playground under /playground, the
+# Dokka output under /api.
+#
+# All of it is assembled by the Gradle build rather than here, so the directory this uploads is the
+# same one a developer gets from `./gradlew :docsite:assembleSite`. A site whose parts are only ever
+# joined together on CI is a site whose links can only be tested on CI.
 
 on:
   push:
@@ -22,29 +30,30 @@ jobs:
       - name: Checkout Kalendar Repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
-          java-version: 17
+          distribution: temurin
+          java-version: "17"
 
-      - name: Setup Gradle
+      # The project applies the Android Gradle plugin, so even a Wasm-only build configures the
+      # Android modules and needs the SDK with its licenses accepted.
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build wasmJs distribution and API docs
-        run: ./gradlew :sample:wasmJsBrowserDistribution :kalendar:dokkaGenerateHtml :kalendar-foundation:dokkaGenerateHtml
-
-      - name: Assemble Pages site (demo at /, API docs at /api)
-        run: |
-          mkdir -p site/api
-          cp -R sample/build/dist/wasmJs/productionExecutable/. site/
-          cp -R kalendar/build/dokka/html site/api/kalendar
-          cp -R kalendar-foundation/build/dokka/html site/api/kalendar-foundation
+      # One task renders the docs, builds the playground and the API reference, and assembles them
+      # into a single directory. The generator fails on a dead link, so a broken cross-reference
+      # stops the deploy rather than reaching a reader.
+      - name: Build the site
+        run: ./gradlew :docsite:assembleSite --no-daemon -PkotlinYarnLockMismatchReport=warning
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: docsite/build/published-site
 
   deploy:
     needs: build

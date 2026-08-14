@@ -1,0 +1,140 @@
+/*
+ *
+ *  * Copyright 2026 Kalendar Contributors (https://www.himanshoe.com). All rights reserved.
+ *  * Licensed under the Apache License, Version 2.0 (the "License");
+ *  * you may not use this file except in compliance with the License.
+ *  * You may obtain a copy of the License at
+ *  * http://www.apache.org/licenses/LICENSE-2.0
+ *  * Unless required by applicable law or agreed to in writing, software
+ *  * distributed under the License is distributed on an "AS IS" BASIS,
+ *  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  * See the License for the specific language governing permissions and
+ *  * limitations under the License.
+ *  *
+ *
+ */
+
+/*
+ * The bare id rather than `alias(libs.plugins.kotlinJvm)`: the root build already puts the Kotlin
+ * plugin on the buildscript classpath without a version, and asking for it again *with* one is a
+ * configuration failure. The version still comes from the catalog — it is the one the root declares.
+ */
+plugins {
+    kotlin("jvm")
+}
+
+kotlin {
+    jvmToolchain(17)
+}
+
+dependencies {
+    implementation(libs.jetbrains.markdown)
+    testImplementation(libs.kotlin.test)
+}
+
+tasks.named<Test>("test") {
+    useJUnitPlatform()
+}
+
+/**
+ * Renders `docs/` into a static site under `build/site`.
+ *
+ * A JVM module rather than a build script: the generator is ordinary Kotlin, so it compiles, it is
+ * linted with everything else, and a mistake in it is a compile error rather than a broken page
+ * discovered after deployment. Inputs and outputs are declared, so a second run with untouched docs
+ * does nothing at all.
+ */
+val generateDocsSite by tasks.registering(JavaExec::class) {
+    group = "documentation"
+    description = "Renders docs/**/*.md into a static site under build/site."
+
+    mainClass.set("com.himanshoe.docsite.MainKt")
+    classpath = sourceSets.getByName("main").runtimeClasspath
+
+    // Overridable so the generator can be pointed at a scratch tree while the real docs are being
+    // rewritten; the default is the tree that ships.
+    val docsPath = providers.gradleProperty("docsite.docsDir").getOrElse("docs")
+    val docsDir = rootProject.layout.projectDirectory.dir(docsPath)
+    val resourcesDir = layout.projectDirectory.dir("src/main/resources")
+    val outputDir = layout.buildDirectory.dir("site")
+
+    // `-Pdocsite.links=warn` reports dead links instead of failing on them, for the window in which
+    // the docs are being written and a link legitimately points at a page nobody has typed yet.
+    val linkMode = providers.gradleProperty("docsite.links").getOrElse("strict")
+    systemProperty("docsite.links", linkMode)
+
+    inputs.dir(docsDir).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(resourcesDir).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.property("linkMode", linkMode)
+    outputs.dir(outputDir)
+
+    argumentProviders.add(
+        CommandLineArgumentProvider {
+            listOf(docsDir.asFile.absolutePath, outputDir.get().asFile.absolutePath)
+        }
+    )
+}
+
+/**
+ * The whole published site in one directory: docs at the root, the Wasm playground under
+ * `/playground`, and the API reference under `/api`.
+ *
+ * Assembled by the build rather than by the deploy workflow, so what a developer gets locally is
+ * what CI publishes. A site whose parts are only ever joined together on CI is a site whose links
+ * can only be tested on CI.
+ */
+val assembleSite by tasks.registering(Sync::class) {
+    group = "documentation"
+    description = "Assembles the docs, the Wasm playground and the API reference into one directory."
+
+    into(layout.buildDirectory.dir("published-site"))
+
+    from(generateDocsSite)
+    from(project(":sample").tasks.named("wasmJsBrowserDistribution")) {
+        into("playground")
+    }
+
+    /*
+     * `dokkaGenerateHtml` is a lifecycle task with no outputs of its own — copying *from* it would
+     * copy nothing. `dokkaGeneratePublicationHtml` is the task that actually writes
+     * `build/dokka/html`, and it is the one `dokkaGenerateHtml` runs, so taking the files from it is
+     * the same build with a wiring Gradle can follow.
+     */
+    from(project(":kalendar").tasks.named("dokkaGeneratePublicationHtml")) {
+        into("api/kalendar")
+    }
+    from(project(":kalendar-foundation").tasks.named("dokkaGeneratePublicationHtml")) {
+        into("api/kalendar-foundation")
+    }
+}
+
+val detekt by configurations.creating
+
+dependencies {
+    detekt(libs.detekt.cli)
+    detekt(libs.detekt.formatting)
+}
+
+tasks.register<JavaExec>("detekt") {
+    mainClass = "io.gitlab.arturbosch.detekt.cli.Main"
+    classpath = detekt
+
+    val input = projectDir
+    val config = "${rootProject.projectDir}/detekt.yml"
+    // detekt CLI --excludes takes globs, not regexes
+    val exclude = "**/build/**,**/resources/**"
+    val report = "sarif:${layout.buildDirectory.file("reports/detekt/detekt.sarif").get()}"
+    val params = listOf(
+        "-i",
+        input,
+        "-c",
+        config,
+        "-ex",
+        exclude,
+        "-r",
+        report,
+        "--build-upon-default-config"
+    )
+
+    args(params)
+}
