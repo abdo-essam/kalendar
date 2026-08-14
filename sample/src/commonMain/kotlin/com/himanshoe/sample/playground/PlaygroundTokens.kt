@@ -29,12 +29,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.himanshoe.kalendar.view.KalendarAnimations
-import com.himanshoe.kalendar.view.KalendarDimensions
-import com.himanshoe.kalendar.view.KalendarShapes
-import com.himanshoe.kalendar.view.KalendarThemeDefaults
-import com.himanshoe.kalendar.view.KalendarTypography
-import com.himanshoe.kalendar.view.KalendarViewConfig
+import com.himanshoe.kalendar.KalendarViewConfig
+import com.himanshoe.kalendar.theme.KalendarAnimations
+import com.himanshoe.kalendar.theme.KalendarDimensions
+import com.himanshoe.kalendar.theme.KalendarShapes
+import com.himanshoe.kalendar.theme.KalendarThemeDefaults
+import com.himanshoe.kalendar.theme.KalendarTypography
 import kotlin.math.roundToInt
 
 /** A shape paired with the Kotlin source that recreates it, so the generator never has to guess. */

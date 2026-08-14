@@ -18,7 +18,7 @@ package com.himanshoe.sample.playground
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import com.himanshoe.kalendar.view.KalendarThemeDefaults
+import com.himanshoe.kalendar.theme.KalendarThemeDefaults
 
 private const val Indent = "    "
 private const val HexDigits = 8
@@ -27,7 +27,7 @@ private const val HexDigits = 8
  * Renders the current playground configuration as the Kotlin that reproduces it.
  *
  * Only tokens that actually differ from stock Kalendar are emitted — the colour block is produced
- * by diffing the resolved [com.himanshoe.kalendar.view.KalendarColors] against the palette the
+ * by diffing the resolved [com.himanshoe.kalendar.KalendarColors] against the palette the
  * snippet starts from — so an untouched playground generates a bare view call, and every extra
  * line in the snippet corresponds to something the user changed.
  *

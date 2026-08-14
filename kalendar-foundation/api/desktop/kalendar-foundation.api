@@ -1,3 +1,34 @@
+public final class com/himanshoe/kalendar/foundation/datetime/KalendarDateArithmeticKt {
+	public static final field DAYS_PER_WEEK I
+	public static final field MONTHS_PER_YEAR I
+	public static final fun monthsBetween (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;)I
+	public static final fun startOfMonth (Lkotlinx/datetime/LocalDate;)Lkotlinx/datetime/LocalDate;
+	public static final fun startOfWeek (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;)Lkotlinx/datetime/LocalDate;
+	public static final fun startOfYear (Lkotlinx/datetime/LocalDate;)Lkotlinx/datetime/LocalDate;
+	public static final fun weeksBetween (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;)I
+	public static final fun yearsBetween (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;)I
+}
+
+public final class com/himanshoe/kalendar/foundation/datetime/KalendarDateRangeKt {
+	public static final fun datesUntil (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;)Ljava/util/Set;
+}
+
+public final class com/himanshoe/kalendar/foundation/datetime/KalendarTimeSource {
+	public static final field $stable I
+	public fun <init> ()V
+	public fun <init> (Lkotlinx/datetime/TimeZone;Lkotlin/time/Clock;)V
+	public synthetic fun <init> (Lkotlinx/datetime/TimeZone;Lkotlin/time/Clock;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun copy (Lkotlinx/datetime/TimeZone;Lkotlin/time/Clock;)Lcom/himanshoe/kalendar/foundation/datetime/KalendarTimeSource;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/foundation/datetime/KalendarTimeSource;Lkotlinx/datetime/TimeZone;Lkotlin/time/Clock;ILjava/lang/Object;)Lcom/himanshoe/kalendar/foundation/datetime/KalendarTimeSource;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getClock ()Lkotlin/time/Clock;
+	public final fun getTimeZone ()Lkotlinx/datetime/TimeZone;
+	public fun hashCode ()I
+	public final fun now ()Lkotlinx/datetime/LocalDateTime;
+	public fun toString ()Ljava/lang/String;
+	public final fun today ()Lkotlinx/datetime/LocalDate;
+}
+
 public final class com/himanshoe/kalendar/foundation/event/BasicKalendarEvent : com/himanshoe/kalendar/foundation/event/KalendarEvent {
 	public static final field $stable I
 	public static final field HASH_FACTOR I
@@ -38,5 +69,266 @@ public final class com/himanshoe/kalendar/foundation/event/KalendarEvent$Default
 	public static fun getEventColor-QN2ZGVo (Lcom/himanshoe/kalendar/foundation/event/KalendarEvent;)Landroidx/compose/ui/graphics/Color;
 	public static fun getId (Lcom/himanshoe/kalendar/foundation/event/KalendarEvent;)Ljava/lang/String;
 	public static fun getStartTime (Lcom/himanshoe/kalendar/foundation/event/KalendarEvent;)Lkotlinx/datetime/LocalDateTime;
+}
+
+public final class com/himanshoe/kalendar/foundation/event/KalendarEventsByDateKt {
+	public static final fun byDateExpandingSpans (Ljava/util/List;)Ljava/util/Map;
+}
+
+public final class com/himanshoe/kalendar/foundation/format/KalendarFormatters {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/himanshoe/kalendar/foundation/format/KalendarFormatters;
+	public final fun getDayOfWeekLabel ()Lkotlin/jvm/functions/Function1;
+	public final fun getDayOfWeekName ()Lkotlin/jvm/functions/Function1;
+	public final fun getHourLabel ()Lkotlin/jvm/functions/Function1;
+	public final fun getMonthName ()Lkotlin/jvm/functions/Function1;
+	public final fun getShortMonthName ()Lkotlin/jvm/functions/Function1;
+}
+
+public final class com/himanshoe/kalendar/foundation/format/KalendarFormattersKt {
+	public static final fun monthTitle (Lkotlinx/datetime/LocalDate;Lkotlin/jvm/functions/Function1;)Ljava/lang/String;
+	public static synthetic fun monthTitle$default (Lkotlinx/datetime/LocalDate;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/foundation/grid/KalendarGridDatesKt {
+	public static final fun daysOfWeekStartingAt (Lkotlinx/datetime/DayOfWeek;Ljava/util/Set;)Ljava/util/List;
+	public static synthetic fun daysOfWeekStartingAt$default (Lkotlinx/datetime/DayOfWeek;Ljava/util/Set;ILjava/lang/Object;)Ljava/util/List;
+	public static final fun getALL_DAYS_OF_WEEK ()Ljava/util/Set;
+	public static final fun monthDates (Lkotlinx/datetime/LocalDate;Ljava/util/Set;)Ljava/util/List;
+	public static synthetic fun monthDates$default (Lkotlinx/datetime/LocalDate;Ljava/util/Set;ILjava/lang/Object;)Ljava/util/List;
+	public static final fun monthGridDates (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;Ljava/util/Set;)Ljava/util/List;
+	public static synthetic fun monthGridDates$default (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;Ljava/util/Set;ILjava/lang/Object;)Ljava/util/List;
+	public static final fun visibleDateOnOrAfter (Lkotlinx/datetime/LocalDate;Ljava/util/Set;)Lkotlinx/datetime/LocalDate;
+	public static synthetic fun visibleDateOnOrAfter$default (Lkotlinx/datetime/LocalDate;Ljava/util/Set;ILjava/lang/Object;)Lkotlinx/datetime/LocalDate;
+	public static final fun visibleDateStep (Lkotlinx/datetime/LocalDate;ILjava/util/Set;)Lkotlinx/datetime/LocalDate;
+	public static synthetic fun visibleDateStep$default (Lkotlinx/datetime/LocalDate;ILjava/util/Set;ILjava/lang/Object;)Lkotlinx/datetime/LocalDate;
+	public static final fun weekDates (Lkotlinx/datetime/LocalDate;Ljava/util/Set;)Ljava/util/List;
+	public static synthetic fun weekDates$default (Lkotlinx/datetime/LocalDate;Ljava/util/Set;ILjava/lang/Object;)Ljava/util/List;
+}
+
+public final class com/himanshoe/kalendar/foundation/paging/KalendarPageUnit : java/lang/Enum {
+	public static final field Day Lcom/himanshoe/kalendar/foundation/paging/KalendarPageUnit;
+	public static final field Month Lcom/himanshoe/kalendar/foundation/paging/KalendarPageUnit;
+	public static final field Week Lcom/himanshoe/kalendar/foundation/paging/KalendarPageUnit;
+	public static final field Year Lcom/himanshoe/kalendar/foundation/paging/KalendarPageUnit;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun pagesBetween (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;)I
+	public static synthetic fun pagesBetween$default (Lcom/himanshoe/kalendar/foundation/paging/KalendarPageUnit;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;ILjava/lang/Object;)I
+	public final fun plusPages (Lkotlinx/datetime/LocalDate;I)Lkotlinx/datetime/LocalDate;
+	public final fun startOf (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;)Lkotlinx/datetime/LocalDate;
+	public static synthetic fun startOf$default (Lcom/himanshoe/kalendar/foundation/paging/KalendarPageUnit;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;ILjava/lang/Object;)Lkotlinx/datetime/LocalDate;
+	public static fun valueOf (Ljava/lang/String;)Lcom/himanshoe/kalendar/foundation/paging/KalendarPageUnit;
+	public static fun values ()[Lcom/himanshoe/kalendar/foundation/paging/KalendarPageUnit;
+}
+
+public final class com/himanshoe/kalendar/foundation/paging/KalendarPager {
+	public static final field $stable I
+	public static final field CENTER_PAGE I
+	public static final field Companion Lcom/himanshoe/kalendar/foundation/paging/KalendarPager$Companion;
+	public synthetic fun <init> (Lcom/himanshoe/kalendar/foundation/paging/KalendarPageUnit;Lkotlinx/datetime/DayOfWeek;ILkotlinx/datetime/LocalDate;ILkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun coercePage (I)I
+	public final fun dateAt (I)Lkotlinx/datetime/LocalDate;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFirstPage ()I
+	public final fun getInitialPage ()I
+	public final fun getLastPage ()I
+	public final fun getMaxDate ()Lkotlinx/datetime/LocalDate;
+	public final fun getMinDate ()Lkotlinx/datetime/LocalDate;
+	public final fun getPageCount ()I
+	public final fun getStartDayOfWeek ()Lkotlinx/datetime/DayOfWeek;
+	public final fun getUnit ()Lcom/himanshoe/kalendar/foundation/paging/KalendarPageUnit;
+	public fun hashCode ()I
+	public final fun pageOf (Lkotlinx/datetime/LocalDate;)I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/foundation/paging/KalendarPager$Companion {
+	public final fun bounded (Lcom/himanshoe/kalendar/foundation/paging/KalendarPageUnit;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;)Lcom/himanshoe/kalendar/foundation/paging/KalendarPager;
+	public static synthetic fun bounded$default (Lcom/himanshoe/kalendar/foundation/paging/KalendarPager$Companion;Lcom/himanshoe/kalendar/foundation/paging/KalendarPageUnit;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;ILjava/lang/Object;)Lcom/himanshoe/kalendar/foundation/paging/KalendarPager;
+	public final fun endless (Lcom/himanshoe/kalendar/foundation/paging/KalendarPageUnit;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;)Lcom/himanshoe/kalendar/foundation/paging/KalendarPager;
+	public static synthetic fun endless$default (Lcom/himanshoe/kalendar/foundation/paging/KalendarPager$Companion;Lcom/himanshoe/kalendar/foundation/paging/KalendarPageUnit;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/DayOfWeek;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;ILjava/lang/Object;)Lcom/himanshoe/kalendar/foundation/paging/KalendarPager;
+}
+
+public final class com/himanshoe/kalendar/foundation/schedule/KalendarBlockPlacement {
+	public static final field $stable I
+	public fun <init> (II)V
+	public final fun copy (II)Lcom/himanshoe/kalendar/foundation/schedule/KalendarBlockPlacement;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/foundation/schedule/KalendarBlockPlacement;IIILjava/lang/Object;)Lcom/himanshoe/kalendar/foundation/schedule/KalendarBlockPlacement;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHeightMinutes ()I
+	public final fun getTopMinutes ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/foundation/schedule/KalendarHourWindow {
+	public static final field $stable I
+	public static final field Companion Lcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow$Companion;
+	public fun <init> ()V
+	public fun <init> (II)V
+	public synthetic fun <init> (IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun clamp (I)I
+	public final fun contains (I)Z
+	public final fun copy (II)Lcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;IIILjava/lang/Object;)Lcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEndHour ()I
+	public final fun getEndMinutes ()I
+	public final fun getHourCount ()I
+	public final fun getHours ()Lkotlin/ranges/IntRange;
+	public final fun getSpanMinutes ()I
+	public final fun getStartHour ()I
+	public final fun getStartMinutes ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/foundation/schedule/KalendarHourWindow$Companion {
+	public final fun getFullDay ()Lcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;
+}
+
+public final class com/himanshoe/kalendar/foundation/schedule/KalendarHourWindowKt {
+	public static final field HOURS_PER_DAY I
+	public static final field MINUTES_PER_DAY I
+	public static final field MINUTES_PER_HOUR I
+	public static final field MIN_SCHEDULE_BLOCK_MINUTES I
+	public static final fun blockPlacement (Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock;Lcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;)Lcom/himanshoe/kalendar/foundation/schedule/KalendarBlockPlacement;
+	public static final fun initialScrollHourOffset (ILcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;)I
+	public static final fun minutesFromMidnight (Lkotlinx/datetime/LocalDateTime;)I
+}
+
+public final class com/himanshoe/kalendar/foundation/schedule/KalendarResource {
+	public static final field $stable I
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Landroidx/compose/ui/graphics/Color;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Landroidx/compose/ui/graphics/Color;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun copy-GUYwDQI (Ljava/lang/String;Ljava/lang/String;Landroidx/compose/ui/graphics/Color;I)Lcom/himanshoe/kalendar/foundation/schedule/KalendarResource;
+	public static synthetic fun copy-GUYwDQI$default (Lcom/himanshoe/kalendar/foundation/schedule/KalendarResource;Ljava/lang/String;Ljava/lang/String;Landroidx/compose/ui/graphics/Color;IILjava/lang/Object;)Lcom/himanshoe/kalendar/foundation/schedule/KalendarResource;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getColor-QN2ZGVo ()Landroidx/compose/ui/graphics/Color;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getOrder ()I
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/foundation/schedule/KalendarResourceKt {
+	public static final fun orderedResources (Ljava/util/List;)Ljava/util/List;
+	public static final fun resourceBlocks (Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlinx/datetime/LocalDate;Lcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;)Ljava/util/Map;
+	public static synthetic fun resourceBlocks$default (Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlinx/datetime/LocalDate;Lcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;ILjava/lang/Object;)Ljava/util/Map;
+	public static final fun resourceShiftForDrag (FII)I
+	public static final fun shiftedResourceIndex (III)I
+}
+
+public final class com/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock {
+	public static final field $stable I
+	public fun <init> (Lcom/himanshoe/kalendar/foundation/event/KalendarEvent;IIII)V
+	public final fun copy (Lcom/himanshoe/kalendar/foundation/event/KalendarEvent;IIII)Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock;Lcom/himanshoe/kalendar/foundation/event/KalendarEvent;IIIIILjava/lang/Object;)Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getColumn ()I
+	public final fun getColumns ()I
+	public final fun getEndMinutes ()I
+	public final fun getEvent ()Lcom/himanshoe/kalendar/foundation/event/KalendarEvent;
+	public final fun getStartMinutes ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlockKt {
+	public static final fun scheduleBlocks (Ljava/util/List;Lkotlinx/datetime/LocalDate;Lcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;)Ljava/util/List;
+	public static synthetic fun scheduleBlocks$default (Ljava/util/List;Lkotlinx/datetime/LocalDate;Lcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;ILjava/lang/Object;)Ljava/util/List;
+}
+
+public final class com/himanshoe/kalendar/foundation/schedule/KalendarScheduleCreateKt {
+	public static final fun scheduleBlockAt (Ljava/util/List;FFIFLcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;)Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock;
+	public static synthetic fun scheduleBlockAt$default (Ljava/util/List;FFIFLcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;ILjava/lang/Object;)Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock;
+	public static final fun scheduleCreateRange (FFFILcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;)Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleCreateRange;
+	public static synthetic fun scheduleCreateRange$default (FFFILcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;ILjava/lang/Object;)Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleCreateRange;
+	public static final fun scheduleCreateTimes (Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleCreateRange;Lkotlinx/datetime/LocalDate;)Lkotlin/Pair;
+}
+
+public final class com/himanshoe/kalendar/foundation/schedule/KalendarScheduleCreateRange {
+	public static final field $stable I
+	public fun <init> (II)V
+	public final fun copy (II)Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleCreateRange;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleCreateRange;IIILjava/lang/Object;)Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleCreateRange;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEndMinutes ()I
+	public final fun getStartMinutes ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/foundation/schedule/KalendarScheduleDragKt {
+	public static final fun adjustedScheduleBlock (Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock;IZLcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;)Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock;
+	public static synthetic fun adjustedScheduleBlock$default (Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock;IZLcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;ILjava/lang/Object;)Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock;
+	public static final fun adjustedScheduleBlockForDrag (Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock;ILcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleDragMode;Lcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;)Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock;
+	public static synthetic fun adjustedScheduleBlockForDrag$default (Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock;ILcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleDragMode;Lcom/himanshoe/kalendar/foundation/schedule/KalendarHourWindow;ILjava/lang/Object;)Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock;
+	public static final fun dayShiftForDrag (FII)I
+	public static synthetic fun dayShiftForDrag$default (FIIILjava/lang/Object;)I
+	public static final fun dragReleaseTimes (Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleBlock;Lkotlinx/datetime/LocalDate;)Lkotlin/Pair;
+	public static final fun minutesToLocalTime (I)Lkotlinx/datetime/LocalTime;
+	public static final fun scheduleDragMode (FFF)Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleDragMode;
+	public static final fun snappedDragMinutes (FFI)I
+}
+
+public final class com/himanshoe/kalendar/foundation/schedule/KalendarScheduleDragMode : java/lang/Enum {
+	public static final field Move Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleDragMode;
+	public static final field ResizeEnd Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleDragMode;
+	public static final field ResizeStart Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleDragMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleDragMode;
+	public static fun values ()[Lcom/himanshoe/kalendar/foundation/schedule/KalendarScheduleDragMode;
+}
+
+public final class com/himanshoe/kalendar/foundation/selection/KalendarSelection {
+	public static final field $stable I
+	public static final field Companion Lcom/himanshoe/kalendar/foundation/selection/KalendarSelection$Companion;
+	public fun <init> ()V
+	public fun <init> (Ljava/util/Set;Lkotlinx/datetime/LocalDate;)V
+	public synthetic fun <init> (Ljava/util/Set;Lkotlinx/datetime/LocalDate;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun afterClick (Lcom/himanshoe/kalendar/foundation/selection/KalendarSelectionMode;Lkotlinx/datetime/LocalDate;)Lcom/himanshoe/kalendar/foundation/selection/KalendarSelection;
+	public final fun afterRangeDrag (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;)Lcom/himanshoe/kalendar/foundation/selection/KalendarSelection;
+	public final fun afterRangeDragEnd ()Lcom/himanshoe/kalendar/foundation/selection/KalendarSelection;
+	public final fun cleared ()Lcom/himanshoe/kalendar/foundation/selection/KalendarSelection;
+	public final fun copy (Ljava/util/Set;Lkotlinx/datetime/LocalDate;)Lcom/himanshoe/kalendar/foundation/selection/KalendarSelection;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/foundation/selection/KalendarSelection;Ljava/util/Set;Lkotlinx/datetime/LocalDate;ILjava/lang/Object;)Lcom/himanshoe/kalendar/foundation/selection/KalendarSelection;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDates ()Ljava/util/Set;
+	public final fun getPendingRangeStart ()Lkotlinx/datetime/LocalDate;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/foundation/selection/KalendarSelection$Companion {
+	public final fun getEmpty ()Lcom/himanshoe/kalendar/foundation/selection/KalendarSelection;
+}
+
+public abstract interface class com/himanshoe/kalendar/foundation/selection/KalendarSelectionMode {
+}
+
+public final class com/himanshoe/kalendar/foundation/selection/KalendarSelectionMode$Multiple : com/himanshoe/kalendar/foundation/selection/KalendarSelectionMode {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/himanshoe/kalendar/foundation/selection/KalendarSelectionMode$Multiple;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/foundation/selection/KalendarSelectionMode$Range : com/himanshoe/kalendar/foundation/selection/KalendarSelectionMode {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/himanshoe/kalendar/foundation/selection/KalendarSelectionMode$Range;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/foundation/selection/KalendarSelectionMode$Single : com/himanshoe/kalendar/foundation/selection/KalendarSelectionMode {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/himanshoe/kalendar/foundation/selection/KalendarSelectionMode$Single;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 

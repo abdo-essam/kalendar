@@ -18,8 +18,8 @@ package com.himanshoe.sample.playground
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
-import com.himanshoe.kalendar.view.KalendarColors
-import com.himanshoe.kalendar.view.KalendarThemeDefaults
+import com.himanshoe.kalendar.theme.KalendarColors
+import com.himanshoe.kalendar.theme.KalendarThemeDefaults
 
 /** One accent, expressed the way Material expresses one: a core plus a container pair. */
 @Immutable

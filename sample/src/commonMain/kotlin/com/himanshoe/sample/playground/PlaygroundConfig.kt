@@ -19,7 +19,7 @@ package com.himanshoe.sample.playground
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.himanshoe.kalendar.view.KalendarSelectionMode
+import com.himanshoe.kalendar.foundation.selection.KalendarSelectionMode
 
 /** The Kalendar view the playground is currently rendering. */
 internal enum class PlaygroundView(val label: String, val call: String) {
@@ -59,7 +59,7 @@ internal enum class PlaygroundAppearance(val label: String, val code: String) {
     System(label = "System", code = "KalendarThemeDefaults.systemColors()"),
 }
 
-/** The shape mapped onto [com.himanshoe.kalendar.view.KalendarShapes.dayCell]. */
+/** The shape mapped onto [com.himanshoe.kalendar.KalendarShapes.dayCell]. */
 internal enum class PlaygroundCellShape(val label: String) {
     Circle(label = "Circle"),
     Rounded(label = "Rounded"),

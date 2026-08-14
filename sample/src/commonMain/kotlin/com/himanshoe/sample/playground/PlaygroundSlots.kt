@@ -39,10 +39,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.himanshoe.kalendar.view.KalendarDayScope
-import com.himanshoe.kalendar.view.KalendarHeaderScope
-import com.himanshoe.kalendar.view.KalendarTheme
-import com.himanshoe.kalendar.view.kalendarDaySemantics
+import com.himanshoe.kalendar.component.kalendarDaySemantics
+import com.himanshoe.kalendar.slot.KalendarDayScope
+import com.himanshoe.kalendar.slot.KalendarHeaderScope
+import com.himanshoe.kalendar.theme.KalendarTheme
 
 /**
  * A hand-written replacement for the built-in day cell, wired into the `dayContent` slot.

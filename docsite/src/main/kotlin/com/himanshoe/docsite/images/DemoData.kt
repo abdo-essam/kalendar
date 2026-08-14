@@ -17,9 +17,9 @@
 package com.himanshoe.docsite.images
 
 import androidx.compose.ui.graphics.Color
+import com.himanshoe.kalendar.foundation.datetime.KalendarTimeSource
 import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
-import com.himanshoe.kalendar.view.KalendarTimeSource
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone

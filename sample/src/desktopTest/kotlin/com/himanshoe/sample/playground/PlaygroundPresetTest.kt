@@ -20,7 +20,7 @@ import androidx.compose.animation.core.SpringSpec
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.RectangleShape
-import com.himanshoe.kalendar.view.KalendarThemeDefaults
+import com.himanshoe.kalendar.theme.KalendarThemeDefaults
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
