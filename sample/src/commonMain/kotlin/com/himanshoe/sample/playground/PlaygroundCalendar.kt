@@ -34,6 +34,7 @@ import com.himanshoe.kalendar.view.KalendarTimeline
 import com.himanshoe.kalendar.view.KalendarWeek
 import com.himanshoe.kalendar.view.KalendarYear
 import com.himanshoe.kalendar.view.rememberKalendarMonthState
+import com.himanshoe.kalendar.view.rememberKalendarScheduleState
 import com.himanshoe.kalendar.view.rememberKalendarTimelineState
 import com.himanshoe.kalendar.view.rememberKalendarWeekState
 import com.himanshoe.kalendar.view.rememberKalendarYearState
@@ -167,7 +168,7 @@ internal fun PlaygroundCalendar(
             )
 
             PlaygroundView.Schedule -> KalendarSchedule(
-                selectedDate = today,
+                state = rememberKalendarScheduleState(initialDate = today),
                 modifier = modifier,
                 events = events,
                 onEventClick = {},
@@ -176,7 +177,7 @@ internal fun PlaygroundCalendar(
             )
 
             PlaygroundView.ScheduleWeek -> KalendarScheduleWeek(
-                selectedDate = today,
+                state = rememberKalendarWeekState(initialDate = today),
                 modifier = modifier,
                 events = events,
                 onEventClick = {},
