@@ -210,6 +210,9 @@ public fun KalendarSchedule(
     // recomposition and would stop the page below from ever skipping.
     val now: () -> LocalDateTime = remember(nowState) { { nowState.value } }
     val today by remember(nowState) { derivedStateOf { nowState.value.date } }
+    // Above the pager, not inside a page: the index is linear in the caller's whole event list, a
+    // count the library does not control, and a page would rebuild all of it to read one day.
+    val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
         KalendarNavigationHeader(
             title = remember(state.visibleDate, config) {
@@ -235,7 +238,7 @@ public fun KalendarSchedule(
                 day = day,
                 isToday = day == today,
                 now = now,
-                events = events,
+                eventsByDate = eventsByDate,
                 onEventClick = onEventClick,
                 onEventTimeChange = onEventTimeChange,
                 onEventCreate = onEventCreate,
@@ -351,6 +354,8 @@ public fun KalendarScheduleWeek(
     val nowState = rememberKalendarNowState(timeSource = state.timeSource, tick = nowIndicatorTick)
     val now: () -> LocalDateTime = remember(nowState) { { nowState.value } }
     val today by remember(nowState) { derivedStateOf { nowState.value.date } }
+    // Above the pager, for the reason given in KalendarSchedule.
+    val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
         KalendarNavigationHeader(
             title = remember(state.visibleDate, config) {
@@ -372,7 +377,7 @@ public fun KalendarScheduleWeek(
                 weekStart = weekStart,
                 today = today,
                 now = now,
-                events = events,
+                eventsByDate = eventsByDate,
                 onEventClick = onEventClick,
                 onEventTimeChange = onEventTimeChange,
                 onEventCreate = onEventCreate,
@@ -559,12 +564,18 @@ public object KalendarScheduleDefaults {
 private const val EVENT_LABEL_MAX_LINES = 2
 private val WEEK_DAY_HEADER_PADDING = 4.dp
 
+/**
+ * One week's grid.
+ *
+ * [eventsByDate] arrives already built rather than being indexed here: every page the pager composes
+ * runs this body, and the index covers the whole event list rather than this week's slice of it.
+ */
 @Composable
 private fun ScheduleWeekPage(
     weekStart: LocalDate,
     today: LocalDate,
     now: () -> LocalDateTime,
-    events: KalendarEvents,
+    eventsByDate: Map<LocalDate, List<KalendarEvent>>,
     onEventClick: (KalendarEvent) -> Unit,
     onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?,
     onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)?,
@@ -579,7 +590,6 @@ private fun ScheduleWeekPage(
     val days = remember(weekStart, config.visibleDaysOfWeek) {
         weekDates(weekStart = weekStart, visibleDaysOfWeek = config.visibleDaysOfWeek)
     }
-    val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     val allDayEvents = remember(days, eventsByDate) {
         days.flatMap { day ->
             (eventsByDate[day] ?: emptyList())
@@ -684,12 +694,15 @@ private fun WeekAllDayRow(
     }
 }
 
+/**
+ * One day's grid. [eventsByDate] arrives already built — see [ScheduleWeekPage].
+ */
 @Composable
 private fun SchedulePage(
     day: LocalDate,
     isToday: Boolean,
     now: () -> LocalDateTime,
-    events: KalendarEvents,
+    eventsByDate: Map<LocalDate, List<KalendarEvent>>,
     onEventClick: (KalendarEvent) -> Unit,
     onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?,
     onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)?,
@@ -700,7 +713,6 @@ private fun SchedulePage(
     nowIndicator: @Composable () -> Unit,
     eventContent: @Composable (KalendarScheduleEventScope) -> Unit,
 ) {
-    val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     val dayEvents = eventsByDate[day] ?: emptyList()
     val allDayEvents = remember(dayEvents) { dayEvents.filter { it.startTime == null } }
     val window = config.scheduleVisibleHours

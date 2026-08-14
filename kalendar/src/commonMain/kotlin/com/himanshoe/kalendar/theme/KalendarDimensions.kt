@@ -54,6 +54,24 @@ import com.himanshoe.kalendar.KalendarYear
  * @property eventIndicatorBottomPadding Inset between the row of event dots and the bottom edge
  *   of the day cell. The dots are anchored to the cell rather than stacked under the number,
  *   so that the day number's baseline does not move with the event count.
+ * @property spanBarHeight Thickness of one multi-day event's span bar — the continuous bar drawn
+ *   across every day an event with an
+ *   [endDate][com.himanshoe.kalendar.foundation.event.KalendarEvent.endDate] occupies.
+ * @property spanBarSpacing Gap below each span bar, separating it from the next bar down and the
+ *   lowest bar from the row of event dots. One lane of the span stack is therefore
+ *   [spanBarHeight] + [spanBarSpacing] tall.
+ * @property spanBarCornerRadius Corner radius applied to a span bar's **real** ends only — the
+ *   day the event starts and the day it ends. Where a bar is cut by the end of a week it stays
+ *   square and runs flush to the cell's edge, which is what distinguishes an event that has
+ *   finished from one that continues on the next row.
+ * @property spanBarEndInset How far a span bar is pulled back from the cell's edge at a real end.
+ *   The second half of that same distinction: a finished bar visibly stops inside its last day,
+ *   a wrapped one runs into the grid's edge. Set it to `0.dp` to rely on the corner radius alone.
+ * @property spanBarMaxLanes How many span bars may be stacked in one day cell. It is a budget for
+ *   vertical space, not a count of events: the strip reserved under the day number grows by one
+ *   lane for each, and a day cell too short for the whole strip drops it. Multi-day events past
+ *   the last lane fall back to the indicator dot they would have drawn before, so they are still
+ *   visible and still reach the `+N` overflow. Must be at least `0`; `0` disables span bars.
  * @property headerPadding Padding around the navigation header's contents.
  * @property headerIconSlotWidth Width reserved on each side of the header title for arrow and
  *   today buttons; the title's available width is computed from it.
@@ -99,6 +117,11 @@ public class KalendarDimensions(
     public val eventIndicatorSpacing: Dp = 2.dp,
     public val eventIndicatorBottomPadding: Dp = 2.dp,
     public val eventIndicatorStripHeight: Dp = 14.dp,
+    public val spanBarHeight: Dp = 4.dp,
+    public val spanBarSpacing: Dp = 2.dp,
+    public val spanBarCornerRadius: Dp = 2.dp,
+    public val spanBarEndInset: Dp = 3.dp,
+    public val spanBarMaxLanes: Int = DEFAULT_SPAN_BAR_LANES,
     public val headerPadding: PaddingValues = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
     public val headerIconSlotWidth: Dp = 48.dp,
     public val headerContentSpacing: Dp = 8.dp,
@@ -124,6 +147,12 @@ public class KalendarDimensions(
     public val agendaDotSize: Dp = 10.dp,
 ) {
 
+    init {
+        require(spanBarMaxLanes >= 0) {
+            "spanBarMaxLanes must be >= 0, was $spanBarMaxLanes"
+        }
+    }
+
     /** Returns a duplicate of these dimensions with only the values passed here replaced. */
     public fun copy(
         dayCellPadding: Dp = this.dayCellPadding,
@@ -132,6 +161,11 @@ public class KalendarDimensions(
         eventIndicatorSpacing: Dp = this.eventIndicatorSpacing,
         eventIndicatorBottomPadding: Dp = this.eventIndicatorBottomPadding,
         eventIndicatorStripHeight: Dp = this.eventIndicatorStripHeight,
+        spanBarHeight: Dp = this.spanBarHeight,
+        spanBarSpacing: Dp = this.spanBarSpacing,
+        spanBarCornerRadius: Dp = this.spanBarCornerRadius,
+        spanBarEndInset: Dp = this.spanBarEndInset,
+        spanBarMaxLanes: Int = this.spanBarMaxLanes,
         headerPadding: PaddingValues = this.headerPadding,
         headerIconSlotWidth: Dp = this.headerIconSlotWidth,
         headerContentSpacing: Dp = this.headerContentSpacing,
@@ -162,6 +196,11 @@ public class KalendarDimensions(
         eventIndicatorSpacing = eventIndicatorSpacing,
         eventIndicatorBottomPadding = eventIndicatorBottomPadding,
         eventIndicatorStripHeight = eventIndicatorStripHeight,
+        spanBarHeight = spanBarHeight,
+        spanBarSpacing = spanBarSpacing,
+        spanBarCornerRadius = spanBarCornerRadius,
+        spanBarEndInset = spanBarEndInset,
+        spanBarMaxLanes = spanBarMaxLanes,
         headerPadding = headerPadding,
         headerIconSlotWidth = headerIconSlotWidth,
         headerContentSpacing = headerContentSpacing,
@@ -197,6 +236,11 @@ public class KalendarDimensions(
         if (eventIndicatorSpacing != other.eventIndicatorSpacing) return false
         if (eventIndicatorBottomPadding != other.eventIndicatorBottomPadding) return false
         if (eventIndicatorStripHeight != other.eventIndicatorStripHeight) return false
+        if (spanBarHeight != other.spanBarHeight) return false
+        if (spanBarSpacing != other.spanBarSpacing) return false
+        if (spanBarCornerRadius != other.spanBarCornerRadius) return false
+        if (spanBarEndInset != other.spanBarEndInset) return false
+        if (spanBarMaxLanes != other.spanBarMaxLanes) return false
         if (headerPadding != other.headerPadding) return false
         if (headerIconSlotWidth != other.headerIconSlotWidth) return false
         if (headerContentSpacing != other.headerContentSpacing) return false
@@ -230,6 +274,11 @@ public class KalendarDimensions(
         result = 31 * result + eventIndicatorSpacing.hashCode()
         result = 31 * result + eventIndicatorBottomPadding.hashCode()
         result = 31 * result + eventIndicatorStripHeight.hashCode()
+        result = 31 * result + spanBarHeight.hashCode()
+        result = 31 * result + spanBarSpacing.hashCode()
+        result = 31 * result + spanBarCornerRadius.hashCode()
+        result = 31 * result + spanBarEndInset.hashCode()
+        result = 31 * result + spanBarMaxLanes.hashCode()
         result = 31 * result + headerPadding.hashCode()
         result = 31 * result + headerIconSlotWidth.hashCode()
         result = 31 * result + headerContentSpacing.hashCode()
@@ -263,6 +312,11 @@ public class KalendarDimensions(
         "eventIndicatorSpacing=$eventIndicatorSpacing, " +
         "eventIndicatorBottomPadding=$eventIndicatorBottomPadding, " +
         "eventIndicatorStripHeight=$eventIndicatorStripHeight, " +
+        "spanBarHeight=$spanBarHeight, " +
+        "spanBarSpacing=$spanBarSpacing, " +
+        "spanBarCornerRadius=$spanBarCornerRadius, " +
+        "spanBarEndInset=$spanBarEndInset, " +
+        "spanBarMaxLanes=$spanBarMaxLanes, " +
         "headerPadding=$headerPadding, " +
         "headerIconSlotWidth=$headerIconSlotWidth, " +
         "headerContentSpacing=$headerContentSpacing, " +
@@ -288,3 +342,11 @@ public class KalendarDimensions(
         "agendaDotSize=$agendaDotSize" +
         ")"
 }
+
+/**
+ * Two lanes of span bars, which is what a day cell in a month grid has room for at the sizes a
+ * phone gives it: the reserved indicator strip may not take more than half the cell, and two lanes
+ * plus the dot row already spend most of that. A third lane fits only on a tablet-width grid, where
+ * it would be reserved on every calendar that never overlaps two events to pay for it.
+ */
+private const val DEFAULT_SPAN_BAR_LANES = 2

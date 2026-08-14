@@ -164,6 +164,7 @@ public fun KalendarTimeline(
                     KalendarStaticGrid(
                         dates = dates,
                         startDayOfWeek = state.startDayOfWeek,
+                        events = events,
                         visibleDaysOfWeek = config.visibleDaysOfWeek,
                         dayOfWeekLabel = dayOfWeekLabel,
                     ) { date ->

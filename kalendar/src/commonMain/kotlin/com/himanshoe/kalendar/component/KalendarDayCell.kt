@@ -34,11 +34,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
@@ -59,9 +61,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.fastFirstOrNull
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastMap
 import androidx.compose.ui.util.fastMaxOfOrNull
@@ -273,6 +277,17 @@ public object KalendarDayCellDefaults {
      * resolves through the ambient [KalendarTheme]; with [KalendarAnimations.enabled] set to
      * `false` the selection fill, the press-scale, and the indicator row all change instantly.
      *
+     * An event carrying an
+     * [endDate][com.himanshoe.kalendar.foundation.event.KalendarEvent.endDate] is a *span* and
+     * draws as a bar instead of a dot: a strip in the event's colour running the full width of
+     * every day it covers, edge to edge, so the cells either side of it join into one continuous
+     * bar. It is squared off where it crosses into the next day and rounded and inset where the
+     * event actually starts or ends, which is what tells a conference that finished on Tuesday
+     * apart from one that merely ran out of week on Saturday. Spans stack in lanes decided across
+     * the whole grid rather than per day — see [KalendarSpanLanes] — so a bar holds one height for
+     * its whole run; a cell composed outside a grid, which has no such assignment, draws its
+     * multi-day events as dots. Bars and dots share the strip below the number, bars above.
+     *
      * That `+N` label is a button: tapping it opens a popover listing the day's events, so the cell
      * no longer announces that events exist and then withholds them. The *label* is the trigger
      * rather than the cell, because the cell's own tap already means "select this date" — routing
@@ -292,7 +307,8 @@ public object KalendarDayCellDefaults {
      *   description (e.g. "August 12, 2026"). See [KalendarViewConfig.monthNameFormatter].
      * @param maxEventIndicators How many event dots this cell draws before the remainder collapses
      *   into the `+N` overflow label. Defaults to 3; see [KalendarViewConfig.eventIndicatorCap],
-     *   which is what the calendar views pass in.
+     *   which is what the calendar views pass in. It counts only the events drawn as dots — a
+     *   multi-day event that got a bar lane is shown, not hidden, and so is not one of them.
      * @param onEventClick Called when a row of the overflow popover is tapped, with the event that
      *   row represents. The popover closes itself afterwards. Defaults to doing nothing, which
      *   leaves the popover a read-only list of what the cell could not show.
@@ -355,7 +371,17 @@ public object KalendarDayCellDefaults {
                 typography.dayNumber
             }
 
-        val hiddenEventCount = (scope.events.size - maxEventIndicators).coerceAtLeast(0)
+        val spanLanes = LocalKalendarSpanLanes.current
+        // Events the cell will draw as dots: everything that is not a multi-day event the
+        // surrounding grid gave a bar lane to. A span past the lane budget has no lane and lands
+        // here, which is the dot it drew before span bars existed rather than a disappearance.
+        var dottedCount = 0
+        scope.events.fastForEach { event ->
+            if (spanLanes.laneOf(event) == null) {
+                dottedCount++
+            }
+        }
+        val hiddenEventCount = (dottedCount - maxEventIndicators).coerceAtLeast(0)
         var overflowOpen by remember { mutableStateOf(false) }
         val interactionSource = remember { MutableInteractionSource() }
         val isPressed by interactionSource.collectIsPressedAsState()
@@ -383,14 +409,6 @@ public object KalendarDayCellDefaults {
                     }
                 )
                 .padding(dimensions.dayCellPadding)
-                .clip(shapes.dayCell)
-                .background(background)
-                .background(if (isHovered) colors.hoverBackground else Color.Transparent)
-                .border(
-                    width = FOCUS_RING_WIDTH,
-                    color = if (isFocused) colors.focusIndicator else Color.Transparent,
-                    shape = shapes.dayCell,
-                )
                 .kalendarDaySemantics(
                     scope = scope,
                     onClick = onClick,
@@ -398,7 +416,23 @@ public object KalendarDayCellDefaults {
                     interactionSource = interactionSource,
                 ),
         ) {
-            val hasEvents = scope.events.isNotEmpty()
+            // The cell's chrome is a sibling behind the content rather than a clip on the cell
+            // itself, because a span bar has to reach both of the cell's edges to meet its
+            // neighbours' and the dayCell shape is a circle — clipping the content would shave a
+            // full-width bar down to the width of a chord. It matches the parent's size, which is
+            // the padded cell, so it fills and outlines exactly what the clip used to.
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(shapes.dayCell)
+                    .background(background)
+                    .background(if (isHovered) colors.hoverBackground else Color.Transparent)
+                    .border(
+                        width = FOCUS_RING_WIDTH,
+                        color = if (isFocused) colors.focusIndicator else Color.Transparent,
+                        shape = shapes.dayCell,
+                    ),
+            )
             val onOverflowClick = if (showOverflowPopup && hiddenEventCount > 0) {
                 { overflowOpen = true }
             } else {
@@ -406,6 +440,9 @@ public object KalendarDayCellDefaults {
             }
             KalendarDayCellLayout(
                 indicatorStripHeight = dimensions.eventIndicatorStripHeight,
+                spanLaneHeight = dimensions.spanBarHeight + dimensions.spanBarSpacing,
+                spanLaneCount = spanLanes.laneCount,
+                spanBarBleed = dimensions.dayCellPadding,
                 dayNumber = {
                     BasicText(
                         text = scope.date.day.toString(),
@@ -418,19 +455,31 @@ public object KalendarDayCellDefaults {
                         ),
                     )
                 },
+                spanBars = {
+                    for (lane in 0 until spanLanes.laneCount) {
+                        SpanBar(
+                            date = scope.date,
+                            event = scope.events.fastFirstOrNull { spanLanes.laneOf(it) == lane },
+                        )
+                    }
+                },
                 indicators = {
                     if (animations.enabled) {
-                        AnimatedVisibility(visible = hasEvents) {
+                        AnimatedVisibility(visible = dottedCount > 0) {
                             EventIndicatorRow(
                                 scope = scope,
+                                spanLanes = spanLanes,
+                                dottedCount = dottedCount,
                                 maxEventIndicators = maxEventIndicators,
                                 textColor = textColor,
                                 onOverflowClick = onOverflowClick,
                             )
                         }
-                    } else if (hasEvents) {
+                    } else if (dottedCount > 0) {
                         EventIndicatorRow(
                             scope = scope,
+                            spanLanes = spanLanes,
+                            dottedCount = dottedCount,
                             maxEventIndicators = maxEventIndicators,
                             textColor = textColor,
                             onOverflowClick = onOverflowClick,
@@ -549,9 +598,188 @@ private fun OverflowEventRow(
 }
 
 /**
+ * One lane of a day cell's span-bar stack: the slice of [event] that falls on [date], or an empty
+ * placeholder when nothing occupies that lane today.
+ *
+ * The placeholder is not optional. A lane belongs to a span for its whole run, so the lane a day
+ * does not use still has to take up its row — drop it and every bar below it climbs one lane on
+ * that day alone, which is the staircase this whole feature exists to remove.
+ *
+ * The slice is drawn edge to edge and squared off, *except* where [date] is the span's real first
+ * or last day: there it is inset by [KalendarDimensions.spanBarEndInset] and rounded by
+ * [KalendarDimensions.spanBarCornerRadius]. That is the whole vocabulary — a bar that runs into the
+ * cell's edge continues past it, whether into tomorrow or, at the end of a row, into next week; a
+ * bar that stops short of the edge has finished. Both insets are start/end relative rather than
+ * left/right, so the reading survives a right-to-left calendar, where the span's first day is its
+ * rightmost.
+ *
+ * The bar keeps [KalendarEvent.eventColor] even on the selected day, where the dots switch to the
+ * selection's content colour: a bar that changed colour for one day in the middle of its run would
+ * read as two events, and continuity is the thing being drawn.
+ */
+@Composable
+private fun SpanBar(date: LocalDate, event: KalendarEvent?) {
+    val colors = kalendarColors()
+    val dimensions = kalendarDimensions()
+    val spanEnd = event?.spanEndOrNull()
+    val isStart = event != null && date == event.date
+    val isEnd = spanEnd != null && date == spanEnd
+    val radius = dimensions.spanBarCornerRadius
+    Box(
+        modifier = Modifier
+            .height(dimensions.spanBarHeight)
+            .padding(
+                start = if (isStart) dimensions.spanBarEndInset else 0.dp,
+                end = if (isEnd) dimensions.spanBarEndInset else 0.dp,
+            )
+            .clip(
+                RoundedCornerShape(
+                    topStart = if (isStart) radius else 0.dp,
+                    bottomStart = if (isStart) radius else 0.dp,
+                    topEnd = if (isEnd) radius else 0.dp,
+                    bottomEnd = if (isEnd) radius else 0.dp,
+                )
+            )
+            .background(
+                if (event == null) {
+                    Color.Transparent
+                } else {
+                    event.eventColor ?: colors.eventIndicator
+                }
+            ),
+    )
+}
+
+/**
+ * Places a day cell's number, its span bars and its event indicators so none can crowd the others.
+ *
+ * A strip of [indicatorStripHeight] plus one [spanLaneHeight] per drawn lane is reserved along the
+ * bottom edge whether or not this particular day has anything to put in it, and the number is
+ * centred in what is left. Reserving unconditionally is the whole point: stacking the parts in a
+ * centred [Column] centres the number against *number plus indicators*, so it rises as the day
+ * fills up — measured at 3px for one dot and 10px for a full set with an overflow label, which left
+ * a single week's numbers sitting at three different heights and, with animation enabled, visibly
+ * sliding upward as the dots faded in. [spanLaneCount] is a property of the grid's whole event list
+ * rather than of this day, for the same reason: it is the same number in every cell.
+ *
+ * A cell too short to hold both drops the indicators instead of overlapping them. That case is real
+ * rather than defensive: a year view draws twelve month grids at once, and its cells are a fraction
+ * the height of a month view's. A day number drawn over by dots is unreadable, whereas a missing
+ * dot on a very small cell costs only detail the cell had no room to carry.
+ *
+ * Span bars are measured [spanBarBleed] wider than the cell on each side and placed back by the
+ * same amount, so a bar reaches the cell's true edges rather than the inside of its padding and
+ * meets its neighbour's exactly. The bleed is the day-cell padding, which is what separates two
+ * cells' content; there is nothing between two cells but it.
+ *
+ * @param indicatorStripHeight Space reserved for indicator dots, from
+ *   [KalendarDimensions.eventIndicatorStripHeight].
+ * @param spanLaneHeight Height of one span lane — a bar plus the gap under it.
+ * @param spanLaneCount Lanes the grid reserves, from [KalendarSpanLanes.laneCount]. More may be
+ *   asked for than a short cell can afford, in which case the surplus is dropped.
+ * @param spanBarBleed How far a span bar overhangs the cell on each side.
+ * @param dayNumber The day number, centred in the remaining height.
+ * @param spanBars Exactly [spanLaneCount] lanes, top to bottom, above the indicator dots.
+ * @param indicators The indicator row, bottom-aligned within the reserved strip.
+ */
+@Composable
+@Suppress("LongParameterList")
+private fun KalendarDayCellLayout(
+    indicatorStripHeight: Dp,
+    spanLaneHeight: Dp,
+    spanLaneCount: Int,
+    spanBarBleed: Dp,
+    dayNumber: @Composable () -> Unit,
+    spanBars: @Composable () -> Unit,
+    indicators: @Composable () -> Unit,
+) {
+    Layout(contents = listOf(dayNumber, spanBars, indicators)) { measurables, constraints ->
+        val (numberMeasurables, spanMeasurables, indicatorMeasurables) = measurables
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val dotStripPx = indicatorStripHeight.roundToPx()
+        val lanePx = spanLaneHeight.roundToPx()
+        val bleedPx = spanBarBleed.roundToPx()
+        val boundedHeight = constraints.hasBoundedHeight
+
+        // Surplus lanes are dropped one at a time, rather than the strip going all-or-nothing on
+        // the whole stack. The rule below only permits a strip up to half the cell, and two lanes
+        // plus the dots already exceed that at the cell size a phone-width month grid produces —
+        // so a second overlapping event would otherwise cost the grid its dots as well as its
+        // bars. It draws one bar instead of two. A lane dropped here is one the `+N` label,
+        // decided during composition, does not know about; the overflow popover still lists every
+        // event, so nothing becomes unreachable.
+        val laneBudget = if (boundedHeight && lanePx > 0) {
+            ((constraints.maxHeight / 2 - dotStripPx) / lanePx).coerceAtLeast(0)
+        } else {
+            spanLaneCount
+        }
+        val lanes = if (constraints.hasBoundedWidth) minOf(spanLaneCount, laneBudget) else 0
+        val stripPx = dotStripPx + lanes * lanePx
+
+        // The number yields to the strip rather than the strip yielding to the number: the number
+        // auto-sizes, so squeezing its band shrinks the glyph, whereas dropping the strip loses
+        // information outright. Only when the band left over would be narrower than the strip
+        // itself — a year view's cells, where the number would end up smaller than its own dots —
+        // is the strip abandoned and the whole cell given back to the number.
+        val indicatorsFit = boundedHeight && constraints.maxHeight - stripPx >= stripPx
+        val stripDrawn = indicatorsFit || !boundedHeight
+        val numberBand = when {
+            !boundedHeight -> loose.maxHeight
+            indicatorsFit -> constraints.maxHeight - stripPx
+            else -> constraints.maxHeight
+        }
+
+        val numberPlaceables = numberMeasurables.fastMap { it.measure(loose.copy(maxHeight = numberBand)) }
+        val numberHeight = numberPlaceables.fastMaxOfOrNull { it.height } ?: 0
+        val numberWidth = numberPlaceables.fastMaxOfOrNull { it.width } ?: 0
+
+        val barsDrawn = stripDrawn && lanes > 0
+        val barWidth = if (barsDrawn) constraints.maxWidth + 2 * bleedPx else 0
+        val spanPlaceables = spanMeasurables.fastMap {
+            it.measure(
+                Constraints(
+                    minWidth = barWidth,
+                    maxWidth = barWidth,
+                    minHeight = 0,
+                    maxHeight = if (barsDrawn) lanePx else 0,
+                )
+            )
+        }
+        val indicatorPlaceables = indicatorMeasurables.fastMap {
+            it.measure(loose.copy(maxHeight = if (indicatorsFit) dotStripPx else 0))
+        }
+        val height = if (boundedHeight) constraints.maxHeight else numberHeight + stripPx
+        val width = if (constraints.hasBoundedWidth) {
+            constraints.maxWidth
+        } else {
+            maxOf(numberWidth, indicatorPlaceables.fastMaxOfOrNull { it.width } ?: 0)
+        }
+        val band = if (stripDrawn) height - stripPx else height
+
+        layout(width, height) {
+            numberPlaceables.fastForEach {
+                it.place((width - it.width) / 2, (band - it.height) / 2)
+            }
+            if (stripDrawn) {
+                for (lane in 0 until minOf(lanes, spanPlaceables.size)) {
+                    spanPlaceables[lane].place(-bleedPx, band + lane * lanePx)
+                }
+                indicatorPlaceables.fastForEach {
+                    it.place((width - it.width) / 2, height - it.height)
+                }
+            }
+        }
+    }
+}
+
+/**
  * The row of per-event indicator dots below a day number, plus the compact `+N` label for events
  * past [maxEventIndicators]. [textColor] is the day number's colour, reused for the dots and the
  * overflow label on a selected cell so they stay legible against the selection fill.
+ *
+ * Only the [dottedCount] events [spanLanes] gave no bar lane to are drawn here, and only they are
+ * counted towards the label: an event already showing as a span bar is one the cell *did* show, so
+ * announcing it as one more the cell could not is simply wrong.
  *
  * [onOverflowClick] turns the `+N` label into the popover trigger. It is applied to the label alone
  * and adds no padding or minimum size, both because the day cell has no room to spare and because
@@ -563,80 +791,12 @@ private fun OverflowEventRow(
  * the cell around it: a screen reader reaches the date first and the "show all events" button after,
  * rather than hearing "+2" spliced into the date announcement.
  */
-/**
- * Places a day cell's number and its event indicators so neither can crowd the other.
- *
- * [indicatorStripHeight] is reserved along the bottom edge whether or not this particular day has
- * indicators, and the number is centred in what is left. Reserving unconditionally is the whole
- * point: stacking the two in a centred [Column] centres the number against *number plus
- * indicators*, so it rises as the day fills up — measured at 3px for one dot and 10px for a full
- * set with an overflow label, which left a single week's numbers sitting at three different heights
- * and, with animation enabled, visibly sliding upward as the dots faded in.
- *
- * A cell too short to hold both drops the indicators instead of overlapping them. That case is real
- * rather than defensive: a year view draws twelve month grids at once, and its cells are a fraction
- * the height of a month view's. A day number drawn over by dots is unreadable, whereas a missing
- * dot on a very small cell costs only detail the cell had no room to carry.
- *
- * @param indicatorStripHeight Space reserved for indicators, from
- *   [KalendarDimensions.eventIndicatorStripHeight].
- * @param dayNumber The day number, centred in the remaining height.
- * @param indicators The indicator row, bottom-aligned within the reserved strip.
- */
 @Composable
-private fun KalendarDayCellLayout(
-    indicatorStripHeight: Dp,
-    dayNumber: @Composable () -> Unit,
-    indicators: @Composable () -> Unit,
-) {
-    Layout(contents = listOf(dayNumber, indicators)) { (numberMeasurables, indicatorMeasurables), constraints ->
-        val loose = constraints.copy(minWidth = 0, minHeight = 0)
-        val stripPx = indicatorStripHeight.roundToPx()
-
-        // The number yields to the strip rather than the strip yielding to the number: the number
-        // auto-sizes, so squeezing its band shrinks the glyph, whereas dropping the strip loses
-        // information outright. Only when the band left over would be narrower than the strip
-        // itself — a year view's cells, where the number would end up smaller than its own dots —
-        // is the strip abandoned and the whole cell given back to the number.
-        val boundedHeight = constraints.hasBoundedHeight
-        val indicatorsFit = boundedHeight && constraints.maxHeight - stripPx >= stripPx
-        val numberBand = when {
-            !boundedHeight -> loose.maxHeight
-            indicatorsFit -> constraints.maxHeight - stripPx
-            else -> constraints.maxHeight
-        }
-
-        val numberPlaceables = numberMeasurables.fastMap { it.measure(loose.copy(maxHeight = numberBand)) }
-        val numberHeight = numberPlaceables.fastMaxOfOrNull { it.height } ?: 0
-        val numberWidth = numberPlaceables.fastMaxOfOrNull { it.width } ?: 0
-
-        val indicatorPlaceables = indicatorMeasurables.fastMap {
-            it.measure(loose.copy(maxHeight = if (indicatorsFit) stripPx else 0))
-        }
-        val height = if (boundedHeight) constraints.maxHeight else numberHeight + stripPx
-        val width = if (constraints.hasBoundedWidth) {
-            constraints.maxWidth
-        } else {
-            maxOf(numberWidth, indicatorPlaceables.fastMaxOfOrNull { it.width } ?: 0)
-        }
-        val band = if (indicatorsFit || !boundedHeight) height - stripPx else height
-
-        layout(width, height) {
-            numberPlaceables.fastForEach {
-                it.place((width - it.width) / 2, (band - it.height) / 2)
-            }
-            if (indicatorsFit || !boundedHeight) {
-                indicatorPlaceables.fastForEach {
-                    it.place((width - it.width) / 2, height - it.height)
-                }
-            }
-        }
-    }
-}
-
-@Composable
+@Suppress("LongParameterList")
 private fun EventIndicatorRow(
     scope: KalendarDayScope,
+    spanLanes: KalendarSpanLanes,
+    dottedCount: Int,
     maxEventIndicators: Int,
     textColor: Color,
     onOverflowClick: (() -> Unit)?,
@@ -652,26 +812,31 @@ private fun EventIndicatorRow(
         horizontalArrangement = Arrangement.spacedBy(dimensions.eventIndicatorSpacing),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Indexed rather than `take(n).forEach`: take allocates a sublist on every cell, which is
-        // 42 allocations for a month grid and around 400 for a year. There is no fastTake.
-        val shownCount = minOf(maxEventIndicators, scope.events.size)
-        for (index in 0 until shownCount) {
+        // Indexed rather than `filter { }.take(n).forEach`: either allocates a list on every cell,
+        // which is 42 allocations for a month grid and around 400 for a year. There is no fastTake.
+        var shown = 0
+        var index = 0
+        while (index < scope.events.size && shown < maxEventIndicators) {
             val event = scope.events[index]
-            Box(
-                modifier = Modifier
-                    .size(dimensions.eventIndicatorSize)
-                    .clip(shapes.eventIndicator)
-                    .background(
-                        when {
-                            scope.isSelected -> textColor
-                            else -> event.eventColor ?: colors.eventIndicator
-                        }
-                    ),
-            )
+            index++
+            if (spanLanes.laneOf(event) == null) {
+                shown++
+                Box(
+                    modifier = Modifier
+                        .size(dimensions.eventIndicatorSize)
+                        .clip(shapes.eventIndicator)
+                        .background(
+                            when {
+                                scope.isSelected -> textColor
+                                else -> event.eventColor ?: colors.eventIndicator
+                            }
+                        ),
+                )
+            }
         }
-        if (scope.events.size > maxEventIndicators) {
+        if (dottedCount > maxEventIndicators) {
             BasicText(
-                text = strings.eventOverflowLabel(scope.events.size - maxEventIndicators),
+                text = strings.eventOverflowLabel(dottedCount - maxEventIndicators),
                 style = typography.eventOverflowLabel.copy(
                     color = if (scope.isSelected) textColor else colors.eventIndicator,
                 ),

@@ -35,6 +35,8 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -42,6 +44,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,14 +65,18 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import com.himanshoe.kalendar.foundation.event.KalendarEvent
+import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.grid.ALL_DAYS_OF_WEEK
 import com.himanshoe.kalendar.foundation.grid.daysOfWeekStartingAt
 import com.himanshoe.kalendar.theme.kalendarAnimations
 import com.himanshoe.kalendar.theme.kalendarColors
 import com.himanshoe.kalendar.theme.kalendarDimensions
 import com.himanshoe.kalendar.theme.kalendarShapes
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.plus
 
 /**
  * Test tag on the sliding selection indicator, so a test can assert it is never placed at the
@@ -82,6 +89,114 @@ internal const val SELECTION_INDICATOR_TAG = "KalendarSelectionIndicator"
  * without depending on the pixels it draws.
  */
 internal const val KEYBOARD_FOCUS_RING_TAG = "KalendarKeyboardFocusRing"
+
+/**
+ * Longest run of days one multi-day event is laid out across.
+ *
+ * The same guard `byDateExpandingSpans` applies when it expands a span into dates, repeated here
+ * so the two agree: an event the grid never draws past day 366 must not hold a lane past day 366
+ * either, or one malformed `endDate` in the year 9999 reserves a lane in every cell forever.
+ */
+private const val MAX_EVENT_SPAN_DAYS = 366
+
+/**
+ * The last date this event occupies as a **continuous span**, or `null` if it is not one.
+ *
+ * An event is a span only when it covers more than one day. An `endDate` equal to or before
+ * [KalendarEvent.date] is not a span — it is the single-day event `byDateExpandingSpans` already
+ * treats it as, and it draws the indicator dot it always did.
+ */
+internal fun KalendarEvent.spanEndOrNull(): LocalDate? {
+    val end = endDate ?: return null
+    if (end <= date) return null
+    return minOf(end, date.plus(MAX_EVENT_SPAN_DAYS, DateTimeUnit.DAY))
+}
+
+/**
+ * Which lane of a day cell's span-bar stack each multi-day event was given, and how many lanes the
+ * grid therefore reserves in every one of its cells.
+ *
+ * A lane has to be a property of the *event*, not of the day: the same conference has to sit at the
+ * same height on all three of its days or its bar is a staircase rather than a bar. That cannot be
+ * decided from one day's event list, because a lane freed by an event that ended yesterday would be
+ * reused today and the event above it would drop a row. So it is decided once for the whole event
+ * list and read back per cell — which is also why [laneCount] is uniform across the grid, and why
+ * the strip a day cell reserves under its number is the same height whatever that day holds.
+ *
+ * An event with no lane — one past `spanBarMaxLanes` — is *not* hidden. It falls back to the
+ * indicator dot it drew before span bars existed, so it stays visible and still reaches the `+N`
+ * overflow when the dots run out.
+ */
+@Immutable
+internal class KalendarSpanLanes private constructor(
+    private val lanes: Map<KalendarEvent, Int>,
+    val laneCount: Int,
+) {
+
+    /** The lane [event] occupies, or `null` if it is not a span or did not fit the lane budget. */
+    fun laneOf(event: KalendarEvent): Int? = lanes[event]
+
+    internal companion object {
+
+        /** No spans anywhere: every cell reserves no lanes and every event draws as a dot. */
+        val Empty: KalendarSpanLanes = KalendarSpanLanes(lanes = emptyMap(), laneCount = 0)
+
+        /**
+         * Packs every multi-day event in [events] into the lowest lane free for its whole run,
+         * taking at most [maxLanes] of them.
+         *
+         * Sweeping the spans in start order and tracking one "occupied until" date per lane is the
+         * standard interval-graph greedy, and it is optimal here: it never uses more lanes than the
+         * deepest overlap actually needs, so a calendar whose spans never overlap reserves exactly
+         * one lane and the day numbers keep almost all of the cell.
+         *
+         * Ties are broken towards the longer span so the bar that runs furthest sits highest, and
+         * `sortedWith` is stable, so two spans alike in both dates keep their order in [events] and
+         * the lanes come out the same on every recomposition.
+         */
+        fun of(events: KalendarEvents, maxLanes: Int): KalendarSpanLanes {
+            if (maxLanes < 1) return Empty
+            val spans = events
+                .mapNotNull { event -> event.spanEndOrNull()?.let { end -> event to end } }
+                .distinct()
+            if (spans.isEmpty()) return Empty
+
+            val ordered = spans.sortedWith(
+                compareBy<Pair<KalendarEvent, LocalDate>> { it.first.date }
+                    .thenByDescending { it.second },
+            )
+            val laneEnds = mutableListOf<LocalDate>()
+            val lanes = HashMap<KalendarEvent, Int>(ordered.size)
+            for ((event, end) in ordered) {
+                val free = laneEnds.indexOfFirst { it < event.date }
+                when {
+                    free >= 0 -> {
+                        laneEnds[free] = end
+                        lanes[event] = free
+                    }
+                    laneEnds.size < maxLanes -> {
+                        lanes[event] = laneEnds.size
+                        laneEnds.add(end)
+                    }
+                }
+            }
+            return KalendarSpanLanes(lanes = lanes, laneCount = laneEnds.size)
+        }
+    }
+}
+
+/**
+ * The span-bar lanes in force for the surrounding grid, which is the only thing a day cell cannot
+ * work out for itself.
+ *
+ * Provided by [KalendarGrid] and [KalendarStaticGrid] from the whole event list they were given,
+ * and read by [KalendarDayCellDefaults.Cell]. It travels as a composition local rather than a cell
+ * parameter because the cell is reached through a caller-supplied `cell`/`dayContent` lambda, whose
+ * signature belongs to the calling app; a [KalendarDayCellDefaults.Cell] composed outside any grid
+ * finds [KalendarSpanLanes.Empty] here and renders multi-day events exactly as it did before span
+ * bars existed.
+ */
+internal val LocalKalendarSpanLanes = staticCompositionLocalOf { KalendarSpanLanes.Empty }
 
 /**
  * Grid engine backing [KalendarWeek] and [KalendarMonth], one column per *visible* day of the week.
@@ -105,6 +220,11 @@ internal const val KEYBOARD_FOCUS_RING_TAG = "KalendarKeyboardFocusRing"
  * highlight follows the cell under the pointer, and releasing over a different date calls
  * [onEventDrop] with (pressed date, drop date). Cells without events still fall through to
  * range selection.
+ *
+ * [events] is the whole event list, not one day's: it is what the grid packs into span-bar lanes
+ * for the multi-day events in it, and a lane can only be assigned by looking at every span at once
+ * (see [KalendarSpanLanes]). The result reaches the cells through [LocalKalendarSpanLanes]. Leave
+ * it empty on a grid that draws no events — a date picker — and nothing about the cells changes.
  *
  * [dayOfWeekLabel] supplies the *content* of each weekday column header; the grid itself still
  * measures and places one per column, in the same track as the day cells, so a replacement label can
@@ -132,6 +252,7 @@ internal fun KalendarGrid(
     onDateRangeDragEnd: (() -> Unit)? = null,
     hasEvents: (LocalDate) -> Boolean = { false },
     onEventDrop: ((from: LocalDate, to: LocalDate) -> Unit)? = null,
+    events: KalendarEvents = emptyList(),
     visibleDaysOfWeek: Set<DayOfWeek> = ALL_DAYS_OF_WEEK,
     dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
         KalendarHeaderDefaults.DayOfWeekLabel(dayOfWeek = dayOfWeek)
@@ -246,92 +367,113 @@ internal fun KalendarGrid(
         Modifier
     }
 
-    Box(modifier = modifier.onGloballyPositioned { containerCoordinates = it }.then(dragModifier)) {
-        if (targetPosition != null) {
-            Box(
-                modifier = Modifier
-                    .offset {
-                        val drawn = if (hasSnappedIndicator) indicatorOffset.value else targetPosition
-                        IntOffset(drawn.x.toInt(), drawn.y.toInt())
-                    }
-                    .layout { measurable, _ ->
-                        val placeable = measurable.measure(Constraints.fixed(targetSize.width, targetSize.height))
-                        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
-                    }
-                    // After the offset, so the tagged node reports where the indicator actually
-                    // lands rather than where it would sit unoffset.
-                    .testTag(SELECTION_INDICATOR_TAG)
-                    .padding(dimensions.dayCellPadding)
-                    .clip(shapes.dayCell)
-                    .background(colors.selectionBackground),
-            )
-        }
-
-        val ghostCoordinates = eventDragTarget?.let { cellCoordinates[it] }
-        if (container != null && ghostCoordinates != null && ghostCoordinates.isAttached) {
-            val ghostPosition = container.localPositionOf(ghostCoordinates, Offset.Zero)
-            Box(
-                modifier = Modifier
-                    .offset { IntOffset(ghostPosition.x.toInt(), ghostPosition.y.toInt()) }
-                    .layout { measurable, _ ->
-                        val placeable = measurable.measure(
-                            Constraints.fixed(ghostCoordinates.size.width, ghostCoordinates.size.height)
-                        )
-                        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
-                    }
-                    .padding(dimensions.dayCellPadding)
-                    .clip(shapes.dayCell)
-                    .background(colors.dragGhostBackground.copy(alpha = colors.dragGhostAlpha)),
-            )
-        }
-
-        if (keyboard != null) {
-            KeyboardFocusRing(
-                keyboard = keyboard,
-                container = { containerCoordinates },
-                cellCoordinates = cellCoordinates,
-            )
-        }
-
-        val rowCount = (dates.size + columns - 1) / columns
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(columns),
-            modifier = Modifier
-                .fillMaxWidth()
-                .semantics { collectionInfo = CollectionInfo(rowCount = rowCount, columnCount = columns) },
-            horizontalArrangement = Arrangement.Center,
-            userScrollEnabled = false,
-        ) {
-            items(labelDays) { day ->
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    dayOfWeekLabel(day)
-                }
-            }
-            itemsIndexed(items = dates, key = { _, date -> date.toEpochDays() }) { index, date ->
+    CompositionLocalProvider(
+        LocalKalendarSpanLanes provides rememberKalendarSpanLanes(
+            events = events,
+            maxLanes = dimensions.spanBarMaxLanes,
+        ),
+    ) {
+        Box(modifier = modifier.onGloballyPositioned { containerCoordinates = it }.then(dragModifier)) {
+            if (targetPosition != null) {
                 Box(
                     modifier = Modifier
-                        .onGloballyPositioned { cellCoordinates[date] = it }
-                        // Deactivates the cell's own focusability — and that of anything it draws,
-                        // such as the `+N` trigger — so the grid is one tab stop, not 42. It has to
-                        // sit on a node with no focus target of its own in its chain, which is why
-                        // it is here and not on the LazyVerticalGrid: there it would only deactivate
-                        // the lazy layout's internal focus group and leave the cells reachable.
-                        .then(if (keyboard == null) Modifier else Modifier.focusProperties { canFocus = false })
-                        .semantics {
-                            collectionItemInfo = CollectionItemInfo(
-                                rowIndex = index / columns,
-                                rowSpan = 1,
-                                columnIndex = index % columns,
-                                columnSpan = 1,
+                        .offset {
+                            val drawn = if (hasSnappedIndicator) indicatorOffset.value else targetPosition
+                            IntOffset(drawn.x.toInt(), drawn.y.toInt())
+                        }
+                        .layout { measurable, _ ->
+                            val placeable = measurable.measure(Constraints.fixed(targetSize.width, targetSize.height))
+                            layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+                        }
+                        // After the offset, so the tagged node reports where the indicator actually
+                        // lands rather than where it would sit unoffset.
+                        .testTag(SELECTION_INDICATOR_TAG)
+                        .padding(dimensions.dayCellPadding)
+                        .clip(shapes.dayCell)
+                        .background(colors.selectionBackground),
+                )
+            }
+
+            val ghostCoordinates = eventDragTarget?.let { cellCoordinates[it] }
+            if (container != null && ghostCoordinates != null && ghostCoordinates.isAttached) {
+                val ghostPosition = container.localPositionOf(ghostCoordinates, Offset.Zero)
+                Box(
+                    modifier = Modifier
+                        .offset { IntOffset(ghostPosition.x.toInt(), ghostPosition.y.toInt()) }
+                        .layout { measurable, _ ->
+                            val placeable = measurable.measure(
+                                Constraints.fixed(ghostCoordinates.size.width, ghostCoordinates.size.height)
                             )
-                        },
-                ) {
-                    cell(date)
+                            layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+                        }
+                        .padding(dimensions.dayCellPadding)
+                        .clip(shapes.dayCell)
+                        .background(colors.dragGhostBackground.copy(alpha = colors.dragGhostAlpha)),
+                )
+            }
+
+            if (keyboard != null) {
+                KeyboardFocusRing(
+                    keyboard = keyboard,
+                    container = { containerCoordinates },
+                    cellCoordinates = cellCoordinates,
+                )
+            }
+
+            val rowCount = (dates.size + columns - 1) / columns
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(columns),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { collectionInfo = CollectionInfo(rowCount = rowCount, columnCount = columns) },
+                horizontalArrangement = Arrangement.Center,
+                userScrollEnabled = false,
+            ) {
+                items(labelDays) { day ->
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        dayOfWeekLabel(day)
+                    }
+                }
+                itemsIndexed(items = dates, key = { _, date -> date.toEpochDays() }) { index, date ->
+                    Box(
+                        modifier = Modifier
+                            .onGloballyPositioned { cellCoordinates[date] = it }
+                            // Deactivates the cell's own focusability — and that of anything it
+                            // draws, such as the `+N` trigger — so the grid is one tab stop, not
+                            // 42. It has to sit on a node with no focus target of its own in its
+                            // chain, which is why it is here and not on the LazyVerticalGrid: there
+                            // it would only deactivate the lazy layout's internal focus group and
+                            // leave the cells reachable.
+                            .then(if (keyboard == null) Modifier else Modifier.focusProperties { canFocus = false })
+                            .semantics {
+                                collectionItemInfo = CollectionItemInfo(
+                                    rowIndex = index / columns,
+                                    rowSpan = 1,
+                                    columnIndex = index % columns,
+                                    columnSpan = 1,
+                                )
+                            },
+                    ) {
+                        cell(date)
+                    }
                 }
             }
         }
     }
 }
+
+/**
+ * Packs [events]'s multi-day spans into lanes, recomputing only when the event list or the lane
+ * budget changes.
+ *
+ * The pass is O(spans log spans) and runs on every grid, which for [KalendarYear] means once per
+ * month on screen over the same list. That is deliberate: hoisting it into the calendar views would
+ * put a grid's private layout decision into four public composables' bodies, and the cost is a sort
+ * of the multi-day events alone — not the whole list — behind a `remember`.
+ */
+@Composable
+private fun rememberKalendarSpanLanes(events: KalendarEvents, maxLanes: Int): KalendarSpanLanes =
+    remember(events, maxLanes) { KalendarSpanLanes.of(events = events, maxLanes = maxLanes) }
 
 /**
  * The roving keyboard focus ring: a [KalendarColors.focusIndicator] outline around whichever cell
@@ -405,13 +547,15 @@ private fun dateAtOffset(
  *
  * As in [KalendarGrid], [dayOfWeekLabel] supplies only the content of each weekday column header —
  * this grid keeps the `weight(1f)` column placement, so alignment with the day cells is preserved —
- * and [visibleDaysOfWeek] sets the column count, [dates] being expected to carry the same filter.
+ * [visibleDaysOfWeek] sets the column count, [dates] being expected to carry the same filter, and
+ * [events] is the whole event list, from which the grid packs span-bar lanes for its cells.
  */
 @Composable
 internal fun KalendarStaticGrid(
     dates: List<LocalDate>,
     startDayOfWeek: DayOfWeek,
     modifier: Modifier = Modifier,
+    events: KalendarEvents = emptyList(),
     visibleDaysOfWeek: Set<DayOfWeek> = ALL_DAYS_OF_WEEK,
     dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
         KalendarHeaderDefaults.DayOfWeekLabel(dayOfWeek = dayOfWeek)
@@ -423,21 +567,28 @@ internal fun KalendarStaticGrid(
     }
     val columns = labelDays.size
 
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            labelDays.forEach { day ->
-                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    dayOfWeekLabel(day)
+    CompositionLocalProvider(
+        LocalKalendarSpanLanes provides rememberKalendarSpanLanes(
+            events = events,
+            maxLanes = kalendarDimensions().spanBarMaxLanes,
+        ),
+    ) {
+        Column(modifier = modifier.fillMaxWidth()) {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                labelDays.forEach { day ->
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        dayOfWeekLabel(day)
+                    }
                 }
             }
-        }
-        dates.chunked(columns).forEach { week ->
-            Row(modifier = Modifier.fillMaxWidth()) {
-                for (dayIndex in 0 until columns) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        val date = week.getOrNull(dayIndex)
-                        if (date != null) {
-                            cell(date)
+            dates.chunked(columns).forEach { week ->
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    for (dayIndex in 0 until columns) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            val date = week.getOrNull(dayIndex)
+                            if (date != null) {
+                                cell(date)
+                            }
                         }
                     }
                 }

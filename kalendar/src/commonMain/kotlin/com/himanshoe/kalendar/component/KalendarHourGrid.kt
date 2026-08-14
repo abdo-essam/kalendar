@@ -74,14 +74,26 @@ internal fun KalendarHourGutter(
     }
 }
 
-/** The horizontal rule at the top of each hour row in [window]. */
+/**
+ * The horizontal rule at the top of each hour row in [window].
+ *
+ * Both shapes are built once for the whole column rather than per row, and the rule is emitted
+ * directly instead of through [KalendarHourGridLine]. The theme lookups behind it answer the same
+ * thing for every row, and this is the most-repeated composable in the library — a week grid draws
+ * one of these per hour in each of its seven columns.
+ */
 @Composable
 internal fun KalendarHourLines(hourHeight: Dp, window: KalendarHourWindow) {
     val gridLineThickness = kalendarDimensions().gridLineThickness
+    val rule = Modifier
+        .fillMaxWidth()
+        .height(gridLineThickness)
+        .background(kalendarColors().gridLine)
+    val gap = Modifier.height(hourHeight - gridLineThickness)
     Column(modifier = Modifier.fillMaxSize()) {
         repeat(window.hourCount) {
-            KalendarHourGridLine()
-            Box(modifier = Modifier.height(hourHeight - gridLineThickness))
+            Box(modifier = rule)
+            Box(modifier = gap)
         }
     }
 }

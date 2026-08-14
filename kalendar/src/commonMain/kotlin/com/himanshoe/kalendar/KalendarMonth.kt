@@ -214,6 +214,7 @@ public fun KalendarMonth(
                     onDateRangeDragEnd = onDateRangeSelectEnd,
                     hasEvents = { date -> eventsByDate[date]?.isNotEmpty() == true },
                     onEventDrop = gridEventDrop,
+                    events = events,
                     visibleDaysOfWeek = config.visibleDaysOfWeek,
                     dayOfWeekLabel = dayOfWeekLabel,
                 ) { date ->

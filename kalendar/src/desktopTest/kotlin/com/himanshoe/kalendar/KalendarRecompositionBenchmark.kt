@@ -22,8 +22,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
@@ -39,20 +42,25 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.dp
 import com.himanshoe.kalendar.foundation.datetime.KalendarTimeSource
 import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
+import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.schedule.KalendarHourWindow
 import com.himanshoe.kalendar.foundation.schedule.KalendarResource
 import com.himanshoe.kalendar.slot.KalendarDayScope
 import com.himanshoe.kalendar.slot.KalendarHeaderScope
 import com.himanshoe.kalendar.slot.KalendarScheduleEventScope
+import com.himanshoe.kalendar.state.KalendarViewState
 import com.himanshoe.kalendar.state.ProvideKalendarTimeSource
 import com.himanshoe.kalendar.state.rememberKalendarScheduleState
+import com.himanshoe.kalendar.state.rememberKalendarWeekState
 import com.himanshoe.kalendar.theme.KalendarAnimations
 import com.himanshoe.kalendar.theme.KalendarTheme
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.plus
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -76,6 +84,15 @@ private class Tally {
 private val CELLS = Tally()
 private val HEADERS = Tally()
 private val BLOCKS = Tally()
+
+/**
+ * Walks of the event list handed to a view — one walk is one `byDateExpandingSpans()` build.
+ *
+ * A count rather than a timing, for the same reason as everything else here. The map build is
+ * linear in the caller's whole event list, a number the library does not control, so "how many
+ * times per page turn" is the entire finding.
+ */
+private val EVENT_WALKS = Tally()
 
 /**
  * Counts runs of the lambda that *calls* the view under test.
@@ -125,6 +142,30 @@ private val HEADER_PROBE: @Composable (KalendarHeaderScope) -> Unit = {
 private val BLOCK_PROBE: @Composable (KalendarScheduleEventScope) -> Unit = { scope ->
     BLOCKS.count++
     Box(modifier = Modifier.fillMaxSize().testTag(scope.event.eventName))
+}
+
+/**
+ * A [KalendarEvents] that tallies every iteration over itself into [EVENT_WALKS].
+ *
+ * `byDateExpandingSpans()` is the only thing either Schedule view does with the list it is handed,
+ * and it is a `for (event in this)` — so one `iterator()` call is one index build, and no timing is
+ * needed to see how often the index is rebuilt.
+ *
+ * `equals` short-circuits on identity so that Compose comparing this parameter against its own slot
+ * value cannot walk the list and inflate the count. Without that the measurement would report the
+ * comparisons as if they were rebuilds.
+ */
+private class WalkTallyingEvents(private val events: KalendarEvents) : KalendarEvents by events {
+
+    override fun iterator(): Iterator<KalendarEvent> {
+        EVENT_WALKS.count++
+        return events.iterator()
+    }
+
+    override fun equals(other: Any?): Boolean =
+        this === other || (other is WalkTallyingEvents && events == other.events)
+
+    override fun hashCode(): Int = events.hashCode()
 }
 
 private const val FIXTURE_YEAR = 2026
@@ -193,6 +234,13 @@ private const val DRAG_STEP_FRACTION = 0.25f
  * grid legitimately re-lays the column once the block count changes.
  */
 private const val INSERT_SLOT_BUDGET = 2
+
+/** Page turns per paging measurement — enough that a per-page rebuild cannot read as noise. */
+private const val PAGE_TURNS = 4
+
+/** Days a [KalendarSchedule] page covers, and days a [KalendarScheduleWeek] page covers. */
+private const val SCHEDULE_PAGE_DAYS = 1
+private const val WEEK_PAGE_DAYS = 7
 
 /**
  * Slot compositions allowed for a whole drag gesture.
@@ -528,6 +576,103 @@ class KalendarRecompositionBenchmark {
         )
     }
 
+    /**
+     * Turning a [KalendarSchedule] page must not rebuild the date index.
+     *
+     * `byDateExpandingSpans()` is linear in the caller's *whole* event list, not in the visible
+     * day's — so called below the pager it is per-swipe work that scales with an event count the
+     * library does not control. Built above the pager and keyed on the list, a page turn reuses it.
+     */
+    @Test
+    fun turningSchedulePagesRebuildsNoEventIndex() {
+        val builds = countIndexBuildsWhileTurningPages(
+            daysPerPage = SCHEDULE_PAGE_DAYS,
+            rememberState = { rememberKalendarScheduleState(initialDate = FIXTURE_DATE) },
+        ) { events, state ->
+            KalendarSchedule(
+                state = state,
+                events = events,
+                config = BENCH_CONFIG,
+                eventContent = BLOCK_PROBE,
+            )
+        }
+        assertEquals(
+            0,
+            builds,
+            "$PAGE_TURNS KalendarSchedule page turns rebuilt the event index $builds times; " +
+                "byDateExpandingSpans() is being called below the pager",
+        )
+    }
+
+    /** [turningSchedulePagesRebuildsNoEventIndex] for the week grid. */
+    @Test
+    fun turningScheduleWeekPagesRebuildsNoEventIndex() {
+        val builds = countIndexBuildsWhileTurningPages(
+            daysPerPage = WEEK_PAGE_DAYS,
+            rememberState = { rememberKalendarWeekState(initialDate = FIXTURE_DATE) },
+        ) { events, state ->
+            KalendarScheduleWeek(
+                state = state,
+                events = events,
+                config = BENCH_CONFIG,
+                eventContent = BLOCK_PROBE,
+            )
+        }
+        assertEquals(
+            0,
+            builds,
+            "$PAGE_TURNS KalendarScheduleWeek page turns rebuilt the event index $builds times; " +
+                "byDateExpandingSpans() is being called below the pager",
+        )
+    }
+
+    /**
+     * Composes [view] over a [WalkTallyingEvents] list, turns [PAGE_TURNS] pages one at a time, and
+     * returns how many times the date index was rebuilt on the way.
+     *
+     * Pages are turned through the state rather than by a swipe: a fling coasts an unpredictable
+     * number of pages, and the count would then depend on the injector's timing rather than on the
+     * library.
+     */
+    private fun countIndexBuildsWhileTurningPages(
+        daysPerPage: Int,
+        rememberState: @Composable () -> KalendarViewState,
+        view: @Composable (KalendarEvents, KalendarViewState) -> Unit,
+    ): Int {
+        reset()
+        val events = WalkTallyingEvents(benchBlocks())
+        var target by mutableStateOf<LocalDate?>(null)
+        var captured: KalendarViewState? = null
+        rule.setContent {
+            Harness(tick = 0) {
+                val state = rememberState()
+                captured = state
+                LaunchedEffect(target) { target?.let { state.animateScrollTo(it) } }
+                view(events, state)
+            }
+        }
+        rule.waitForIdle()
+        val firstFrame = EVENT_WALKS.count
+        val startedOn = checkNotNull(captured).visibleDate
+        repeat(PAGE_TURNS) { turn ->
+            target = startedOn.plus((turn + 1) * daysPerPage, DateTimeUnit.DAY)
+            rule.waitForIdle()
+        }
+        val builds = EVENT_WALKS.count - firstFrame
+        val landedOn = checkNotNull(captured).visibleDate
+        println("BENCH after $PAGE_TURNS page turns: indexBuildsFirstFrame=$firstFrame indexBuildsPaging=$builds")
+        // Vacuity guards. Unless the tally saw the first build the wrapper is not being walked at
+        // all, and unless the pager actually moved there was nothing to measure — either way the
+        // count below would be a zero that keeps passing after a real regression.
+        assertEquals(1, firstFrame, "the event index was built $firstFrame times on the first frame, not once")
+        assertEquals(
+            startedOn.plus(PAGE_TURNS * daysPerPage, DateTimeUnit.DAY),
+            landedOn,
+            "the pager did not turn $PAGE_TURNS pages, so this measurement proves nothing",
+        )
+        return builds
+    }
+
     /** [BLOCK_COUNT] back-to-back one-hour events inside [BENCH_WINDOW], all in [BENCH_ROOM_ID]. */
     private fun benchBlocks(): KalendarEvents = List(BLOCK_COUNT) { index ->
         benchBlock(hour = BENCH_FIRST_HOUR + index, name = "Block $index")
@@ -634,6 +779,7 @@ class KalendarRecompositionBenchmark {
         HEADERS.count = 0
         BLOCKS.count = 0
         CALL_SITES.count = 0
+        EVENT_WALKS.count = 0
     }
 
     /**

@@ -186,6 +186,7 @@ public fun KalendarYear(
                             dates = dates,
                             startDayOfWeek = state.startDayOfWeek,
                             modifier = Modifier.padding(horizontal = YEAR_MONTH_GRID_PADDING),
+                            events = events,
                             visibleDaysOfWeek = config.visibleDaysOfWeek,
                             dayOfWeekLabel = dayOfWeekLabel,
                         ) { date ->

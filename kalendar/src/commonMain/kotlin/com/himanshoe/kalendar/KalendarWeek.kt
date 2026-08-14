@@ -199,6 +199,7 @@ public fun KalendarWeek(
                     keyboard = keyboard,
                     onDateRangeDrag = onDateRangeSelect,
                     onDateRangeDragEnd = onDateRangeSelectEnd,
+                    events = events,
                     visibleDaysOfWeek = config.visibleDaysOfWeek,
                     dayOfWeekLabel = dayOfWeekLabel,
                 ) { date ->
