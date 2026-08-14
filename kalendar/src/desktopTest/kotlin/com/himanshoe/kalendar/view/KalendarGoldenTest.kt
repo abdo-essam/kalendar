@@ -95,7 +95,10 @@ class KalendarGoldenTest {
             BasicKalendarEvent(date = march(10), eventName = "Holiday", eventColor = Color(0xFF7E57C2)),
         )
         assertGolden(name = "schedule_day_overlap", width = 420, height = 640) {
-            KalendarSchedule(selectedDate = march(10), events = events)
+            KalendarSchedule(
+                state = rememberKalendarScheduleState(initialDate = march(10)),
+                events = events,
+            )
         }
     }
 

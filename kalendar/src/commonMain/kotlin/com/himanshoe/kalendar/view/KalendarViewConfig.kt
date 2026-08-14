@@ -48,8 +48,19 @@ import kotlinx.datetime.Month
  *   descriptions. kotlinx-datetime has no locale-aware formatting, so this defaults to plain
  *   English (e.g. "August") — pass a formatter backed by a platform date API (`java.time`,
  *   `NSDateFormatter`, `Intl`, ...) for a localized name.
+ * @param shortMonthNameFormatter Formats a month name where the full one will not fit: the week and
+ *   day titles ("Aug 10–16, 2026") and the jump picker's fixed-width month buttons. Abbreviating a
+ *   name is language-specific — truncating [monthNameFormatter]'s output blindly turns Finnish
+ *   "toukokuu" into "tou" and can cut a Devanagari name after a virama — so this is its own hook
+ *   rather than a `take(3)` on the full name. Defaults to the first three letters of the plain
+ *   English month name (e.g. "Aug"). The jump picker ellipsizes anything too wide for its button
+ *   rather than growing it.
+ * @param dayOfWeekNameFormatter Formats the abbreviated day-of-week name in [KalendarSchedule]'s
+ *   day title ("Tue, Aug 11, 2026"). Defaults to the first three letters of the plain English day
+ *   name; the column headers use the shorter [dayOfWeekLabelFormatter] instead.
  * @param dayOfWeekLabelFormatter Formats the day-of-week column headers. Defaults to the day
- *   name's first letter (e.g. "M" for Monday).
+ *   name's first letter (e.g. "M" for Monday). What a screen reader announces in its place comes
+ *   from [KalendarStrings.dayOfWeekAccessibilityLabel].
  * @param hourLabelFormatter Formats the hour-gutter labels on [KalendarSchedule] and
  *   [KalendarScheduleWeek]. Defaults to 24-hour `"HH:00"`; supply your own for 12-hour AM/PM.
  * @param scheduleInitialScrollHour The hour the Schedule views scroll to when a page first
@@ -71,6 +82,8 @@ public class KalendarViewConfig(
     public val showJumpPicker: Boolean = true,
     public val showSelectionIndicator: Boolean = true,
     public val monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
+    public val shortMonthNameFormatter: (Month) -> String = defaultShortMonthNameFormatter,
+    public val dayOfWeekNameFormatter: (DayOfWeek) -> String = defaultDayOfWeekNameFormatter,
     public val dayOfWeekLabelFormatter: (DayOfWeek) -> String = defaultDayOfWeekLabelFormatter,
     public val hourLabelFormatter: (Int) -> String = defaultHourLabelFormatter,
     public val scheduleInitialScrollHour: Int = DEFAULT_SCHEDULE_SCROLL_HOUR,
@@ -102,6 +115,8 @@ public class KalendarViewConfig(
         showJumpPicker: Boolean = this.showJumpPicker,
         showSelectionIndicator: Boolean = this.showSelectionIndicator,
         monthNameFormatter: (Month) -> String = this.monthNameFormatter,
+        shortMonthNameFormatter: (Month) -> String = this.shortMonthNameFormatter,
+        dayOfWeekNameFormatter: (DayOfWeek) -> String = this.dayOfWeekNameFormatter,
         dayOfWeekLabelFormatter: (DayOfWeek) -> String = this.dayOfWeekLabelFormatter,
         hourLabelFormatter: (Int) -> String = this.hourLabelFormatter,
         scheduleInitialScrollHour: Int = this.scheduleInitialScrollHour,
@@ -116,6 +131,8 @@ public class KalendarViewConfig(
         showJumpPicker = showJumpPicker,
         showSelectionIndicator = showSelectionIndicator,
         monthNameFormatter = monthNameFormatter,
+        shortMonthNameFormatter = shortMonthNameFormatter,
+        dayOfWeekNameFormatter = dayOfWeekNameFormatter,
         dayOfWeekLabelFormatter = dayOfWeekLabelFormatter,
         hourLabelFormatter = hourLabelFormatter,
         scheduleInitialScrollHour = scheduleInitialScrollHour,
@@ -135,6 +152,8 @@ public class KalendarViewConfig(
         if (showJumpPicker != other.showJumpPicker) return false
         if (showSelectionIndicator != other.showSelectionIndicator) return false
         if (monthNameFormatter != other.monthNameFormatter) return false
+        if (shortMonthNameFormatter != other.shortMonthNameFormatter) return false
+        if (dayOfWeekNameFormatter != other.dayOfWeekNameFormatter) return false
         if (dayOfWeekLabelFormatter != other.dayOfWeekLabelFormatter) return false
         if (hourLabelFormatter != other.hourLabelFormatter) return false
         if (scheduleInitialScrollHour != other.scheduleInitialScrollHour) return false
@@ -152,6 +171,8 @@ public class KalendarViewConfig(
         result = 31 * result + showJumpPicker.hashCode()
         result = 31 * result + showSelectionIndicator.hashCode()
         result = 31 * result + monthNameFormatter.hashCode()
+        result = 31 * result + shortMonthNameFormatter.hashCode()
+        result = 31 * result + dayOfWeekNameFormatter.hashCode()
         result = 31 * result + dayOfWeekLabelFormatter.hashCode()
         result = 31 * result + hourLabelFormatter.hashCode()
         result = 31 * result + scheduleInitialScrollHour.hashCode()
@@ -169,6 +190,8 @@ public class KalendarViewConfig(
         "showJumpPicker=$showJumpPicker, " +
         "showSelectionIndicator=$showSelectionIndicator, " +
         "monthNameFormatter=$monthNameFormatter, " +
+        "shortMonthNameFormatter=$shortMonthNameFormatter, " +
+        "dayOfWeekNameFormatter=$dayOfWeekNameFormatter, " +
         "dayOfWeekLabelFormatter=$dayOfWeekLabelFormatter, " +
         "hourLabelFormatter=$hourLabelFormatter, " +
         "scheduleInitialScrollHour=$scheduleInitialScrollHour, " +

@@ -65,6 +65,16 @@ import androidx.compose.ui.unit.sp
  * @property dayContent Day-number colour for ordinary cells.
  * @property dayLabelContent Colour of the day-of-week column labels and hour-gutter labels.
  * @property headerContent Colour of the navigation header's title and its arrow/today icons.
+ * @property headerContentDisabled Colour of a header arrow whose direction is blocked by
+ *   [KalendarViewState.minDate]/[KalendarViewState.maxDate]. Without it a bounded calendar's end
+ *   arrows look live and silently do nothing. Defaults to [headerContent] at
+ *   [disabledContentAlpha]'s default opacity, and applies to the built-in chevron and today glyphs;
+ *   a caller-supplied icon slot draws itself and is left alone.
+ * @property focusIndicator Colour of the ring drawn around a keyboard-focused day cell. Every cell
+ *   is a tab stop on desktop and wasmJs, so this is what makes keyboard navigation visible at all.
+ *   Defaults to [todayContent].
+ * @property hoverBackground Fill washed over a day cell while the pointer is over it. Defaults to
+ *   [dayContent] at a low opacity.
  * @property eventIndicator Default event dot/block accent when
  *   [KalendarEvent.eventColor][com.himanshoe.kalendar.foundation.event.KalendarEvent.eventColor]
  *   is `null`.
@@ -102,6 +112,9 @@ public class KalendarColors(
     public val popupBackground: Color,
     public val popupBorder: Color,
     public val agendaCard: Color,
+    public val headerContentDisabled: Color = headerContent.copy(alpha = DEFAULT_DISABLED_ALPHA),
+    public val focusIndicator: Color = todayContent,
+    public val hoverBackground: Color = dayContent.copy(alpha = DEFAULT_HOVER_ALPHA),
     public val disabledContentAlpha: Float = DEFAULT_DISABLED_ALPHA,
     public val eventBlockAlpha: Float = DEFAULT_EVENT_BLOCK_ALPHA,
     public val eventBlockDraggingAlpha: Float = DEFAULT_EVENT_BLOCK_DRAGGING_ALPHA,
@@ -124,6 +137,9 @@ public class KalendarColors(
         popupBackground: Color = this.popupBackground,
         popupBorder: Color = this.popupBorder,
         agendaCard: Color = this.agendaCard,
+        headerContentDisabled: Color = this.headerContentDisabled,
+        focusIndicator: Color = this.focusIndicator,
+        hoverBackground: Color = this.hoverBackground,
         disabledContentAlpha: Float = this.disabledContentAlpha,
         eventBlockAlpha: Float = this.eventBlockAlpha,
         eventBlockDraggingAlpha: Float = this.eventBlockDraggingAlpha,
@@ -143,6 +159,9 @@ public class KalendarColors(
         popupBackground = popupBackground,
         popupBorder = popupBorder,
         agendaCard = agendaCard,
+        headerContentDisabled = headerContentDisabled,
+        focusIndicator = focusIndicator,
+        hoverBackground = hoverBackground,
         disabledContentAlpha = disabledContentAlpha,
         eventBlockAlpha = eventBlockAlpha,
         eventBlockDraggingAlpha = eventBlockDraggingAlpha,
@@ -167,6 +186,9 @@ public class KalendarColors(
         if (popupBackground != other.popupBackground) return false
         if (popupBorder != other.popupBorder) return false
         if (agendaCard != other.agendaCard) return false
+        if (headerContentDisabled != other.headerContentDisabled) return false
+        if (focusIndicator != other.focusIndicator) return false
+        if (hoverBackground != other.hoverBackground) return false
         if (disabledContentAlpha != other.disabledContentAlpha) return false
         if (eventBlockAlpha != other.eventBlockAlpha) return false
         if (eventBlockDraggingAlpha != other.eventBlockDraggingAlpha) return false
@@ -189,6 +211,9 @@ public class KalendarColors(
         result = 31 * result + popupBackground.hashCode()
         result = 31 * result + popupBorder.hashCode()
         result = 31 * result + agendaCard.hashCode()
+        result = 31 * result + headerContentDisabled.hashCode()
+        result = 31 * result + focusIndicator.hashCode()
+        result = 31 * result + hoverBackground.hashCode()
         result = 31 * result + disabledContentAlpha.hashCode()
         result = 31 * result + eventBlockAlpha.hashCode()
         result = 31 * result + eventBlockDraggingAlpha.hashCode()
@@ -211,6 +236,9 @@ public class KalendarColors(
         "popupBackground=$popupBackground, " +
         "popupBorder=$popupBorder, " +
         "agendaCard=$agendaCard, " +
+        "headerContentDisabled=$headerContentDisabled, " +
+        "focusIndicator=$focusIndicator, " +
+        "hoverBackground=$hoverBackground, " +
         "disabledContentAlpha=$disabledContentAlpha, " +
         "eventBlockAlpha=$eventBlockAlpha, " +
         "eventBlockDraggingAlpha=$eventBlockDraggingAlpha, " +
@@ -853,6 +881,7 @@ private val EVENT_BLOCK_CORNER_RADIUS = 4.dp
 private val POPUP_CORNER_RADIUS = 12.dp
 private val AGENDA_CARD_CORNER_RADIUS = 12.dp
 private const val DEFAULT_DISABLED_ALPHA = 0.38f
+private const val DEFAULT_HOVER_ALPHA = 0.08f
 private const val DEFAULT_EVENT_BLOCK_ALPHA = 0.18f
 private const val DEFAULT_EVENT_BLOCK_DRAGGING_ALPHA = 0.45f
 private const val DEFAULT_DRAG_GHOST_ALPHA = 0.6f

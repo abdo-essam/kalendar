@@ -19,10 +19,13 @@ package com.himanshoe.kalendar.view
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
@@ -39,6 +42,12 @@ internal const val KALENDAR_PAGER_CENTER_PAGE: Int = Int.MAX_VALUE / 2
  * Obtain an instance via [rememberKalendarWeekState], [rememberKalendarMonthState], or
  * [rememberKalendarYearState] — each knows how to translate its own page unit (week/month/year)
  * to and from a [LocalDate].
+ *
+ * There is deliberately no `today` property here. A clock-derived value on a `@Stable` class
+ * notifies nobody when the day rolls over, so it would be stale by the next midnight — read today
+ * with [rememberKalendarToday] (`rememberKalendarToday(state.timeSource)`) instead, which is
+ * snapshot-observable. [animateScrollToToday] may read the clock directly because it is `suspend`
+ * and therefore reads it at the moment it is called.
  */
 @Stable
 public class KalendarViewState internal constructor(
@@ -48,7 +57,15 @@ public class KalendarViewState internal constructor(
     public val startDayOfWeek: DayOfWeek,
     public val minDate: LocalDate?,
     public val maxDate: LocalDate?,
+    timeSource: KalendarTimeSource,
 ) {
+    /**
+     * Where this state reads "today" from. Snapshot-backed, so the `remember*State` factory that
+     * owns this instance can keep it in step with the ambient [KalendarTimeSource] without
+     * recreating the state (and losing the pager's scroll position).
+     */
+    public var timeSource: KalendarTimeSource by mutableStateOf(timeSource)
+
     /** The start date of the page currently visible in the pager. */
     public val visibleDate: LocalDate by derivedStateOf { pageToDate(pagerState.currentPage) }
 
@@ -77,7 +94,7 @@ public class KalendarViewState internal constructor(
 
     /** Animates the pager back to the page containing today's date, clamped to the bounds. */
     public suspend fun animateScrollToToday() {
-        animateScrollTo(todayInSystemTimeZone())
+        animateScrollTo(timeSource.today())
     }
 
     /**
@@ -110,20 +127,23 @@ public class KalendarViewState internal constructor(
  *   week would start before the week containing this date.
  * @param maxDate When set, [KalendarViewState.canScrollForward] turns `false` once the visible
  *   week would start after the week containing this date.
+ * @param timeSource Where the state reads "today" from. Defaults to the ambient
+ *   [KalendarTimeSource]; see [KalendarViewState.timeSource].
  */
 @Composable
 public fun rememberKalendarWeekState(
-    initialDate: LocalDate = todayInSystemTimeZone(),
+    initialDate: LocalDate = rememberInitialKalendarDate(),
     startDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     minDate: LocalDate? = null,
     maxDate: LocalDate? = null,
+    timeSource: KalendarTimeSource = rememberKalendarTimeSource(),
 ): KalendarViewState {
     val anchor = remember(initialDate, startDayOfWeek) { initialDate.startOfWeek(startDayOfWeek) }
     val pagerState = rememberPagerState(
         initialPage = KALENDAR_PAGER_CENTER_PAGE,
         pageCount = { Int.MAX_VALUE },
     )
-    return remember(pagerState, anchor, startDayOfWeek, minDate, maxDate) {
+    val state = remember(pagerState, anchor, startDayOfWeek, minDate, maxDate) {
         KalendarViewState(
             pagerState = pagerState,
             pageToDate = { page -> anchor.plus((page - KALENDAR_PAGER_CENTER_PAGE) * 7, DateTimeUnit.DAY) },
@@ -133,8 +153,11 @@ public fun rememberKalendarWeekState(
             startDayOfWeek = startDayOfWeek,
             minDate = minDate,
             maxDate = maxDate,
+            timeSource = timeSource,
         )
     }
+    state.syncTimeSource(timeSource)
+    return state
 }
 
 /**
@@ -146,20 +169,23 @@ public fun rememberKalendarWeekState(
  *   month would start before the month containing this date.
  * @param maxDate When set, [KalendarViewState.canScrollForward] turns `false` once the visible
  *   month would start after the month containing this date.
+ * @param timeSource Where the state reads "today" from. Defaults to the ambient
+ *   [KalendarTimeSource]; see [KalendarViewState.timeSource].
  */
 @Composable
 public fun rememberKalendarMonthState(
-    initialDate: LocalDate = todayInSystemTimeZone(),
+    initialDate: LocalDate = rememberInitialKalendarDate(),
     startDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     minDate: LocalDate? = null,
     maxDate: LocalDate? = null,
+    timeSource: KalendarTimeSource = rememberKalendarTimeSource(),
 ): KalendarViewState {
     val anchor = remember(initialDate) { initialDate.startOfMonth() }
     val pagerState = rememberPagerState(
         initialPage = KALENDAR_PAGER_CENTER_PAGE,
         pageCount = { Int.MAX_VALUE },
     )
-    return remember(pagerState, anchor, startDayOfWeek, minDate, maxDate) {
+    val state = remember(pagerState, anchor, startDayOfWeek, minDate, maxDate) {
         KalendarViewState(
             pagerState = pagerState,
             pageToDate = { page -> anchor.plus(page - KALENDAR_PAGER_CENTER_PAGE, DateTimeUnit.MONTH) },
@@ -167,8 +193,11 @@ public fun rememberKalendarMonthState(
             startDayOfWeek = startDayOfWeek,
             minDate = minDate,
             maxDate = maxDate,
+            timeSource = timeSource,
         )
     }
+    state.syncTimeSource(timeSource)
+    return state
 }
 
 /**
@@ -177,19 +206,22 @@ public fun rememberKalendarMonthState(
  * @param initialDate The day initially visible. Defaults to today.
  * @param minDate When set, [KalendarViewState.canScrollBackward] turns `false` at this date.
  * @param maxDate When set, [KalendarViewState.canScrollForward] turns `false` at this date.
+ * @param timeSource Where the state reads "today" from. Defaults to the ambient
+ *   [KalendarTimeSource]; see [KalendarViewState.timeSource].
  */
 @Composable
 public fun rememberKalendarScheduleState(
-    initialDate: LocalDate = todayInSystemTimeZone(),
+    initialDate: LocalDate = rememberInitialKalendarDate(),
     minDate: LocalDate? = null,
     maxDate: LocalDate? = null,
+    timeSource: KalendarTimeSource = rememberKalendarTimeSource(),
 ): KalendarViewState {
     val anchor = remember(initialDate) { initialDate }
     val pagerState = rememberPagerState(
         initialPage = KALENDAR_PAGER_CENTER_PAGE,
         pageCount = { Int.MAX_VALUE },
     )
-    return remember(pagerState, anchor, minDate, maxDate) {
+    val state = remember(pagerState, anchor, minDate, maxDate) {
         KalendarViewState(
             pagerState = pagerState,
             pageToDate = { page -> anchor.plus(page - KALENDAR_PAGER_CENTER_PAGE, DateTimeUnit.DAY) },
@@ -199,8 +231,11 @@ public fun rememberKalendarScheduleState(
             startDayOfWeek = DayOfWeek.MONDAY,
             minDate = minDate,
             maxDate = maxDate,
+            timeSource = timeSource,
         )
     }
+    state.syncTimeSource(timeSource)
+    return state
 }
 
 /**
@@ -212,20 +247,23 @@ public fun rememberKalendarScheduleState(
  *   year would start before the year containing this date.
  * @param maxDate When set, [KalendarViewState.canScrollForward] turns `false` once the visible
  *   year would start after the year containing this date.
+ * @param timeSource Where the state reads "today" from. Defaults to the ambient
+ *   [KalendarTimeSource]; see [KalendarViewState.timeSource].
  */
 @Composable
 public fun rememberKalendarYearState(
-    initialDate: LocalDate = todayInSystemTimeZone(),
+    initialDate: LocalDate = rememberInitialKalendarDate(),
     startDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     minDate: LocalDate? = null,
     maxDate: LocalDate? = null,
+    timeSource: KalendarTimeSource = rememberKalendarTimeSource(),
 ): KalendarViewState {
     val anchor = remember(initialDate) { initialDate.startOfYear() }
     val pagerState = rememberPagerState(
         initialPage = KALENDAR_PAGER_CENTER_PAGE,
         pageCount = { Int.MAX_VALUE },
     )
-    return remember(pagerState, anchor, startDayOfWeek, minDate, maxDate) {
+    val state = remember(pagerState, anchor, startDayOfWeek, minDate, maxDate) {
         KalendarViewState(
             pagerState = pagerState,
             pageToDate = { page -> anchor.plus(page - KALENDAR_PAGER_CENTER_PAGE, DateTimeUnit.YEAR) },
@@ -233,6 +271,27 @@ public fun rememberKalendarYearState(
             startDayOfWeek = startDayOfWeek,
             minDate = minDate,
             maxDate = maxDate,
+            timeSource = timeSource,
         )
+    }
+    state.syncTimeSource(timeSource)
+    return state
+}
+
+/**
+ * Keeps [KalendarViewState.timeSource] in step with the value the factory was handed, without
+ * recreating the state.
+ *
+ * The equality guard is load-bearing rather than an optimisation: a caller passing a time source
+ * built inline — an object-expression [kotlin.time.Clock], say, which has identity equality — would
+ * otherwise write a new value into a snapshot state on every pass and recompose forever. It also
+ * means a time source must be *remembered* to be honoured at all; see [KalendarTimeSource].
+ */
+@Composable
+private fun KalendarViewState.syncTimeSource(timeSource: KalendarTimeSource) {
+    SideEffect {
+        if (this.timeSource != timeSource) {
+            this.timeSource = timeSource
+        }
     }
 }

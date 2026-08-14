@@ -47,7 +47,7 @@ class KalendarScheduleWeekUiTest {
     fun weekGrid_rendersBlocksOnMultipleDaysOfTheSameWeek() {
         rule.setContent {
             KalendarScheduleWeek(
-                selectedDate = tuesday,
+                state = rememberKalendarWeekState(initialDate = tuesday),
                 events = listOf(
                     timedEvent(name = "Standup", date = tuesday, startHour = 9, endHour = 10),
                     timedEvent(name = "Review", date = LocalDate(2026, 3, 12), startHour = 14, endHour = 15),
@@ -64,7 +64,7 @@ class KalendarScheduleWeekUiTest {
         var reportedEnd: LocalDateTime? = null
         rule.setContent {
             KalendarScheduleWeek(
-                selectedDate = tuesday,
+                state = rememberKalendarWeekState(initialDate = tuesday),
                 events = listOf(timedEvent(name = "Sync", date = tuesday, startHour = 9, endHour = 10)),
                 onEventTimeChange = { _, newStart, newEnd ->
                     reportedStart = newStart
@@ -93,7 +93,7 @@ class KalendarScheduleWeekUiTest {
     fun weekGrid_overlappingEvents_bothRenderSideBySide() {
         rule.setContent {
             KalendarScheduleWeek(
-                selectedDate = tuesday,
+                state = rememberKalendarWeekState(initialDate = tuesday),
                 events = listOf(
                     timedEvent(name = "A", date = tuesday, startHour = 9, endHour = 11),
                     timedEvent(name = "B", date = tuesday, startHour = 10, endHour = 12),

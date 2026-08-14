@@ -99,6 +99,7 @@ public fun KalendarMonth(
             showTodayButton = config.showTodayButton,
             showJumpPicker = config.showJumpPicker,
             monthNameFormatter = config.monthNameFormatter,
+            shortMonthNameFormatter = config.shortMonthNameFormatter,
         )
     },
     dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
@@ -110,7 +111,7 @@ public fun KalendarMonth(
     dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
 ) {
     val colors = kalendarColors()
-    val today = remember { todayInSystemTimeZone() }
+    val today = rememberKalendarToday(state.timeSource)
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     val slidingSelection = if (config.showSelectionIndicator) selectedDates.singleOrNull() else null
     val gridEventDrop: ((LocalDate, LocalDate) -> Unit)? = if (onEventDrop == null) {

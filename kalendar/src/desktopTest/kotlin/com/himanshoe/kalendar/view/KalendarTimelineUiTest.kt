@@ -87,7 +87,7 @@ class KalendarTimelineUiTest {
                 maxDate = LocalDate(2026, 4, 30),
             )
             LaunchedEffect(target) {
-                target?.let { state.scrollTo(it) }
+                target?.let { state.animateScrollTo(it) }
             }
             KalendarTimeline(selectedDate = march, state = state)
         }

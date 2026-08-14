@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
@@ -37,7 +38,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,24 +54,24 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
-import kotlinx.coroutines.delay
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
+import kotlinx.datetime.Month
 import kotlinx.datetime.plus
-import kotlinx.datetime.toLocalDateTime
 import kotlin.math.roundToInt
-import kotlin.time.Clock
-
-private const val NOW_TICK_MS = 60_000L
+import kotlin.time.Duration
 
 /**
  * The day-of-month prefix [KalendarScheduleWeek]'s shared all-day row puts in front of each chip's
@@ -101,9 +104,9 @@ private val LocalScheduleAllDayPrefix = compositionLocalOf<String?> { null }
  * )
  * ```
  *
- * @param selectedDate The day initially visible when [state] is left at its default.
  * @param modifier [Modifier] applied to the outermost container.
- * @param state Navigation state from [rememberKalendarScheduleState] — pages by single day.
+ * @param state Navigation state from [rememberKalendarScheduleState] — pages by single day. Pass
+ *   `rememberKalendarScheduleState(initialDate = ...)` to choose the day first shown.
  * @param events Events for the calendar; only those on the visible day are rendered.
  * @param onEventClick Called when an event block or all-day chip is tapped.
  * @param onEventTimeChange When non-null, blocks become draggable: press-and-hold then drag to
@@ -115,7 +118,10 @@ private val LocalScheduleAllDayPrefix = compositionLocalOf<String?> { null }
  *   [KalendarViewConfig.showAdjacentMonthDates] have no effect here; arrows, the today button,
  *   month-name formatting, and background apply as usual.
  * @param hourHeight Vertical space for one hour of the grid; block heights scale with it. Defaults
- *   to `null`, meaning [KalendarDimensions.hourHeight].
+ *   to [KalendarDimensions.hourHeight].
+ * @param nowIndicatorTick How often the now-indicator's position is recomputed. It lives here
+ *   rather than on [KalendarViewConfig] because five of the six views never draw one. The reading
+ *   is consumed during layout, so a tick costs a re-placement of the line and no recomposition.
  * @param eventContent Slot for one timed event block, given a [KalendarScheduleEventScope] with
  *   the event, its start and end on the rendered day, its duration and its overlap column. The
  *   grid measures and positions the slot for you and keeps the tap and drag gestures on the cell
@@ -130,14 +136,14 @@ private val LocalScheduleAllDayPrefix = compositionLocalOf<String?> { null }
  */
 @Composable
 public fun KalendarSchedule(
-    selectedDate: LocalDate,
     modifier: Modifier = Modifier,
-    state: KalendarViewState = rememberKalendarScheduleState(selectedDate),
+    state: KalendarViewState = rememberKalendarScheduleState(),
     events: KalendarEvents = emptyList(),
     onEventClick: (KalendarEvent) -> Unit = {},
     onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
-    hourHeight: Dp? = null,
+    hourHeight: Dp = KalendarTheme.dimensions.hourHeight,
+    nowIndicatorTick: Duration = DEFAULT_NOW_TICK,
     eventContent: @Composable (KalendarScheduleEventScope) -> Unit = {
         KalendarScheduleDefaults.EventBlock(scope = it)
     },
@@ -152,15 +158,23 @@ public fun KalendarSchedule(
     },
 ) {
     val colors = kalendarColors()
-    val resolvedHourHeight = hourHeight ?: kalendarDimensions().hourHeight
+    val now = rememberKalendarNowState(timeSource = state.timeSource, tick = nowIndicatorTick)
+    val today by remember(now) { derivedStateOf { now.value.date } }
     Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
         KalendarNavigationHeader(
-            title = remember(state.visibleDate) { dayTitle(state.visibleDate, config.monthNameFormatter) },
+            title = remember(state.visibleDate, config) {
+                dayTitle(
+                    day = state.visibleDate,
+                    shortMonthNameFormatter = config.shortMonthNameFormatter,
+                    dayOfWeekNameFormatter = config.dayOfWeekNameFormatter,
+                )
+            },
             state = state,
             showArrows = config.showNavigationArrows,
             showTodayButton = config.showTodayButton,
             showJumpPicker = config.showJumpPicker,
             monthNameFormatter = config.monthNameFormatter,
+            shortMonthNameFormatter = config.shortMonthNameFormatter,
         )
         HorizontalPager(
             state = state.pagerState,
@@ -169,11 +183,13 @@ public fun KalendarSchedule(
             val day = state.pageToDate(page)
             SchedulePage(
                 day = day,
+                isToday = day == today,
+                now = now,
                 events = events,
                 onEventClick = onEventClick,
                 onEventTimeChange = onEventTimeChange,
                 config = config,
-                hourHeight = resolvedHourHeight,
+                hourHeight = hourHeight,
                 allDayEventContent = allDayEventContent,
                 hourLabel = hourLabel,
                 nowIndicator = nowIndicator,
@@ -207,9 +223,9 @@ public fun KalendarSchedule(
  * )
  * ```
  *
- * @param selectedDate The date whose week is initially visible when [state] is left at default.
  * @param modifier [Modifier] applied to the outermost container.
- * @param state Navigation state from [rememberKalendarWeekState] — pages by week.
+ * @param state Navigation state from [rememberKalendarWeekState] — pages by week. Pass
+ *   `rememberKalendarWeekState(initialDate = ...)` to choose the week first shown.
  * @param events Events for the calendar; only those in the visible week are rendered.
  * @param onEventClick Called when an event block or all-day chip is tapped.
  * @param onEventTimeChange When non-null, blocks become draggable exactly as on
@@ -218,7 +234,9 @@ public fun KalendarSchedule(
  * @param config Shared visual/behavioural settings. [KalendarViewConfig.disabledDates] and
  *   [KalendarViewConfig.showAdjacentMonthDates] have no effect here.
  * @param hourHeight Vertical space for one hour of the grid; block heights scale with it. Defaults
- *   to `null`, meaning [KalendarDimensions.hourHeight].
+ *   to [KalendarDimensions.hourHeight].
+ * @param nowIndicatorTick How often the now-indicator's position is recomputed. One timer serves
+ *   all seven columns, and only the column that is actually today reads it.
  * @param eventContent Slot for one timed event block, given a [KalendarScheduleEventScope] with
  *   the event, its start and end on the rendered day, its duration and its overlap column. The
  *   grid measures and positions the slot for you and keeps the tap and drag gestures on the cell
@@ -237,14 +255,14 @@ public fun KalendarSchedule(
  */
 @Composable
 public fun KalendarScheduleWeek(
-    selectedDate: LocalDate,
     modifier: Modifier = Modifier,
-    state: KalendarViewState = rememberKalendarWeekState(selectedDate),
+    state: KalendarViewState = rememberKalendarWeekState(),
     events: KalendarEvents = emptyList(),
     onEventClick: (KalendarEvent) -> Unit = {},
     onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
-    hourHeight: Dp? = null,
+    hourHeight: Dp = KalendarTheme.dimensions.hourHeight,
+    nowIndicatorTick: Duration = DEFAULT_NOW_TICK,
     eventContent: @Composable (KalendarScheduleEventScope) -> Unit = {
         KalendarScheduleDefaults.EventBlock(scope = it)
     },
@@ -266,15 +284,21 @@ public fun KalendarScheduleWeek(
     },
 ) {
     val colors = kalendarColors()
-    val resolvedHourHeight = hourHeight ?: kalendarDimensions().hourHeight
+    // One timer for the whole week, and only the "which column is today" answer is read here — a
+    // column recomposes when the *date* rolls over, not once a minute per column.
+    val now = rememberKalendarNowState(timeSource = state.timeSource, tick = nowIndicatorTick)
+    val today by remember(now) { derivedStateOf { now.value.date } }
     Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
         KalendarNavigationHeader(
-            title = remember(state.visibleDate) { weekTitle(state.visibleDate, config.monthNameFormatter) },
+            title = remember(state.visibleDate, config) {
+                weekTitle(state.visibleDate, config.shortMonthNameFormatter)
+            },
             state = state,
             showArrows = config.showNavigationArrows,
             showTodayButton = config.showTodayButton,
             showJumpPicker = config.showJumpPicker,
             monthNameFormatter = config.monthNameFormatter,
+            shortMonthNameFormatter = config.shortMonthNameFormatter,
         )
         HorizontalPager(
             state = state.pagerState,
@@ -283,11 +307,13 @@ public fun KalendarScheduleWeek(
             val weekStart = state.pageToDate(page)
             ScheduleWeekPage(
                 weekStart = weekStart,
+                today = today,
+                now = now,
                 events = events,
                 onEventClick = onEventClick,
                 onEventTimeChange = onEventTimeChange,
                 config = config,
-                hourHeight = resolvedHourHeight,
+                hourHeight = hourHeight,
                 allDayEventContent = allDayEventContent,
                 hourLabel = hourLabel,
                 nowIndicator = nowIndicator,
@@ -328,6 +354,10 @@ public object KalendarScheduleDefaults {
      * the same accent at [KalendarColors.eventBlockAlpha] — or
      * [KalendarColors.eventBlockDraggingAlpha] while [KalendarScheduleEventScope.isDragging].
      *
+     * The block's label carries [KalendarStrings.eventAccessibilityLabel] as its description, so a
+     * screen reader announces the event's time range rather than reading the name off the grid with
+     * no indication of when it is.
+     *
      * @param scope The event to draw, as handed to the `eventContent` slot.
      * @param modifier [Modifier] applied to the block.
      */
@@ -335,6 +365,7 @@ public object KalendarScheduleDefaults {
     public fun EventBlock(scope: KalendarScheduleEventScope, modifier: Modifier = Modifier) {
         val colors = kalendarColors()
         val dimensions = kalendarDimensions()
+        val strings = kalendarStrings()
         val accent = scope.event.eventColor ?: colors.eventIndicator
         val backgroundAlpha = if (scope.isDragging) colors.eventBlockDraggingAlpha else colors.eventBlockAlpha
         Row(
@@ -350,7 +381,12 @@ public object KalendarScheduleDefaults {
                 style = kalendarTypography().eventLabel.copy(color = colors.dayContent),
                 maxLines = EVENT_LABEL_MAX_LINES,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(dimensions.eventBlockPadding),
+                modifier = Modifier
+                    .padding(dimensions.eventBlockPadding)
+                    .semantics {
+                        contentDescription =
+                            strings.eventAccessibilityLabel(scope.event, scope.start, scope.end)
+                    },
             )
         }
     }
@@ -368,6 +404,7 @@ public object KalendarScheduleDefaults {
     @Composable
     public fun AllDayChip(event: KalendarEvent, modifier: Modifier = Modifier, prefix: String? = null) {
         val colors = kalendarColors()
+        val strings = kalendarStrings()
         val accent = event.eventColor ?: colors.eventIndicator
         BasicText(
             text = prefix?.let { "$it · ${event.eventName}" } ?: event.eventName,
@@ -377,7 +414,8 @@ public object KalendarScheduleDefaults {
             modifier = modifier
                 .clip(kalendarShapes().eventBlock)
                 .background(accent.copy(alpha = colors.eventBlockAlpha))
-                .padding(kalendarDimensions().allDayChipPadding),
+                .padding(kalendarDimensions().allDayChipPadding)
+                .semantics { contentDescription = strings.allDayEventAccessibilityLabel(event) },
         )
     }
 
@@ -481,6 +519,8 @@ private val WEEK_DAY_HEADER_PADDING = 4.dp
 @Composable
 private fun ScheduleWeekPage(
     weekStart: LocalDate,
+    today: LocalDate,
+    now: State<LocalDateTime>,
     events: KalendarEvents,
     onEventClick: (KalendarEvent) -> Unit,
     onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?,
@@ -492,7 +532,6 @@ private fun ScheduleWeekPage(
     dayHeader: @Composable (date: LocalDate, isToday: Boolean) -> Unit,
     eventContent: @Composable (KalendarScheduleEventScope) -> Unit,
 ) {
-    val today = remember { todayInSystemTimeZone() }
     val days = remember(weekStart) { weekDates(weekStart) }
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     val allDayEvents = remember(days, eventsByDate) {
@@ -546,7 +585,12 @@ private fun ScheduleWeekPage(
                         onEventTimeChange = onEventTimeChange,
                         eventContent = eventContent,
                     )
-                    ScheduleNowIndicator(day = day, hourHeight = hourHeight, content = nowIndicator)
+                    ScheduleNowIndicator(
+                        isToday = day == today,
+                        now = now,
+                        hourHeight = hourHeight,
+                        content = nowIndicator,
+                    )
                 }
             }
         }
@@ -567,7 +611,7 @@ private fun WeekAllDayRow(
     ) {
         entries.forEach { (day, event) ->
             CompositionLocalProvider(LocalScheduleAllDayPrefix provides day.dayOfMonth.toString()) {
-                Box(modifier = Modifier.clickable { onEventClick(event) }) {
+                Box(modifier = Modifier.clickable(role = Role.Button) { onEventClick(event) }) {
                     chipContent(event)
                 }
             }
@@ -578,6 +622,8 @@ private fun WeekAllDayRow(
 @Composable
 private fun SchedulePage(
     day: LocalDate,
+    isToday: Boolean,
+    now: State<LocalDateTime>,
     events: KalendarEvents,
     onEventClick: (KalendarEvent) -> Unit,
     onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?,
@@ -621,7 +667,12 @@ private fun SchedulePage(
                     onEventTimeChange = onEventTimeChange,
                     eventContent = eventContent,
                 )
-                ScheduleNowIndicator(day = day, hourHeight = hourHeight, content = nowIndicator)
+                ScheduleNowIndicator(
+                    isToday = isToday,
+                    now = now,
+                    hourHeight = hourHeight,
+                    content = nowIndicator,
+                )
             }
         }
     }
@@ -640,7 +691,7 @@ private fun AllDayRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         events.forEach { event ->
-            Box(modifier = Modifier.clickable { onEventClick(event) }) {
+            Box(modifier = Modifier.clickable(role = Role.Button) { onEventClick(event) }) {
                 chipContent(event)
             }
         }
@@ -688,7 +739,7 @@ private fun ScheduleBlockLayout(
     blocks: List<KalendarScheduleBlock>,
     hourHeight: Dp,
     onEventClick: (KalendarEvent) -> Unit,
-    date: LocalDate = todayInSystemTimeZone(),
+    date: LocalDate,
     allowDayShift: Boolean = false,
     snapMinutes: Int = DEFAULT_SCHEDULE_SNAP_MINUTES,
     onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
@@ -765,7 +816,7 @@ private fun ScheduleBlockLayout(
                     modifier = Modifier
                         .fillMaxSize()
                         .then(dragModifier)
-                        .clickable { onEventClick(block.event) },
+                        .clickable(role = Role.Button) { onEventClick(block.event) },
                 ) {
                     eventContent(scope)
                 }
@@ -875,30 +926,39 @@ private fun Modifier.blockDragGestures(
     )
 }
 
+/**
+ * The current-time line on the column that is today.
+ *
+ * [now] is deliberately read inside [Modifier.offset]'s lambda rather than in composition: the
+ * position is then recomputed during placement, so a minute passing re-places one line instead of
+ * recomposing this composable, its slot content, and everything the read would invalidate above it.
+ */
 @Composable
-private fun ScheduleNowIndicator(day: LocalDate, hourHeight: Dp, content: @Composable () -> Unit) {
-    var now by remember { mutableStateOf(currentLocalDateTime()) }
-    LaunchedEffect(day) {
-        while (true) {
-            delay(NOW_TICK_MS)
-            now = currentLocalDateTime()
-        }
-    }
-    if (now.date != day) {
+private fun ScheduleNowIndicator(
+    isToday: Boolean,
+    now: State<LocalDateTime>,
+    hourHeight: Dp,
+    content: @Composable () -> Unit,
+) {
+    if (!isToday) {
         return
     }
-    val minutes = now.hour * MINUTES_PER_HOUR + now.minute
-    val offset = hourHeight * (minutes.toFloat() / MINUTES_PER_HOUR)
-    Box(modifier = Modifier.fillMaxWidth().padding(top = offset)) {
+    Box(
+        modifier = Modifier.fillMaxWidth().offset {
+            val minutes = now.value.hour * MINUTES_PER_HOUR + now.value.minute
+            IntOffset(x = 0, y = (hourHeight.toPx() * minutes / MINUTES_PER_HOUR).roundToInt())
+        },
+    ) {
         content()
     }
 }
 
-private fun currentLocalDateTime() =
-    Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-
-private fun dayTitle(day: LocalDate, monthNameFormatter: (kotlinx.datetime.Month) -> String): String {
-    val weekday = day.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.titlecase() }
-    val month = monthNameFormatter(day.month).take(3)
+private fun dayTitle(
+    day: LocalDate,
+    shortMonthNameFormatter: (Month) -> String,
+    dayOfWeekNameFormatter: (DayOfWeek) -> String,
+): String {
+    val weekday = dayOfWeekNameFormatter(day.dayOfWeek)
+    val month = shortMonthNameFormatter(day.month)
     return "$weekday, $month ${day.dayOfMonth}, ${day.year}"
 }

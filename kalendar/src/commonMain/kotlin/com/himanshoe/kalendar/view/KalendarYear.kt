@@ -95,6 +95,7 @@ public fun KalendarYear(
             showTodayButton = config.showTodayButton,
             showJumpPicker = config.showJumpPicker,
             monthNameFormatter = config.monthNameFormatter,
+            shortMonthNameFormatter = config.shortMonthNameFormatter,
         )
     },
     dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
@@ -107,7 +108,7 @@ public fun KalendarYear(
 ) {
     val colors = kalendarColors()
     val dimensions = kalendarDimensions()
-    val today = remember { todayInSystemTimeZone() }
+    val today = rememberKalendarToday(state.timeSource)
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
 
     Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {

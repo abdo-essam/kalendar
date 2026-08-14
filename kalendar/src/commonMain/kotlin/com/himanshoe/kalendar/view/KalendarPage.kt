@@ -24,12 +24,9 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.Month
-import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
-import kotlinx.datetime.todayIn
 import kotlin.math.roundToInt
-import kotlin.time.Clock
 
 /**
  * Default [KalendarViewConfig.monthNameFormatter]: kotlinx-datetime has no locale-aware
@@ -40,8 +37,24 @@ internal val defaultMonthNameFormatter: (Month) -> String = {
     it.name.lowercase().replaceFirstChar { char -> char.titlecase() }
 }
 
+/**
+ * Default [KalendarViewConfig.shortMonthNameFormatter]: the plain English month name's first three
+ * letters. Truncating is only safe here because the *default* name is known to be English — which is
+ * precisely why this is a hook rather than a `take(3)` applied to whatever a caller supplied.
+ */
+internal val defaultShortMonthNameFormatter: (Month) -> String = {
+    defaultMonthNameFormatter(it).take(SHORT_NAME_LENGTH)
+}
+
+/** Default [KalendarViewConfig.dayOfWeekNameFormatter]: the plain English day name's first three letters. */
+internal val defaultDayOfWeekNameFormatter: (DayOfWeek) -> String = { dayOfWeek ->
+    dayOfWeek.name.take(SHORT_NAME_LENGTH).lowercase().replaceFirstChar { it.titlecase() }
+}
+
 /** Default [KalendarViewConfig.dayOfWeekLabelFormatter]: the day name's first letter. */
 internal val defaultDayOfWeekLabelFormatter: (DayOfWeek) -> String = { it.name.take(1) }
+
+private const val SHORT_NAME_LENGTH = 3
 
 /** Default [KalendarViewConfig.hourLabelFormatter]: 24-hour "HH:00". */
 internal val defaultHourLabelFormatter: (Int) -> String = { "${it.toString().padStart(2, '0')}:00" }
@@ -51,8 +64,6 @@ internal val defaultHourLabelFormatter: (Int) -> String = { "${it.toString().pad
  * caller-supplied `endDate` far in the future turning into an unbounded loop.
  */
 private const val MAX_EVENT_SPAN_DAYS = 366
-
-internal fun todayInSystemTimeZone(): LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
 
 internal fun LocalDate.startOfWeek(startDayOfWeek: DayOfWeek): LocalDate =
     minus((dayOfWeek.ordinal - startDayOfWeek.ordinal + 7) % 7, DateTimeUnit.DAY)

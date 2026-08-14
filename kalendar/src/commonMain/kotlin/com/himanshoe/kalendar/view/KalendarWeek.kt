@@ -96,6 +96,7 @@ public fun KalendarWeek(
             showTodayButton = config.showTodayButton,
             showJumpPicker = config.showJumpPicker,
             monthNameFormatter = config.monthNameFormatter,
+            shortMonthNameFormatter = config.shortMonthNameFormatter,
         )
     },
     dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
@@ -107,12 +108,14 @@ public fun KalendarWeek(
     dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
 ) {
     val colors = kalendarColors()
-    val today = remember { todayInSystemTimeZone() }
+    val today = rememberKalendarToday(state.timeSource)
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     val slidingSelection = if (config.showSelectionIndicator) selectedDates.singleOrNull() else null
 
     Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
-        val title = remember(state.visibleDate) { weekTitle(state.visibleDate, config.monthNameFormatter) }
+        val title = remember(state.visibleDate, config) {
+            weekTitle(state.visibleDate, config.shortMonthNameFormatter)
+        }
         header(rememberKalendarHeaderScope(state = state, title = title))
         HorizontalPager(
             state = state.pagerState,
@@ -158,23 +161,23 @@ public fun KalendarWeek(
  * "Dec 29, 2026 – Jan 4, 2027" across a year boundary — repeating the month/year only where it
  * actually changes, rather than spelling out both ends in full every time.
  */
-internal fun weekTitle(weekStart: LocalDate, monthNameFormatter: (Month) -> String): String {
+internal fun weekTitle(weekStart: LocalDate, shortMonthNameFormatter: (Month) -> String): String {
     val weekEnd = weekStart.plus(6, DateTimeUnit.DAY)
-    val monthName = monthNameFormatter(weekStart.month).take(3)
+    val monthName = shortMonthNameFormatter(weekStart.month)
     return when {
         weekStart.year != weekEnd.year -> {
-            val startLabel = shortDateLabel(weekStart, monthNameFormatter)
-            val endLabel = shortDateLabel(weekEnd, monthNameFormatter)
+            val startLabel = shortDateLabel(weekStart, shortMonthNameFormatter)
+            val endLabel = shortDateLabel(weekEnd, shortMonthNameFormatter)
             "$startLabel, ${weekStart.year} – $endLabel, ${weekEnd.year}"
         }
         weekStart.month != weekEnd.month -> {
-            val startLabel = shortDateLabel(weekStart, monthNameFormatter)
-            val endLabel = shortDateLabel(weekEnd, monthNameFormatter)
+            val startLabel = shortDateLabel(weekStart, shortMonthNameFormatter)
+            val endLabel = shortDateLabel(weekEnd, shortMonthNameFormatter)
             "$startLabel – $endLabel, ${weekEnd.year}"
         }
         else -> "$monthName ${weekStart.dayOfMonth}–${weekEnd.dayOfMonth}, ${weekEnd.year}"
     }
 }
 
-private fun shortDateLabel(date: LocalDate, monthNameFormatter: (Month) -> String): String =
-    "${monthNameFormatter(date.month).take(3)} ${date.dayOfMonth}"
+private fun shortDateLabel(date: LocalDate, shortMonthNameFormatter: (Month) -> String): String =
+    "${shortMonthNameFormatter(date.month)} ${date.dayOfMonth}"

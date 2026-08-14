@@ -113,7 +113,7 @@ public fun KalendarTimeline(
     val colors = kalendarColors()
     val typography = kalendarTypography()
     val dimensions = kalendarDimensions()
-    val today = remember { todayInSystemTimeZone() }
+    val today = rememberKalendarToday(state.timeSource)
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     val background = config.background ?: SolidColor(colors.background)
 

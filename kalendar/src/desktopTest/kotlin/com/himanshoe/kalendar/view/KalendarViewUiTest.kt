@@ -117,7 +117,7 @@ class KalendarViewUiTest {
     fun scheduleView_rendersTimedEventBlock() {
         rule.setContent {
             KalendarSchedule(
-                selectedDate = march,
+                state = rememberKalendarScheduleState(initialDate = march),
                 events = listOf(
                     BasicKalendarEvent(
                         date = march,
@@ -162,7 +162,7 @@ class KalendarViewUiTest {
         var reportedEnd: LocalDateTime? = null
         rule.setContent {
             KalendarSchedule(
-                selectedDate = march,
+                state = rememberKalendarScheduleState(initialDate = march),
                 events = listOf(
                     BasicKalendarEvent(
                         date = march,
@@ -209,7 +209,7 @@ class KalendarViewUiTest {
                 )
             }
             KalendarSchedule(
-                selectedDate = march,
+                state = rememberKalendarScheduleState(initialDate = march),
                 events = events,
                 onEventTimeChange = { event, newStart, newEnd ->
                     starts += newStart
@@ -251,7 +251,7 @@ class KalendarViewUiTest {
         var reportedEnd: LocalDateTime? = null
         rule.setContent {
             KalendarSchedule(
-                selectedDate = march,
+                state = rememberKalendarScheduleState(initialDate = march),
                 events = listOf(
                     BasicKalendarEvent(
                         date = march,

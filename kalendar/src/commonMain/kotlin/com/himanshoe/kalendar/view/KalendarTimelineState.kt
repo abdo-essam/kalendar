@@ -19,10 +19,13 @@ package com.himanshoe.kalendar.view
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
@@ -44,9 +47,16 @@ internal fun clampedTimelineIndex(baseIndex: Int, monthsFromAnchor: Int, itemCou
  * Hoisted scroll state for [KalendarTimeline].
  *
  * Wraps a [LazyListState] and exposes it in date terms: [visibleDate] is the start of the month
- * currently topmost on screen, and [scrollTo] animates to any date. Obtain an instance via
+ * currently topmost on screen, and [animateScrollTo] animates to any date. Obtain an instance via
  * [rememberKalendarTimelineState].
+ *
+ * As on [KalendarViewState] there is no `today` property — read it with
+ * `rememberKalendarToday(state.timeSource)`, which stays snapshot-observable across midnight.
  */
+// The constructor takes one parameter over detekt's threshold. Every one of them is a distinct
+// coordinate of the same list (its state, its extent, its two index/date mappings, its bounds) with
+// no sub-grouping that would read as a type of its own, so bundling would only add indirection.
+@Suppress("LongParameterList")
 @Stable
 public class KalendarTimelineState internal constructor(
     internal val lazyListState: LazyListState,
@@ -56,18 +66,27 @@ public class KalendarTimelineState internal constructor(
     public val startDayOfWeek: DayOfWeek,
     public val minDate: LocalDate?,
     public val maxDate: LocalDate?,
+    timeSource: KalendarTimeSource,
 ) {
+    /** Where this state reads "today" from. See [KalendarViewState.timeSource]. */
+    public var timeSource: KalendarTimeSource by mutableStateOf(timeSource)
+
     /** The start date of the month currently topmost in the list. */
     public val visibleDate: LocalDate by derivedStateOf { indexToDate(lazyListState.firstVisibleItemIndex) }
 
-    /** Animates the list so the month containing [date] scrolls to the top. */
-    public suspend fun scrollTo(date: LocalDate) {
+    /**
+     * Animates the list so the month containing [date] scrolls to the top.
+     *
+     * Named for what it does: this animates rather than jumps, matching
+     * [KalendarViewState.animateScrollTo] and every `animateScrollTo*` in AndroidX.
+     */
+    public suspend fun animateScrollTo(date: LocalDate) {
         lazyListState.animateScrollToItem(dateToIndex(date))
     }
 
     /** Animates the list back to the month containing today's date. */
-    public suspend fun scrollToToday() {
-        scrollTo(todayInSystemTimeZone())
+    public suspend fun animateScrollToToday() {
+        animateScrollTo(timeSource.today())
     }
 }
 
@@ -80,13 +99,16 @@ public class KalendarTimelineState internal constructor(
  *   date. Defaults to `null` — unlimited scroll into the past.
  * @param maxDate When set, the list cannot scroll to a month after the month containing this
  *   date. Defaults to `null` — unlimited scroll into the future.
+ * @param timeSource Where the state reads "today" from. Defaults to the ambient
+ *   [KalendarTimeSource]; see [KalendarViewState.timeSource].
  */
 @Composable
 public fun rememberKalendarTimelineState(
-    initialDate: LocalDate = todayInSystemTimeZone(),
+    initialDate: LocalDate = rememberInitialKalendarDate(),
     startDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     minDate: LocalDate? = null,
     maxDate: LocalDate? = null,
+    timeSource: KalendarTimeSource = rememberKalendarTimeSource(),
 ): KalendarTimelineState {
     val anchor = remember(initialDate) { initialDate.startOfMonth() }
     val minMonth = remember(minDate) { minDate?.startOfMonth() }
@@ -118,7 +140,7 @@ public fun rememberKalendarTimelineState(
     }
     val lazyListState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
 
-    return remember(lazyListState, itemCount, indexAnchor, baseIndex, startDayOfWeek, minDate, maxDate) {
+    val state = remember(lazyListState, itemCount, indexAnchor, baseIndex, startDayOfWeek, minDate, maxDate) {
         KalendarTimelineState(
             lazyListState = lazyListState,
             itemCount = itemCount,
@@ -133,6 +155,14 @@ public fun rememberKalendarTimelineState(
             startDayOfWeek = startDayOfWeek,
             minDate = minDate,
             maxDate = maxDate,
+            timeSource = timeSource,
         )
     }
+    // Guarded exactly as KalendarViewState's writeback is, and for the same reason.
+    SideEffect {
+        if (state.timeSource != timeSource) {
+            state.timeSource = timeSource
+        }
+    }
+    return state
 }

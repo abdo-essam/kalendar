@@ -22,8 +22,11 @@ import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,9 +50,16 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
+
+/**
+ * Thickness of the ring [KalendarDayCellDefaults.Cell] draws around a keyboard-focused cell. It is
+ * always drawn — transparent when unfocused — so gaining focus never changes the cell's size.
+ */
+private val FOCUS_RING_WIDTH = 2.dp
 
 /**
  * The state of a single date cell inside [KalendarWeek], [KalendarMonth], or [KalendarYear].
@@ -235,6 +245,11 @@ public object KalendarDayCellDefaults {
      * resolves through the ambient [KalendarTheme]; with [KalendarAnimations.enabled] set to
      * `false` the selection fill, the press-scale, and the indicator row all change instantly.
      *
+     * Every cell is also a tab stop, so keyboard focus draws a [KalendarColors.focusIndicator] ring
+     * around it and a hovering pointer washes it with [KalendarColors.hoverBackground]. A custom
+     * `dayContent` slot replaces this cell entirely, and with it both affordances — apply
+     * [kalendarDaySemantics] with your own `interactionSource` to rebuild them.
+     *
      * @param showSelectionBackground Whether this cell draws its own selection fill. Set to
      *   `false` when a separate sliding indicator (e.g. [KalendarGrid]'s) already renders the
      *   selection visual behind this cell — [KalendarDayScope.isSelected] still drives the text
@@ -292,6 +307,8 @@ public object KalendarDayCellDefaults {
 
         val interactionSource = remember { MutableInteractionSource() }
         val isPressed by interactionSource.collectIsPressedAsState()
+        val isFocused by interactionSource.collectIsFocusedAsState()
+        val isHovered by interactionSource.collectIsHoveredAsState()
         val scale by animateFloatAsState(
             targetValue = if (isPressed) {
                 animations.pressScale
@@ -316,6 +333,12 @@ public object KalendarDayCellDefaults {
                 .padding(dimensions.dayCellPadding)
                 .clip(shapes.dayCell)
                 .background(background)
+                .background(if (isHovered) colors.hoverBackground else Color.Transparent)
+                .border(
+                    width = FOCUS_RING_WIDTH,
+                    color = if (isFocused) colors.focusIndicator else Color.Transparent,
+                    shape = shapes.dayCell,
+                )
                 .kalendarDaySemantics(
                     scope = scope,
                     onClick = onClick,

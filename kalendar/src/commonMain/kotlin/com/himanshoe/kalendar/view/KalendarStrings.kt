@@ -17,7 +17,10 @@
 package com.himanshoe.kalendar.view
 
 import androidx.compose.runtime.Immutable
+import com.himanshoe.kalendar.foundation.event.KalendarEvent
+import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
 
 /**
  * Every string a Kalendar view speaks or shows, so the library can be localized.
@@ -61,6 +64,19 @@ import kotlinx.datetime.LocalDate
  *   and its already-formatted month name. Defaults to US-style `"August 12, 2026"`; override it
  *   for locales that order or punctuate dates differently. [todaySuffix] and [hasEventsSuffix] are
  *   appended to whatever this returns.
+ * @property dayOfWeekAccessibilityLabel The full day name a screen reader announces for a
+ *   day-of-week column header. The header *shows*
+ *   [KalendarViewConfig.dayOfWeekLabelFormatter]'s short form — a bare "M" or "T", which reads as
+ *   an initial rather than a weekday — so this supplies the name behind it. Defaults to plain
+ *   English ("Monday").
+ * @property eventAccessibilityLabel What a screen reader announces for a timed event block, given
+ *   the event and its start/end on the day being rendered. Defaults to the event's name followed by
+ *   its 24-hour time range; override it for a localized time format. Only the built-in
+ *   [KalendarScheduleDefaults.EventBlock] applies it — a replacement `eventContent` slot draws its
+ *   own semantics.
+ * @property allDayEventAccessibilityLabel What a screen reader announces for an all-day chip.
+ *   Defaults to the event's name followed by "all day". See [eventAccessibilityLabel] for how it
+ *   interacts with a custom `allDayEventContent` slot.
  */
 @Immutable
 public class KalendarStrings(
@@ -75,6 +91,10 @@ public class KalendarStrings(
     public val agendaEmptyState: String = "No events",
     public val eventOverflowLabel: (hiddenEventCount: Int) -> String = { "+$it" },
     public val dayAccessibilityLabel: (date: LocalDate, monthName: String) -> String = defaultDayAccessibilityLabel,
+    public val dayOfWeekAccessibilityLabel: (DayOfWeek) -> String = defaultDayOfWeekAccessibilityLabel,
+    public val eventAccessibilityLabel: (event: KalendarEvent, start: LocalDateTime, end: LocalDateTime) -> String =
+        defaultEventAccessibilityLabel,
+    public val allDayEventAccessibilityLabel: (event: KalendarEvent) -> String = defaultAllDayEventAccessibilityLabel,
 ) {
 
     /** Returns a duplicate of these strings with only the ones passed here replaced. */
@@ -90,6 +110,10 @@ public class KalendarStrings(
         agendaEmptyState: String = this.agendaEmptyState,
         eventOverflowLabel: (hiddenEventCount: Int) -> String = this.eventOverflowLabel,
         dayAccessibilityLabel: (date: LocalDate, monthName: String) -> String = this.dayAccessibilityLabel,
+        dayOfWeekAccessibilityLabel: (DayOfWeek) -> String = this.dayOfWeekAccessibilityLabel,
+        eventAccessibilityLabel: (event: KalendarEvent, start: LocalDateTime, end: LocalDateTime) -> String =
+            this.eventAccessibilityLabel,
+        allDayEventAccessibilityLabel: (event: KalendarEvent) -> String = this.allDayEventAccessibilityLabel,
     ): KalendarStrings = KalendarStrings(
         previousPage = previousPage,
         nextPage = nextPage,
@@ -102,8 +126,12 @@ public class KalendarStrings(
         agendaEmptyState = agendaEmptyState,
         eventOverflowLabel = eventOverflowLabel,
         dayAccessibilityLabel = dayAccessibilityLabel,
+        dayOfWeekAccessibilityLabel = dayOfWeekAccessibilityLabel,
+        eventAccessibilityLabel = eventAccessibilityLabel,
+        allDayEventAccessibilityLabel = allDayEventAccessibilityLabel,
     )
 
+    @Suppress("CyclomaticComplexMethod")
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is KalendarStrings) return false
@@ -118,6 +146,9 @@ public class KalendarStrings(
         if (agendaEmptyState != other.agendaEmptyState) return false
         if (eventOverflowLabel != other.eventOverflowLabel) return false
         if (dayAccessibilityLabel != other.dayAccessibilityLabel) return false
+        if (dayOfWeekAccessibilityLabel != other.dayOfWeekAccessibilityLabel) return false
+        if (eventAccessibilityLabel != other.eventAccessibilityLabel) return false
+        if (allDayEventAccessibilityLabel != other.allDayEventAccessibilityLabel) return false
         return true
     }
 
@@ -133,6 +164,9 @@ public class KalendarStrings(
         result = 31 * result + agendaEmptyState.hashCode()
         result = 31 * result + eventOverflowLabel.hashCode()
         result = 31 * result + dayAccessibilityLabel.hashCode()
+        result = 31 * result + dayOfWeekAccessibilityLabel.hashCode()
+        result = 31 * result + eventAccessibilityLabel.hashCode()
+        result = 31 * result + allDayEventAccessibilityLabel.hashCode()
         return result
     }
 
@@ -147,9 +181,24 @@ public class KalendarStrings(
         "hasEventsSuffix=$hasEventsSuffix, " +
         "agendaEmptyState=$agendaEmptyState, " +
         "eventOverflowLabel=$eventOverflowLabel, " +
-        "dayAccessibilityLabel=$dayAccessibilityLabel" +
+        "dayAccessibilityLabel=$dayAccessibilityLabel, " +
+        "dayOfWeekAccessibilityLabel=$dayOfWeekAccessibilityLabel, " +
+        "eventAccessibilityLabel=$eventAccessibilityLabel, " +
+        "allDayEventAccessibilityLabel=$allDayEventAccessibilityLabel" +
         ")"
 }
 
 private val defaultDayAccessibilityLabel: (LocalDate, String) -> String =
     { date, monthName -> "$monthName ${date.dayOfMonth}, ${date.year}" }
+
+private val defaultDayOfWeekAccessibilityLabel: (DayOfWeek) -> String = { dayOfWeek ->
+    dayOfWeek.name.lowercase().replaceFirstChar { it.titlecase() }
+}
+
+private val defaultEventAccessibilityLabel: (KalendarEvent, LocalDateTime, LocalDateTime) -> String =
+    { event, start, end -> "${event.eventName}, ${clockLabel(start)} to ${clockLabel(end)}" }
+
+private val defaultAllDayEventAccessibilityLabel: (KalendarEvent) -> String = { "${it.eventName}, all day" }
+
+private fun clockLabel(dateTime: LocalDateTime): String =
+    "${dateTime.hour.toString().padStart(2, '0')}:${dateTime.minute.toString().padStart(2, '0')}"
