@@ -35,8 +35,24 @@ public sealed class KalendarSyncResult<out T> {
      * The operation completed successfully.
      *
      * @param data The value produced by the operation.
+     *
+     * This is deliberately a plain `class` with a hand-written [equals] and [hashCode] rather
+     * than a `data class`, matching the rest of this module's public surface: a `data class`
+     * compiles `copy` and `componentN` into the ABI, which then cannot gain a property without
+     * breaking already compiled consumers.
      */
-    public data class Success<T>(val data: T) : KalendarSyncResult<T>()
+    public class Success<T>(public val data: T) : KalendarSyncResult<T>() {
+
+        /** Two successes are equal when they carry equal values. */
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            return other is Success<*> && data == other.data
+        }
+
+        override fun hashCode(): Int = data?.hashCode() ?: 0
+
+        override fun toString(): String = "Success(data=$data)"
+    }
 
     /**
      * The required calendar permission was not granted by the user.
@@ -58,9 +74,25 @@ public sealed class KalendarSyncResult<out T> {
      *
      * @param message A human-readable description of what went wrong.
      * @param cause The underlying exception, if available.
+     *
+     * This is deliberately a plain `class` with a hand-written [equals] and [hashCode] rather
+     * than a `data class`, matching the rest of this module's public surface — see [Success].
      */
-    public data class Error(
-        val message: String,
-        val cause: Throwable? = null,
-    ) : KalendarSyncResult<Nothing>()
+    public class Error(
+        public val message: String,
+        public val cause: Throwable? = null,
+    ) : KalendarSyncResult<Nothing>() {
+
+        /** Two errors are equal when both the message and the cause match. */
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            return other is Error && message == other.message && cause == other.cause
+        }
+
+        override fun hashCode(): Int = HASH_FACTOR * message.hashCode() + (cause?.hashCode() ?: 0)
+
+        override fun toString(): String = "Error(message=$message, cause=$cause)"
+    }
 }
+
+private const val HASH_FACTOR = 31

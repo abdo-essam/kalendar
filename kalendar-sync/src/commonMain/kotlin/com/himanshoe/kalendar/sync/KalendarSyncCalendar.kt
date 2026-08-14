@@ -28,9 +28,43 @@ package com.himanshoe.kalendar.sync
  *   [Long], or `null` when the platform does not report one. Always `null` on iOS, where
  *   EventKit exposes calendar colours only as `CGColor`, which has no reliable
  *   cross-platform ARGB mapping.
+ *
+ * This is deliberately a plain `class` with a hand-written [copy], [equals], and [hashCode]
+ * rather than a `data class`, so that adding a property in a later release does not change the
+ * compiled signature of `copy` and break already compiled consumers.
  */
-public data class KalendarSyncCalendar(
-    val id: String,
-    val name: String,
-    val colorArgb: Long? = null,
-)
+public class KalendarSyncCalendar(
+    public val id: String,
+    public val name: String,
+    public val colorArgb: Long? = null,
+) {
+    /**
+     * Returns a copy of this calendar with the given properties replaced and all others carried
+     * over unchanged.
+     */
+    public fun copy(
+        id: String = this.id,
+        name: String = this.name,
+        colorArgb: Long? = this.colorArgb,
+    ): KalendarSyncCalendar = KalendarSyncCalendar(id = id, name = name, colorArgb = colorArgb)
+
+    /** Two calendars are equal when every property matches. */
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is KalendarSyncCalendar) return false
+        if (id != other.id) return false
+        if (name != other.name) return false
+        return colorArgb == other.colorArgb
+    }
+
+    override fun hashCode(): Int {
+        var result = id.hashCode()
+        result = HASH_FACTOR * result + name.hashCode()
+        result = HASH_FACTOR * result + (colorArgb?.hashCode() ?: 0)
+        return result
+    }
+
+    override fun toString(): String = "KalendarSyncCalendar(id=$id, name=$name, colorArgb=$colorArgb)"
+}
+
+private const val HASH_FACTOR = 31

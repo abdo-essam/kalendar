@@ -49,13 +49,18 @@ import kotlin.time.Instant
  */
 public fun KalendarSync(context: Context): KalendarSyncProvider = AndroidKalendarSync(context)
 
-private const val END_OF_DAY_HOUR = 23
-private const val END_OF_DAY_MINUTE = 59
-
 private class AndroidKalendarSync(private val context: Context) : KalendarSyncProvider {
 
     private val tz get() = TimeZone.currentSystemDefault()
 
+    /**
+     * Returns `true` only when **both** `READ_CALENDAR` and `WRITE_CALENDAR` are already granted.
+     *
+     * This is a synchronous check that never shows a prompt — Android permissions must be
+     * requested from an `Activity`, so ask with `ActivityCompat.requestPermissions` first. Every
+     * other operation on this provider short-circuits to [KalendarSyncResult.PermissionDenied]
+     * while this returns `false`.
+     */
     override suspend fun hasPermission(): Boolean {
         val read = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR)
         val write = ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CALENDAR)
@@ -176,7 +181,7 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                 )
             }
         } else {
-            null
+            endMs?.let { millisToLocalDate(it, timeZone) }?.takeIf { it > date }
         }
         val eventRowId = cursor.getLong(cursor.getColumnIndex(CalendarContract.Events._ID))
         return BasicKalendarSyncEvent(
@@ -245,12 +250,12 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                 val startMs = if (event.isAllDay) {
                     allDayStartUtcMillis(event.date)
                 } else {
-                    localDateTimeToMillis(event.date, event.startTime ?: LocalTime(0, 0))
+                    localDateTimeToMillis(event.date, event.resolvedStartTime())
                 }
                 val endMs = if (event.isAllDay) {
                     allDayEndExclusiveUtcMillis(startDate = event.date, endDateInclusive = event.endDate)
                 } else {
-                    localDateTimeToMillis(event.date, event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE))
+                    localDateTimeToMillis(event.timedEndDate(), event.resolvedEndTime())
                 }
 
                 val values = ContentValues().apply {
@@ -282,12 +287,12 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                 val startMs = if (event.isAllDay) {
                     allDayStartUtcMillis(event.date)
                 } else {
-                    localDateTimeToMillis(event.date, event.startTime ?: LocalTime(0, 0))
+                    localDateTimeToMillis(event.date, event.resolvedStartTime())
                 }
                 val endMs = if (event.isAllDay) {
                     allDayEndExclusiveUtcMillis(startDate = event.date, endDateInclusive = event.endDate)
                 } else {
-                    localDateTimeToMillis(event.date, event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE))
+                    localDateTimeToMillis(event.timedEndDate(), event.resolvedEndTime())
                 }
                 val uri = ContentUris.withAppendedId(
                     CalendarContract.Events.CONTENT_URI,

@@ -126,11 +126,9 @@ private class IosKalendarSync : KalendarSyncProvider {
             val start = startDate.atStartOfDayIn(timeZone).toNSDate()
             val end = endDate.plus(1, DateTimeUnit.DAY).atStartOfDayIn(timeZone).toNSDate()
             val calendars = eventStore.calendarsForEntityType(EKEntityType.EKEntityTypeEvent)
-
-            @Suppress("UNCHECKED_CAST")
             val ekEvents = eventStore.eventsMatchingPredicate(
                 eventStore.predicateForEventsWithStartDate(start, end, calendars)
-            ) as? List<EKEvent> ?: emptyList()
+            ).orEmpty().filterIsInstance<EKEvent>()
 
             KalendarSyncResult.Success(ekEvents.map { it.toKalendarSyncEvent() })
         }.getOrElse { KalendarSyncResult.Error("Failed to fetch events", it) }
@@ -173,12 +171,12 @@ private class IosKalendarSync : KalendarSyncProvider {
                 startDate = if (event.isAllDay) {
                     event.date.atStartOfDayIn(tz).toNSDate()
                 } else {
-                    localTimeToNSDate(event.date, event.startTime ?: LocalTime(0, 0))
+                    localTimeToNSDate(event.date, event.resolvedStartTime())
                 }
                 endDate = if (event.isAllDay) {
                     (event.endDate ?: event.date).atStartOfDayIn(tz).plusDayNSDate()
                 } else {
-                    localTimeToNSDate(event.date, event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE))
+                    localTimeToNSDate(event.timedEndDate(), event.resolvedEndTime())
                 }
                 calendar = calendarId?.let { eventStore.calendarWithIdentifier(it) }
                     ?: eventStore.defaultCalendarForNewEvents
@@ -221,12 +219,12 @@ private class IosKalendarSync : KalendarSyncProvider {
             ekEvent.startDate = if (event.isAllDay) {
                 event.date.atStartOfDayIn(tz).toNSDate()
             } else {
-                localTimeToNSDate(event.date, event.startTime ?: LocalTime(0, 0))
+                localTimeToNSDate(event.date, event.resolvedStartTime())
             }
             ekEvent.endDate = if (event.isAllDay) {
                 (event.endDate ?: event.date).atStartOfDayIn(tz).plusDayNSDate()
             } else {
-                localTimeToNSDate(event.date, event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE))
+                localTimeToNSDate(event.timedEndDate(), event.resolvedEndTime())
             }
             ekEvent.recurrenceRules = event.recurrenceRule?.let { listOf(it.toEKRecurrenceRule()) }
             ekEvent.alarms?.filterIsInstance<EKAlarm>()?.forEach { ekEvent.removeAlarm(it) }
@@ -281,7 +279,7 @@ private class IosKalendarSync : KalendarSyncProvider {
         val spanEndDate = if (allDay) {
             endDate?.toLocalDateTime()?.let { allDayInclusiveEndDate(startDate = date, endDateTime = it) }
         } else {
-            null
+            endDate?.toLocalDate()?.takeIf { it > date }
         }
         return BasicKalendarSyncEvent(
             id = eventIdentifier,

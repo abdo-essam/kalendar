@@ -27,6 +27,41 @@ import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
+private const val END_OF_DAY_HOUR = 23
+private const val END_OF_DAY_MINUTE = 59
+
+/**
+ * The start time a timed event is stored with, defaulting to midnight when
+ * [KalendarSyncEvent.startTime] is absent.
+ */
+internal fun KalendarSyncEvent.resolvedStartTime(): LocalTime = startTime ?: LocalTime(hour = 0, minute = 0)
+
+/**
+ * The end time a timed event is stored with, defaulting to 23:59 when [KalendarSyncEvent.endTime]
+ * is absent.
+ */
+internal fun KalendarSyncEvent.resolvedEndTime(): LocalTime =
+    endTime ?: LocalTime(hour = END_OF_DAY_HOUR, minute = END_OF_DAY_MINUTE)
+
+/**
+ * The calendar date a **timed** event's end instant falls on — the date half of the `DTEND` that
+ * pairs with a `DTSTART` on [KalendarSyncEvent.date].
+ *
+ * Prefers an explicit [KalendarSyncEvent.endDate], which is how a timed event spanning more than
+ * one day states its span. Otherwise the event ends on its start date, except where that would put
+ * the end at or before the start: an event running 22:00 to 06:00 with no end date can only mean
+ * the following morning, and RFC 5545 requires `DTEND` to be strictly later than `DTSTART`, so the
+ * end rolls to the next day rather than emitting a backwards interval.
+ */
+internal fun KalendarSyncEvent.timedEndDate(): LocalDate {
+    val base = endDate?.coerceAtLeast(date) ?: date
+    return if (base == date && resolvedEndTime() <= resolvedStartTime()) {
+        base.plus(1, DateTimeUnit.DAY)
+    } else {
+        base
+    }
+}
+
 /**
  * Returns `true` when an event occupying [eventStart]..[eventEndInclusive] **overlaps** the closed
  * range [[rangeStart], [rangeEnd]] — that is, `eventStart <= rangeEnd && eventEnd >= rangeStart`.

@@ -430,4 +430,67 @@ class KalendarICalCodecTest {
         assertEquals(1, decoded.size)
         assertEquals("Valid Event", decoded.single().eventName)
     }
+
+    @Test
+    fun encode_timedEventWithEndDate_dtEndCarriesTheEndDate() {
+        val ics = KalendarICalCodec.encode(
+            listOf(
+                BasicKalendarSyncEvent(
+                    date = LocalDate(2026, 5, 1),
+                    eventName = "Night shift",
+                    startTime = LocalTime(22, 0),
+                    endTime = LocalTime(6, 0),
+                    endDate = LocalDate(2026, 5, 2),
+                ),
+            ),
+        )
+        assertTrue(ics.contains("DTSTART:20260501T220000"), ics)
+        assertTrue(ics.contains("DTEND:20260502T060000"), ics)
+    }
+
+    @Test
+    fun encode_timedEventEndingBeforeItStarts_rollsDtEndToNextDay() {
+        val ics = KalendarICalCodec.encode(
+            listOf(
+                BasicKalendarSyncEvent(
+                    date = LocalDate(2026, 5, 1),
+                    eventName = "Night shift",
+                    startTime = LocalTime(22, 0),
+                    endTime = LocalTime(6, 0),
+                ),
+            ),
+        )
+        assertTrue(ics.contains("DTSTART:20260501T220000"), ics)
+        assertTrue(ics.contains("DTEND:20260502T060000"), ics)
+    }
+
+    @Test
+    fun roundTrip_timedEventCrossingMidnight_preservesEndDate() {
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 5, 1),
+            eventName = "Night shift",
+            startTime = LocalTime(22, 0),
+            endTime = LocalTime(6, 0),
+            endDate = LocalDate(2026, 5, 2),
+        )
+        val decoded = KalendarICalCodec.decode(KalendarICalCodec.encode(listOf(event))).single()
+        assertEquals(LocalDate(2026, 5, 1), decoded.date)
+        assertEquals(LocalDate(2026, 5, 2), decoded.endDate)
+        assertEquals(LocalTime(22, 0), decoded.startTime)
+        assertEquals(LocalTime(6, 0), decoded.endTime)
+    }
+
+    @Test
+    fun roundTrip_multiDayTimedEvent_preservesFullSpan() {
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 5, 1),
+            eventName = "Conference",
+            startTime = LocalTime(9, 0),
+            endTime = LocalTime(17, 0),
+            endDate = LocalDate(2026, 5, 4),
+        )
+        val decoded = KalendarICalCodec.decode(KalendarICalCodec.encode(listOf(event))).single()
+        assertEquals(LocalDate(2026, 5, 4), decoded.endDate)
+        assertEquals(LocalTime(17, 0), decoded.endTime)
+    }
 }

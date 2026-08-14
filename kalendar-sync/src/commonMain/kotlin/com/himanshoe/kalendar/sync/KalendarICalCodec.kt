@@ -23,6 +23,10 @@ import kotlinx.datetime.LocalTime
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 
+private const val YEAR_END_IDX = 4
+private const val MONTH_END_IDX = 6
+private const val SECONDS_PER_MINUTE = 60L
+
 /**
  * Pure Kotlin iCalendar (RFC 5545) encoder and decoder.
  * No platform APIs — works on Android, iOS, Desktop, and wasmJS.
@@ -33,12 +37,6 @@ import kotlinx.datetime.plus
  * files this library previously wrote, a trailing `Z` on `DTSTART`/`DTEND`/`EXDATE` values is
  * also accepted and treated as floating.
  */
-private const val END_OF_DAY_HOUR = 23
-private const val END_OF_DAY_MINUTE = 59
-private const val YEAR_END_IDX = 4
-private const val MONTH_END_IDX = 6
-private const val SECONDS_PER_MINUTE = 60L
-
 internal object KalendarICalCodec {
 
     /**
@@ -71,10 +69,8 @@ internal object KalendarICalCodec {
             val endExclusive = (event.endDate ?: event.date).plusDays(1)
             appendLine("DTEND;VALUE=DATE:${endExclusive.toIcalDateString()}")
         } else {
-            val startTime = event.startTime ?: LocalTime(0, 0)
-            val endTime = event.endTime ?: LocalTime(END_OF_DAY_HOUR, END_OF_DAY_MINUTE)
-            appendLine("DTSTART:${LocalDateTime(event.date, startTime).toIcalDateTime()}")
-            appendLine("DTEND:${LocalDateTime(event.date, endTime).toIcalDateTime()}")
+            appendLine("DTSTART:${LocalDateTime(event.date, event.resolvedStartTime()).toIcalDateTime()}")
+            appendLine("DTEND:${LocalDateTime(event.timedEndDate(), event.resolvedEndTime()).toIcalDateTime()}")
         }
         event.recurrenceRule?.let { appendLine("RRULE:${it.toRRuleString()}") }
         if (event.exceptionDates.isNotEmpty()) {
@@ -100,7 +96,7 @@ internal object KalendarICalCodec {
         if (event.isAllDay) {
             return "EXDATE;VALUE=DATE:${event.exceptionDates.joinToString(",") { it.toIcalDateString() }}"
         }
-        val startTime = event.startTime ?: LocalTime(0, 0)
+        val startTime = event.resolvedStartTime()
         val values = event.exceptionDates.joinToString(",") { exceptionDate ->
             LocalDateTime(date = exceptionDate, time = startTime).toIcalDateTime()
         }
@@ -174,7 +170,11 @@ internal object KalendarICalCodec {
             val inclusiveEnd = endExclusive?.minusDays(1)?.takeIf { it > date }
             Triple(null, null, inclusiveEnd)
         } else {
-            Triple(parseIcalTime(startRaw), props.dtEnd?.let { parseIcalTime(it) }, null)
+            Triple(
+                parseIcalTime(startRaw),
+                props.dtEnd?.let { parseIcalTime(it) },
+                props.dtEnd?.let { parseIcalDateString(it) }?.takeIf { it > date },
+            )
         }
         val exceptionDates = props.exDatesRaw.flatMap { raw ->
             raw.split(",").mapNotNull { parseIcalDateString(it) }

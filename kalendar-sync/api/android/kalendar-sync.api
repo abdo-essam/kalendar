@@ -1,17 +1,6 @@
 public final class com/himanshoe/kalendar/sync/BasicKalendarSyncEvent : com/himanshoe/kalendar/sync/KalendarSyncEvent {
 	public fun <init> (Ljava/lang/String;Lkotlinx/datetime/LocalDate;Ljava/lang/String;Ljava/lang/String;Lkotlinx/datetime/LocalTime;Lkotlinx/datetime/LocalTime;Lcom/himanshoe/kalendar/sync/KalendarRule;Lkotlinx/datetime/LocalDate;Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
 	public synthetic fun <init> (Ljava/lang/String;Lkotlinx/datetime/LocalDate;Ljava/lang/String;Ljava/lang/String;Lkotlinx/datetime/LocalTime;Lkotlinx/datetime/LocalTime;Lcom/himanshoe/kalendar/sync/KalendarRule;Lkotlinx/datetime/LocalDate;Ljava/util/List;Ljava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component10 ()Ljava/util/List;
-	public final fun component11 ()Ljava/util/List;
-	public final fun component2 ()Lkotlinx/datetime/LocalDate;
-	public final fun component3 ()Ljava/lang/String;
-	public final fun component4 ()Ljava/lang/String;
-	public final fun component5 ()Lkotlinx/datetime/LocalTime;
-	public final fun component6 ()Lkotlinx/datetime/LocalTime;
-	public final fun component7 ()Lcom/himanshoe/kalendar/sync/KalendarRule;
-	public final fun component8 ()Lkotlinx/datetime/LocalDate;
-	public final fun component9 ()Ljava/util/List;
 	public final fun copy (Ljava/lang/String;Lkotlinx/datetime/LocalDate;Ljava/lang/String;Ljava/lang/String;Lkotlinx/datetime/LocalTime;Lkotlinx/datetime/LocalTime;Lcom/himanshoe/kalendar/sync/KalendarRule;Lkotlinx/datetime/LocalDate;Ljava/util/List;Ljava/util/List;Ljava/util/List;)Lcom/himanshoe/kalendar/sync/BasicKalendarSyncEvent;
 	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/sync/BasicKalendarSyncEvent;Ljava/lang/String;Lkotlinx/datetime/LocalDate;Ljava/lang/String;Ljava/lang/String;Lkotlinx/datetime/LocalTime;Lkotlinx/datetime/LocalTime;Lcom/himanshoe/kalendar/sync/KalendarRule;Lkotlinx/datetime/LocalDate;Ljava/util/List;Ljava/util/List;Ljava/util/List;ILjava/lang/Object;)Lcom/himanshoe/kalendar/sync/BasicKalendarSyncEvent;
 	public fun equals (Ljava/lang/Object;)Z
@@ -34,8 +23,6 @@ public final class com/himanshoe/kalendar/sync/BasicKalendarSyncEvent : com/hima
 public final class com/himanshoe/kalendar/sync/KalendarAttendee {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component2 ()Ljava/lang/String;
 	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/himanshoe/kalendar/sync/KalendarAttendee;
 	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/sync/KalendarAttendee;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/himanshoe/kalendar/sync/KalendarAttendee;
 	public fun equals (Ljava/lang/Object;)Z
@@ -70,7 +57,6 @@ public final class com/himanshoe/kalendar/sync/KalendarRecurrenceFrequency : jav
 
 public final class com/himanshoe/kalendar/sync/KalendarReminder {
 	public fun <init> (I)V
-	public final fun component1 ()I
 	public final fun copy (I)Lcom/himanshoe/kalendar/sync/KalendarReminder;
 	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/sync/KalendarReminder;IILjava/lang/Object;)Lcom/himanshoe/kalendar/sync/KalendarReminder;
 	public fun equals (Ljava/lang/Object;)Z
@@ -82,13 +68,6 @@ public final class com/himanshoe/kalendar/sync/KalendarReminder {
 public final class com/himanshoe/kalendar/sync/KalendarRule {
 	public fun <init> (Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;ILjava/lang/Integer;Lkotlinx/datetime/LocalDate;Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
 	public synthetic fun <init> (Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;ILjava/lang/Integer;Lkotlinx/datetime/LocalDate;Ljava/util/List;Ljava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;
-	public final fun component2 ()I
-	public final fun component3 ()Ljava/lang/Integer;
-	public final fun component4 ()Lkotlinx/datetime/LocalDate;
-	public final fun component5 ()Ljava/util/List;
-	public final fun component6 ()Ljava/util/List;
-	public final fun component7 ()Ljava/util/List;
 	public final fun copy (Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;ILjava/lang/Integer;Lkotlinx/datetime/LocalDate;Ljava/util/List;Ljava/util/List;Ljava/util/List;)Lcom/himanshoe/kalendar/sync/KalendarRule;
 	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/sync/KalendarRule;Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;ILjava/lang/Integer;Lkotlinx/datetime/LocalDate;Ljava/util/List;Ljava/util/List;Ljava/util/List;ILjava/lang/Object;)Lcom/himanshoe/kalendar/sync/KalendarRule;
 	public fun equals (Ljava/lang/Object;)Z
@@ -106,9 +85,6 @@ public final class com/himanshoe/kalendar/sync/KalendarRule {
 public final class com/himanshoe/kalendar/sync/KalendarSyncCalendar {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component2 ()Ljava/lang/String;
-	public final fun component3 ()Ljava/lang/Long;
 	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;)Lcom/himanshoe/kalendar/sync/KalendarSyncCalendar;
 	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/sync/KalendarSyncCalendar;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;ILjava/lang/Object;)Lcom/himanshoe/kalendar/sync/KalendarSyncCalendar;
 	public fun equals (Ljava/lang/Object;)Z
@@ -165,10 +141,6 @@ public abstract class com/himanshoe/kalendar/sync/KalendarSyncResult {
 public final class com/himanshoe/kalendar/sync/KalendarSyncResult$Error : com/himanshoe/kalendar/sync/KalendarSyncResult {
 	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component2 ()Ljava/lang/Throwable;
-	public final fun copy (Ljava/lang/String;Ljava/lang/Throwable;)Lcom/himanshoe/kalendar/sync/KalendarSyncResult$Error;
-	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/sync/KalendarSyncResult$Error;Ljava/lang/String;Ljava/lang/Throwable;ILjava/lang/Object;)Lcom/himanshoe/kalendar/sync/KalendarSyncResult$Error;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getCause ()Ljava/lang/Throwable;
 	public final fun getMessage ()Ljava/lang/String;
@@ -192,9 +164,6 @@ public final class com/himanshoe/kalendar/sync/KalendarSyncResult$PermissionDeni
 
 public final class com/himanshoe/kalendar/sync/KalendarSyncResult$Success : com/himanshoe/kalendar/sync/KalendarSyncResult {
 	public fun <init> (Ljava/lang/Object;)V
-	public final fun component1 ()Ljava/lang/Object;
-	public final fun copy (Ljava/lang/Object;)Lcom/himanshoe/kalendar/sync/KalendarSyncResult$Success;
-	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/sync/KalendarSyncResult$Success;Ljava/lang/Object;ILjava/lang/Object;)Lcom/himanshoe/kalendar/sync/KalendarSyncResult$Success;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getData ()Ljava/lang/Object;
 	public fun hashCode ()I

@@ -47,9 +47,15 @@ private const val MONTHS_PER_YEAR = 12
  * - Dates in [KalendarSyncEvent.exceptionDates] are skipped — they still count towards
  *   [KalendarRule.count], matching how DTSTART+RRULE+EXDATE interact in most calendar apps (EXDATE
  *   removes specific occurrences from an already-determined series rather than shortening it).
- * - A YEARLY rule with BYMONTH (and no BYDAY/BYMONTHDAY) fires in each listed month on the start
- *   date's day-of-month; a MONTHLY rule with BYDAY fires on every matching weekday of each
- *   aligned month, per RFC 5545.
+ * - A YEARLY rule anchors to the series start whatever its BY-parts leave unspecified, per RFC
+ *   5545: with no BYMONTH the month comes from the start date, and with neither BYMONTHDAY nor
+ *   BYDAY the day-of-month does too. So `YEARLY BYMONTH=[3, 9]` fires in March and September on
+ *   the start's day-of-month, while `YEARLY BYMONTHDAY=[15]` fires only in the start's month.
+ * - A MONTHLY rule with BYDAY fires on every matching weekday of each aligned month, per RFC 5545.
+ * - MONTHLY and YEARLY rules without BY-filters **skip periods that lack the start's day-of-month**
+ *   rather than sliding the occurrence earlier: a MONTHLY series starting January 31st fires on
+ *   March 31st, not February 28th, and a YEARLY series starting February 29th fires only in leap
+ *   years.
  * - [KalendarRule.interval] composes with the BY-filters: a WEEKLY BYDAY rule with `interval = 2`
  *   emits only in weeks an even number of weeks from the start date's week (weeks delimited per
  *   RFC 5545's default Monday week start), a MONTHLY BYDAY or BYMONTHDAY rule with `interval = 2`
@@ -84,18 +90,114 @@ public fun KalendarSyncEvent.expandOccurrences(
 
     val occurrences = mutableListOf<KalendarSyncEvent>()
     var occurrenceCount = 0
-    var current = date
+    var periodIndex = rule.firstRelevantPeriod(
+        seriesStart = date,
+        windowFloor = rangeStart.minus(spanDays, DateTimeUnit.DAY),
+    )
+    var current = if (rule.enumeratesDaily()) {
+        maxOf(date, rule.walkFloor(seriesStart = date, rangeStart = rangeStart, spanDays = spanDays))
+    } else {
+        date.plusPeriods(rule, periodIndex)
+    }
 
     while (withinBounds(rule, occurrenceCount, current, rangeEnd)) {
-        if (current.matchesFilters(rule = rule, seriesStart = date) && current.alignsWithInterval(rule, date)) {
+        if (current.isOccurrenceOf(rule, seriesStart = date)) {
             if (overlapsWindow(current, spanDays, rangeStart, rangeEnd) && current !in exceptionDates) {
                 occurrences += copyWithDate(current)
             }
             occurrenceCount++
         }
-        current = current.advance(rule)
+        current = if (rule.enumeratesDaily()) {
+            current.plus(1, DateTimeUnit.DAY)
+        } else {
+            date.plusPeriods(rule, ++periodIndex)
+        }
     }
     return occurrences
+}
+
+/**
+ * Returns `true` when [this] is a real occurrence of [rule] for a series starting on [seriesStart]
+ * — it satisfies every BY-filter, sits in a period the interval selects, keeps whatever RFC 5545
+ * anchors to the series start, and did not land on a clamped day-of-month.
+ */
+private fun LocalDate.isOccurrenceOf(rule: KalendarRule, seriesStart: LocalDate): Boolean =
+    matchesFilters(rule = rule, seriesStart = seriesStart) &&
+        alignsWithInterval(rule, seriesStart) &&
+        preservesPeriodDayOfMonth(rule = rule, seriesStart = seriesStart)
+
+/**
+ * Returns the index of the first period that could still produce an occurrence overlapping a
+ * window floored at [windowFloor], for the period-stepped rules that [plusPeriods] drives.
+ *
+ * Occurrences before the window only matter when [KalendarRule.count] is set, since they consume
+ * it; with no count the walk can start at the window instead of at [seriesStart], which keeps a
+ * long-running series from costing one iteration per elapsed period on every query. Integer
+ * division floors, so the returned index is a lower bound and never skips a live occurrence.
+ */
+private fun KalendarRule.firstRelevantPeriod(seriesStart: LocalDate, windowFloor: LocalDate): Int {
+    if (count != null || enumeratesDaily() || windowFloor <= seriesStart) {
+        return 0
+    }
+    val periods = when (frequency) {
+        KalendarRecurrenceFrequency.DAILY ->
+            daysBetween(seriesStart, windowFloor) / interval
+
+        KalendarRecurrenceFrequency.WEEKLY ->
+            daysBetween(seriesStart, windowFloor) / (interval * DAYS_PER_WEEK)
+
+        KalendarRecurrenceFrequency.MONTHLY ->
+            monthsBetween(from = seriesStart, to = windowFloor) / interval
+
+        KalendarRecurrenceFrequency.YEARLY ->
+            (windowFloor.year - seriesStart.year) / interval
+    }
+    return periods.coerceAtLeast(0)
+}
+
+/**
+ * Returns the earliest date a day-at-a-time walk needs to visit. Mirrors [firstRelevantPeriod] for
+ * the day-enumerating rules: they filter on absolute alignment with [seriesStart] rather than on
+ * step count, so when no [KalendarRule.count] has to be consumed the walk can jump straight to the
+ * window instead of testing every intervening day.
+ */
+private fun KalendarRule.walkFloor(seriesStart: LocalDate, rangeStart: LocalDate, spanDays: Int): LocalDate =
+    if (count != null) seriesStart else rangeStart.minus(spanDays, DateTimeUnit.DAY)
+
+/**
+ * Returns the date [periods] whole intervals after this series start. Period-stepped rules are
+ * always recomputed from the series start rather than from the previous candidate, so a month that
+ * clamps (January 31st + 1 month is February 28th) cannot drag every later occurrence back with it.
+ */
+private fun LocalDate.plusPeriods(rule: KalendarRule, periods: Int): LocalDate {
+    val steps = periods.toLong() * rule.interval
+    return when (rule.frequency) {
+        KalendarRecurrenceFrequency.DAILY -> plus(steps, DateTimeUnit.DAY)
+        KalendarRecurrenceFrequency.WEEKLY -> plus(steps * DAYS_PER_WEEK, DateTimeUnit.DAY)
+        KalendarRecurrenceFrequency.MONTHLY -> plus(steps, DateTimeUnit.MONTH)
+        KalendarRecurrenceFrequency.YEARLY -> plus(steps, DateTimeUnit.YEAR)
+    }
+}
+
+/**
+ * Returns `false` when a period-stepped MONTHLY or YEARLY candidate landed on a different
+ * day-of-month than the series start, which happens only where the calendar clamped a short period
+ * — January 31st plus one month is February 28th, February 29th plus one year is February 28th.
+ * RFC 5545 skips periods that do not contain the start's day-of-month instead of moving the
+ * occurrence earlier, so those candidates are not occurrences at all and must not consume
+ * [KalendarRule.count].
+ */
+private fun LocalDate.preservesPeriodDayOfMonth(rule: KalendarRule, seriesStart: LocalDate): Boolean {
+    if (rule.enumeratesDaily()) {
+        return true
+    }
+    return when (rule.frequency) {
+        KalendarRecurrenceFrequency.MONTHLY, KalendarRecurrenceFrequency.YEARLY ->
+            dayOfMonth == seriesStart.dayOfMonth
+
+        KalendarRecurrenceFrequency.DAILY, KalendarRecurrenceFrequency.WEEKLY ->
+            true
+    }
 }
 
 /**
@@ -126,19 +228,34 @@ private fun withinBounds(rule: KalendarRule, count: Int, current: LocalDate, ran
         current <= rangeEnd
 
 /**
- * Returns `true` if this date satisfies all BYMONTH, BYMONTHDAY, and BYDAY constraints in [rule].
- *
- * A YEARLY rule with BYMONTH but neither BYDAY nor BYMONTHDAY additionally requires the
- * candidate's day-of-month to equal [seriesStart]'s — per RFC 5545, BYMONTH overrides only the
- * month while the day still comes from DTSTART.
+ * Returns `true` if this date satisfies all BYMONTH, BYMONTHDAY, and BYDAY constraints in [rule],
+ * plus the YEARLY series-start anchoring of [matchesYearlyAnchor].
  */
-private fun LocalDate.matchesFilters(rule: KalendarRule, seriesStart: LocalDate): Boolean {
-    val monthFilterOnlyYearly = rule.frequency == KalendarRecurrenceFrequency.YEARLY &&
-        rule.byMonth.isNotEmpty() && rule.byDay.isEmpty() && rule.byMonthDay.isEmpty()
-    return (rule.byMonth.isEmpty() || monthNumber in rule.byMonth) &&
+private fun LocalDate.matchesFilters(rule: KalendarRule, seriesStart: LocalDate): Boolean =
+    (rule.byMonth.isEmpty() || monthNumber in rule.byMonth) &&
         (rule.byMonthDay.isEmpty() || dayOfMonth in rule.byMonthDay) &&
         (rule.byDay.isEmpty() || dayOfWeek.toKalendarWeekDay() in rule.byDay) &&
-        (!monthFilterOnlyYearly || dayOfMonth == seriesStart.dayOfMonth)
+        matchesYearlyAnchor(rule = rule, seriesStart = seriesStart)
+
+/**
+ * Applies RFC 5545's rule that a YEARLY occurrence takes from DTSTART every component its
+ * BY-parts leave unspecified: with no BYMONTH the month comes from [seriesStart], and with
+ * neither BYMONTHDAY nor BYDAY the day-of-month does too.
+ *
+ * Without the month anchor a `FREQ=YEARLY;BYMONTHDAY=15` rule would fire on the 15th of all twelve
+ * months instead of once a year, because BYMONTHDAY alone never constrains the month. Non-YEARLY
+ * frequencies get their month or day from the period they step through, so this returns `true`
+ * for them.
+ */
+private fun LocalDate.matchesYearlyAnchor(rule: KalendarRule, seriesStart: LocalDate): Boolean {
+    if (rule.frequency != KalendarRecurrenceFrequency.YEARLY) {
+        return true
+    }
+    val monthAnchored = rule.byMonth.isNotEmpty() || monthNumber == seriesStart.monthNumber
+    val dayAnchored = rule.byMonthDay.isNotEmpty() ||
+        rule.byDay.isNotEmpty() ||
+        dayOfMonth == seriesStart.dayOfMonth
+    return monthAnchored && dayAnchored
 }
 
 /**
@@ -190,26 +307,6 @@ private fun monthsBetween(from: LocalDate, to: LocalDate): Int =
     (to.year - from.year) * MONTHS_PER_YEAR + (to.monthNumber - from.monthNumber)
 
 /**
- * Returns the next candidate date after this one, based on [rule]'s frequency and BY-filter
- * strategy.
- *
- * Day-enumerating rules (see [enumeratesDaily]) advance one day at a time so that every
- * qualifying day within each period is tested — [alignsWithInterval] then rejects candidates in
- * skipped periods. All other combinations advance by one full interval unit.
- */
-private fun LocalDate.advance(rule: KalendarRule): LocalDate =
-    if (rule.enumeratesDaily()) {
-        plus(1, DateTimeUnit.DAY)
-    } else {
-        when (rule.frequency) {
-            KalendarRecurrenceFrequency.DAILY -> plus(rule.interval, DateTimeUnit.DAY)
-            KalendarRecurrenceFrequency.WEEKLY -> plus(rule.interval * DAYS_PER_WEEK, DateTimeUnit.DAY)
-            KalendarRecurrenceFrequency.MONTHLY -> plus(rule.interval, DateTimeUnit.MONTH)
-            KalendarRecurrenceFrequency.YEARLY -> plus(rule.interval, DateTimeUnit.YEAR)
-        }
-    }
-
-/**
  * Maps a [DayOfWeek] to the corresponding [KalendarWeekDay] entry.
  */
 private fun DayOfWeek.toKalendarWeekDay(): KalendarWeekDay = when (this) {
@@ -229,22 +326,11 @@ private fun DayOfWeek.toKalendarWeekDay(): KalendarWeekDay = when (this) {
  * through, so persisting or re-expanding an occurrence keeps the full series semantics instead
  * of resurrecting excepted dates.
  */
-private fun KalendarSyncEvent.copyWithDate(date: LocalDate): KalendarSyncEvent {
-    val span = endDate?.let { date.plus(daysBetween(this.date, it), DateTimeUnit.DAY) }
-    return BasicKalendarSyncEvent(
-        id = null,
-        date = date,
-        eventName = eventName,
-        eventDescription = eventDescription,
-        startTime = startTime,
-        endTime = endTime,
-        recurrenceRule = recurrenceRule,
-        endDate = span,
-        exceptionDates = exceptionDates,
-        reminders = reminders,
-        attendees = attendees,
-    )
-}
+private fun KalendarSyncEvent.copyWithDate(date: LocalDate): KalendarSyncEvent = copyAsBasic(
+    id = null,
+    date = date,
+    endDate = endDate?.let { date.plus(daysBetween(this.date, it), DateTimeUnit.DAY) },
+)
 
 private fun daysBetween(from: LocalDate, to: LocalDate): Int =
     (to.toEpochDays() - from.toEpochDays()).toInt()

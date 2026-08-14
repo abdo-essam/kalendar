@@ -87,19 +87,76 @@ public enum class KalendarWeekDay {
  *   May also be set for MONTHLY/YEARLY rules to select specific weekdays within the period.
  * @param byMonthDay For MONTHLY rules, restricts occurrences to these day-of-month values (1–31).
  * @param byMonth For YEARLY rules, restricts occurrences to these month values (1–12).
+ *
+ * This is deliberately a plain `class` with a hand-written [copy], [equals], and [hashCode]
+ * rather than a `data class`, so that adding a BY-part in a later release does not change the
+ * compiled signature of `copy` and break already compiled consumers.
  */
-public data class KalendarRule(
-    val frequency: KalendarRecurrenceFrequency,
-    val interval: Int = 1,
-    val count: Int? = null,
-    val until: LocalDate? = null,
-    val byDay: List<KalendarWeekDay> = emptyList(),
-    val byMonthDay: List<Int> = emptyList(),
-    val byMonth: List<Int> = emptyList(),
+public class KalendarRule(
+    public val frequency: KalendarRecurrenceFrequency,
+    public val interval: Int = 1,
+    public val count: Int? = null,
+    public val until: LocalDate? = null,
+    public val byDay: List<KalendarWeekDay> = emptyList(),
+    public val byMonthDay: List<Int> = emptyList(),
+    public val byMonth: List<Int> = emptyList(),
 ) {
     init {
         require(interval >= 1) { "interval must be >= 1, was $interval" }
         require(count == null || count >= 1) { "count must be >= 1, was $count" }
         require(count == null || until == null) { "count and until are mutually exclusive" }
     }
+
+    /**
+     * Returns a copy of this rule with the given properties replaced and all others carried over
+     * unchanged. The constructor's validation applies to the result, so a copy that sets both
+     * [count] and [until] throws just as the constructor would.
+     */
+    public fun copy(
+        frequency: KalendarRecurrenceFrequency = this.frequency,
+        interval: Int = this.interval,
+        count: Int? = this.count,
+        until: LocalDate? = this.until,
+        byDay: List<KalendarWeekDay> = this.byDay,
+        byMonthDay: List<Int> = this.byMonthDay,
+        byMonth: List<Int> = this.byMonth,
+    ): KalendarRule = KalendarRule(
+        frequency = frequency,
+        interval = interval,
+        count = count,
+        until = until,
+        byDay = byDay,
+        byMonthDay = byMonthDay,
+        byMonth = byMonth,
+    )
+
+    /** Two rules are equal when every property matches. */
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is KalendarRule) return false
+        if (frequency != other.frequency) return false
+        if (interval != other.interval) return false
+        if (count != other.count) return false
+        if (until != other.until) return false
+        if (byDay != other.byDay) return false
+        if (byMonthDay != other.byMonthDay) return false
+        return byMonth == other.byMonth
+    }
+
+    override fun hashCode(): Int {
+        var result = frequency.hashCode()
+        result = HASH_FACTOR * result + interval
+        result = HASH_FACTOR * result + (count ?: 0)
+        result = HASH_FACTOR * result + (until?.hashCode() ?: 0)
+        result = HASH_FACTOR * result + byDay.hashCode()
+        result = HASH_FACTOR * result + byMonthDay.hashCode()
+        result = HASH_FACTOR * result + byMonth.hashCode()
+        return result
+    }
+
+    override fun toString(): String =
+        "KalendarRule(frequency=$frequency, interval=$interval, count=$count, until=$until, " +
+            "byDay=$byDay, byMonthDay=$byMonthDay, byMonth=$byMonth)"
 }
+
+private const val HASH_FACTOR = 31

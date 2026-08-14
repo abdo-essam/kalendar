@@ -16,6 +16,8 @@
 
 package com.himanshoe.kalendar.sync
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import java.io.File
@@ -78,18 +80,20 @@ private class DesktopKalendarSync(private val icsFilePath: String?) : KalendarSy
         timeZone: TimeZone,
     ): KalendarSyncResult<List<KalendarSyncEvent>> {
         val path = icsFilePath ?: return KalendarSyncResult.NotSupported
-        return runCatching {
-            val events = readAllEvents(path).filter { event ->
-                val overlaps = overlapsRange(
-                    eventStart = event.date,
-                    eventEndInclusive = event.endDate,
-                    rangeStart = startDate,
-                    rangeEnd = endDate,
-                )
-                overlaps || (event.recurrenceRule != null && event.date <= endDate)
-            }
-            KalendarSyncResult.Success(events)
-        }.getOrElse { KalendarSyncResult.Error("Failed to read ICS file: ${it.message}", it) }
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val events = readAllEvents(path).filter { event ->
+                    val overlaps = overlapsRange(
+                        eventStart = event.date,
+                        eventEndInclusive = event.endDate,
+                        rangeStart = startDate,
+                        rangeEnd = endDate,
+                    )
+                    overlaps || (event.recurrenceRule != null && event.date <= endDate)
+                }
+                KalendarSyncResult.Success(events)
+            }.getOrElse { KalendarSyncResult.Error("Failed to read ICS file: ${it.message}", it) }
+        }
     }
 
     /**
@@ -99,25 +103,14 @@ private class DesktopKalendarSync(private val icsFilePath: String?) : KalendarSy
      */
     override suspend fun insertEvent(event: KalendarSyncEvent, calendarId: String?): KalendarSyncResult<String> {
         val path = icsFilePath ?: return KalendarSyncResult.NotSupported
-        return runCatching {
-            val uid = "${event.date}-${event.eventName.hashCode().toUInt()}-${System.currentTimeMillis()}"
-            val newEvent = BasicKalendarSyncEvent(
-                id = uid,
-                date = event.date,
-                eventName = event.eventName,
-                eventDescription = event.eventDescription,
-                startTime = event.startTime,
-                endTime = event.endTime,
-                recurrenceRule = event.recurrenceRule,
-                endDate = event.endDate,
-                exceptionDates = event.exceptionDates,
-                reminders = event.reminders,
-                attendees = event.attendees,
-            )
-            val updated = readAllEvents(path) + newEvent
-            File(path).writeText(exportToIcs(updated))
-            KalendarSyncResult.Success(uid)
-        }.getOrElse { KalendarSyncResult.Error("Failed to write ICS file: ${it.message}", it) }
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val uid = "${event.date}-${event.eventName.hashCode().toUInt()}-${System.currentTimeMillis()}"
+                val updated = readAllEvents(path) + event.copyAsBasic(id = uid)
+                File(path).writeText(exportToIcs(updated))
+                KalendarSyncResult.Success(uid)
+            }.getOrElse { KalendarSyncResult.Error("Failed to write ICS file: ${it.message}", it) }
+        }
     }
 
     override suspend fun updateEvent(
@@ -125,36 +118,28 @@ private class DesktopKalendarSync(private val icsFilePath: String?) : KalendarSy
         event: KalendarSyncEvent,
     ): KalendarSyncResult<Unit> {
         val path = icsFilePath ?: return KalendarSyncResult.NotSupported
-        return runCatching {
-            val existing = readAllEvents(path)
-            val replaced = BasicKalendarSyncEvent(
-                id = eventId,
-                date = event.date,
-                eventName = event.eventName,
-                eventDescription = event.eventDescription,
-                startTime = event.startTime,
-                endTime = event.endTime,
-                recurrenceRule = event.recurrenceRule,
-                endDate = event.endDate,
-                exceptionDates = event.exceptionDates,
-                reminders = event.reminders,
-                attendees = event.attendees,
-            )
-            val updated = existing.map { if (it.id == eventId) replaced else it }
-            File(path).writeText(exportToIcs(updated))
-            KalendarSyncResult.Success(Unit)
-        }.getOrElse { KalendarSyncResult.Error("Failed to update ICS file: ${it.message}", it) }
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val replaced = event.copyAsBasic(id = eventId)
+                val updated = readAllEvents(path).map { if (it.id == eventId) replaced else it }
+                File(path).writeText(exportToIcs(updated))
+                KalendarSyncResult.Success(Unit)
+            }.getOrElse { KalendarSyncResult.Error("Failed to update ICS file: ${it.message}", it) }
+        }
     }
 
     override suspend fun deleteEvent(eventId: String): KalendarSyncResult<Unit> {
         val path = icsFilePath ?: return KalendarSyncResult.NotSupported
-        return runCatching {
-            val updated = readAllEvents(path).filter { it.id != eventId }
-            File(path).writeText(exportToIcs(updated))
-            KalendarSyncResult.Success(Unit)
-        }.getOrElse { KalendarSyncResult.Error("Failed to delete from ICS file: ${it.message}", it) }
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val updated = readAllEvents(path).filter { it.id != eventId }
+                File(path).writeText(exportToIcs(updated))
+                KalendarSyncResult.Success(Unit)
+            }.getOrElse { KalendarSyncResult.Error("Failed to delete from ICS file: ${it.message}", it) }
+        }
     }
 
+    /** Reads and parses the whole `.ics` file at [path], or returns empty if it does not exist yet. */
     private fun readAllEvents(path: String): List<KalendarSyncEvent> {
         val file = File(path)
         return if (file.exists()) importFromIcs(file.readText()) else emptyList()

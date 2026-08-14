@@ -25,8 +25,34 @@ package com.himanshoe.kalendar.sync
  *
  * @param email The attendee's email address.
  * @param name Optional display name shown alongside the email address.
+ *
+ * This is deliberately a plain `class` with a hand-written [copy], [equals], and [hashCode]
+ * rather than a `data class`, so that adding a property in a later release does not change the
+ * compiled signature of `copy` and break already compiled consumers.
  */
-public data class KalendarAttendee(
-    val email: String,
-    val name: String? = null,
-)
+public class KalendarAttendee(
+    public val email: String,
+    public val name: String? = null,
+) {
+    /**
+     * Returns a copy of this attendee with the given properties replaced and all others carried
+     * over unchanged.
+     */
+    public fun copy(
+        email: String = this.email,
+        name: String? = this.name,
+    ): KalendarAttendee = KalendarAttendee(email = email, name = name)
+
+    /** Two attendees are equal when both the email address and the display name match. */
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is KalendarAttendee) return false
+        return email == other.email && name == other.name
+    }
+
+    override fun hashCode(): Int = HASH_FACTOR * email.hashCode() + (name?.hashCode() ?: 0)
+
+    override fun toString(): String = "KalendarAttendee(email=$email, name=$name)"
+}
+
+private const val HASH_FACTOR = 31

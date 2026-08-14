@@ -43,12 +43,19 @@ import kotlinx.datetime.TimeZone
 public interface KalendarSyncProvider {
 
     /**
-     * Checks whether the app currently holds the necessary calendar permission.
+     * Checks whether the app currently holds the necessary calendar permission. Every other
+     * operation on this provider begins with the same check and returns
+     * [KalendarSyncResult.PermissionDenied] when it fails, so calling this first is optional.
      *
-     * On Android this is a synchronous permission check.
-     * On iOS this triggers the system permission dialog the first time it is called.
+     * - **Android** — a synchronous check for `READ_CALENDAR` and `WRITE_CALENDAR` that never
+     *   prompts; request them from an `Activity` with `ActivityCompat.requestPermissions`.
+     * - **iOS** — requests full calendar access, so the system dialog appears the first time this
+     *   is called on a device that has not yet been asked.
+     * - **Desktop** — `true` when the provider was built with an `icsFilePath`, since a file store
+     *   needs no OS permission.
+     * - **Web** — always `false`; browsers have no device-calendar API.
      *
-     * @return `true` if permission is already granted, `false` otherwise.
+     * @return `true` if permission is held, `false` otherwise.
      */
     public suspend fun hasPermission(): Boolean
 
