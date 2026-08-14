@@ -31,11 +31,12 @@ public final class com/himanshoe/kalendar/view/ComposableSingletons$KalendarNavi
 	public static final field INSTANCE Lcom/himanshoe/kalendar/view/ComposableSingletons$KalendarNavigationHeaderKt;
 	public fun <init> ()V
 	public final fun getLambda$-1311871253$kalendar_release ()Lkotlin/jvm/functions/Function2;
+	public final fun getLambda$-1497459036$kalendar_release ()Lkotlin/jvm/functions/Function2;
+	public final fun getLambda$-1981162951$kalendar_release ()Lkotlin/jvm/functions/Function3;
 	public final fun getLambda$-218435116$kalendar_release ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$1014296660$kalendar_release ()Lkotlin/jvm/functions/Function2;
+	public final fun getLambda$1005316952$kalendar_release ()Lkotlin/jvm/functions/Function2;
 	public final fun getLambda$1090394966$kalendar_release ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$1407839832$kalendar_release ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$659699620$kalendar_release ()Lkotlin/jvm/functions/Function2;
+	public final fun getLambda$1887311700$kalendar_release ()Lkotlin/jvm/functions/Function2;
 }
 
 public final class com/himanshoe/kalendar/view/ComposableSingletons$KalendarResourceViewKt {
@@ -198,10 +199,10 @@ public final class com/himanshoe/kalendar/view/KalendarDayScope {
 
 public final class com/himanshoe/kalendar/view/KalendarDimensions {
 	public static final field $stable I
-	public synthetic fun <init> (FFFFFLandroidx/compose/foundation/layout/PaddingValues;FFFFFFFLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FFFFLandroidx/compose/foundation/layout/PaddingValues;Landroidx/compose/foundation/layout/PaddingValues;FFFILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public synthetic fun <init> (FFFFFLandroidx/compose/foundation/layout/PaddingValues;FFFFFFFLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FFFFLandroidx/compose/foundation/layout/PaddingValues;Landroidx/compose/foundation/layout/PaddingValues;FFFLkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun copy-Nd3XkxY (FFFFFLandroidx/compose/foundation/layout/PaddingValues;FFFFFFFLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FFFFLandroidx/compose/foundation/layout/PaddingValues;Landroidx/compose/foundation/layout/PaddingValues;FFF)Lcom/himanshoe/kalendar/view/KalendarDimensions;
-	public static synthetic fun copy-Nd3XkxY$default (Lcom/himanshoe/kalendar/view/KalendarDimensions;FFFFFLandroidx/compose/foundation/layout/PaddingValues;FFFFFFFLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FFFFLandroidx/compose/foundation/layout/PaddingValues;Landroidx/compose/foundation/layout/PaddingValues;FFFILjava/lang/Object;)Lcom/himanshoe/kalendar/view/KalendarDimensions;
+	public synthetic fun <init> (FFFFFLandroidx/compose/foundation/layout/PaddingValues;FFFFFFFFLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FFFFLandroidx/compose/foundation/layout/PaddingValues;Landroidx/compose/foundation/layout/PaddingValues;FFFILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (FFFFFLandroidx/compose/foundation/layout/PaddingValues;FFFFFFFFLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FFFFLandroidx/compose/foundation/layout/PaddingValues;Landroidx/compose/foundation/layout/PaddingValues;FFFLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun copy-iltChgQ (FFFFFLandroidx/compose/foundation/layout/PaddingValues;FFFFFFFFLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FFFFLandroidx/compose/foundation/layout/PaddingValues;Landroidx/compose/foundation/layout/PaddingValues;FFF)Lcom/himanshoe/kalendar/view/KalendarDimensions;
+	public static synthetic fun copy-iltChgQ$default (Lcom/himanshoe/kalendar/view/KalendarDimensions;FFFFFLandroidx/compose/foundation/layout/PaddingValues;FFFFFFFFLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FLandroidx/compose/foundation/layout/PaddingValues;FFFFLandroidx/compose/foundation/layout/PaddingValues;Landroidx/compose/foundation/layout/PaddingValues;FFFILjava/lang/Object;)Lcom/himanshoe/kalendar/view/KalendarDimensions;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAgendaDotSize-D9Ej5fM ()F
 	public final fun getAgendaRowGap-D9Ej5fM ()F
@@ -220,6 +221,7 @@ public final class com/himanshoe/kalendar/view/KalendarDimensions {
 	public final fun getEventIndicatorSpacing-D9Ej5fM ()F
 	public final fun getEventIndicatorTopPadding-D9Ej5fM ()F
 	public final fun getGridLineThickness-D9Ej5fM ()F
+	public final fun getHeaderContentSpacing-D9Ej5fM ()F
 	public final fun getHeaderIconSlotWidth-D9Ej5fM ()F
 	public final fun getHeaderPadding ()Landroidx/compose/foundation/layout/PaddingValues;
 	public final fun getHourGutterWidth-D9Ej5fM ()F
@@ -238,7 +240,7 @@ public final class com/himanshoe/kalendar/view/KalendarHeaderDefaults {
 	public static final field $stable I
 	public static final field INSTANCE Lcom/himanshoe/kalendar/view/KalendarHeaderDefaults;
 	public final fun DayOfWeekLabel (Lkotlinx/datetime/DayOfWeek;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;II)V
-	public final fun Header (Lcom/himanshoe/kalendar/view/KalendarHeaderScope;Landroidx/compose/ui/Modifier;ZZZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;III)V
+	public final fun Header (Lcom/himanshoe/kalendar/view/KalendarHeaderScope;Landroidx/compose/ui/Modifier;ZZZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
 	public final fun TimelineHeader (Lcom/himanshoe/kalendar/view/KalendarHeaderScope;Landroidx/compose/ui/Modifier;ZLandroidx/compose/ui/graphics/Brush;Landroidx/compose/runtime/Composer;II)V
 }
 

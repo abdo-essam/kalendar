@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -61,6 +62,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -70,6 +72,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastForEach
+import androidx.compose.ui.util.fastMap
+import androidx.compose.ui.util.fastMaxOfOrNull
 import androidx.compose.ui.window.Popup
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -248,12 +253,12 @@ public object KalendarHeaderDefaults {
      * [scope] rather than any particular state type, so it also works in [KalendarTimeline]'s
      * `header` slot if you prefer arrows there over the default [TimelineHeader].
      *
-     * The title is centered via [Box] alignment rather than [Row]'s `SpaceBetween` (which centers in
-     * the leftover space between two side groups — the moment those groups are different widths,
-     * e.g. a today button on one side and nothing on the other, the title visibly drifts off-center).
-     * Its available width is then constrained to exactly how much space is actually reserved for
-     * icons on each side, so it can never render underneath one; [TextOverflow.Ellipsis] is the
-     * fallback for a title still too long for what's left (e.g. a long locale-formatted month name).
+     * The title sits at the true horizontal centre of the header — the centre of the header itself,
+     * not of the gap between the two action clusters. [KalendarHeaderLayout] measures both clusters
+     * and reserves the wider one's width on *both* sides, so switching the today button on, or
+     * filling [actions] with buttons of any width, does not move the title at all. Whatever width is
+     * left in the middle is the title's, and [TextOverflow.Ellipsis] covers a locale-formatted month
+     * name too long to fit it.
      *
      * @param scope Navigation state and callbacks for the view this header belongs to. Inside a
      *   `header` slot this is the value the slot was handed.
@@ -276,6 +281,10 @@ public object KalendarHeaderDefaults {
      *   pointing the other way.
      * @param todayIcon The glyph inside the today button. Defaults to a calendar page drawn with
      *   Compose Foundation in [KalendarColors.headerContent].
+     * @param actions Extra controls placed before the today and next-page buttons, at the trailing
+     *   edge. Use it for app-level chrome — a view switcher, an overflow menu, a search button. They
+     *   are laid out in a [Row], so [RowScope] modifiers such as `Modifier.align` are available, and
+     *   however wide they end up the title stays centered on the header.
      */
     @Composable
     public fun Header(
@@ -289,44 +298,65 @@ public object KalendarHeaderDefaults {
         previousIcon: @Composable () -> Unit = { KalendarChevronIcon(forward = false) },
         nextIcon: @Composable () -> Unit = { KalendarChevronIcon(forward = true) },
         todayIcon: @Composable () -> Unit = { KalendarTodayIcon() },
+        actions: @Composable RowScope.() -> Unit = {},
     ) {
         val colors = kalendarColors()
         val dimensions = kalendarDimensions()
         val strings = kalendarStrings()
         var pickerOpen by remember { mutableStateOf(false) }
-        // One slot is one [IconButton]'s touch target — deliberately tight (no extra gap padding)
-        // since it is subtracted from the title's available width on narrow phones (~320.dp) too; a
-        // title long enough to need the full width already has a visible gap from the icon just by
-        // not extending into its reserved slot, and TextOverflow.Ellipsis covers the rest.
-        val leadingReserved = if (showNavigationArrows) dimensions.headerIconSlotWidth else 0.dp
-        val trailingReserved = (if (showTodayButton) dimensions.headerIconSlotWidth else 0.dp) +
-            (if (showNavigationArrows) dimensions.headerIconSlotWidth else 0.dp)
 
-        Box(
-            modifier = modifier.fillMaxWidth().padding(dimensions.headerPadding),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(
-                modifier = Modifier.fillMaxWidth().padding(start = leadingReserved, end = trailingReserved),
-                contentAlignment = Alignment.Center,
-            ) {
-                AnimatedHeaderTitle(title = scope.title) { animatedTitle ->
-                    BasicText(
-                        text = animatedTitle,
-                        style = kalendarTypography().headerTitle.copy(color = colors.headerContent),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = if (showJumpPicker) {
-                            Modifier.clickable(
-                                onClickLabel = strings.openJumpPicker,
-                                role = Role.Button,
-                            ) { pickerOpen = true }
-                        } else {
-                            Modifier
-                        },
-                    )
-                }
-            }
+        Box(modifier = modifier.fillMaxWidth().padding(dimensions.headerPadding)) {
+            KalendarHeaderLayout(
+                modifier = Modifier.fillMaxWidth(),
+                leading = {
+                    if (showNavigationArrows) {
+                        HeaderIconButton(
+                            label = strings.previousPage,
+                            enabled = scope.canScrollBackward,
+                            onClick = scope::goToPreviousPage,
+                            content = previousIcon,
+                        )
+                    }
+                },
+                trailing = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        actions()
+                        if (showTodayButton) {
+                            HeaderIconButton(
+                                label = strings.today,
+                                onClick = scope::goToToday,
+                                content = todayIcon,
+                            )
+                        }
+                        if (showNavigationArrows) {
+                            HeaderIconButton(
+                                label = strings.nextPage,
+                                enabled = scope.canScrollForward,
+                                onClick = scope::goToNextPage,
+                                content = nextIcon,
+                            )
+                        }
+                    }
+                },
+                title = {
+                    AnimatedHeaderTitle(title = scope.title) { animatedTitle ->
+                        BasicText(
+                            text = animatedTitle,
+                            style = kalendarTypography().headerTitle.copy(color = colors.headerContent),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = if (showJumpPicker) {
+                                Modifier.clickable(
+                                    onClickLabel = strings.openJumpPicker,
+                                    role = Role.Button,
+                                ) { pickerOpen = true }
+                            } else {
+                                Modifier
+                            },
+                        )
+                    }
+                },
+            )
 
             if (pickerOpen) {
                 Popup(
@@ -341,34 +371,6 @@ public object KalendarHeaderDefaults {
                             pickerOpen = false
                             scope.goTo(LocalDate(year, month, 1))
                         },
-                    )
-                }
-            }
-
-            if (showNavigationArrows) {
-                HeaderIconButton(
-                    label = strings.previousPage,
-                    enabled = scope.canScrollBackward,
-                    onClick = scope::goToPreviousPage,
-                    modifier = Modifier.align(Alignment.CenterStart),
-                    content = previousIcon,
-                )
-            }
-
-            Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                if (showTodayButton) {
-                    HeaderIconButton(
-                        label = strings.today,
-                        onClick = scope::goToToday,
-                        content = todayIcon,
-                    )
-                }
-                if (showNavigationArrows) {
-                    HeaderIconButton(
-                        label = strings.nextPage,
-                        enabled = scope.canScrollForward,
-                        onClick = scope::goToNextPage,
-                        content = nextIcon,
                     )
                 }
             }
@@ -505,6 +507,91 @@ internal fun KalendarNavigationHeader(
  * [KalendarAnimations.titleTransitionMillis], or an instant swap when [KalendarAnimations.enabled]
  * is `false`.
  */
+/**
+ * Lays a header out as leading actions, a centered title, and trailing actions.
+ *
+ * The title is centered on the **header**, not on the gap between the two action clusters. Both of
+ * the obvious ways to write this get that wrong: a [Row] with `SpaceBetween`, and a [Box] padded by
+ * each cluster's own width, centre the title within an asymmetric gap, so the title shifts by half
+ * an icon slot the moment the two sides stop matching — which is what happens as soon as a today
+ * button appears on one side only.
+ *
+ * Instead the wider of the two clusters is reserved on **both** sides and the title is measured
+ * against what remains. That keeps the title clear of either cluster and makes its position
+ * independent of the actions entirely: a caller can add, remove or resize trailing chrome and the
+ * title does not move. The cost is the narrower side giving up width it was not using, which only
+ * matters for a title long enough to ellipsize.
+ *
+ * @param leading Controls pinned to the start edge.
+ * @param trailing Controls pinned to the end edge.
+ * @param title The centered title.
+ * @param modifier [Modifier] applied to the layout.
+ */
+@Composable
+internal fun KalendarHeaderLayout(
+    leading: @Composable () -> Unit,
+    trailing: @Composable () -> Unit,
+    title: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Layout(
+        contents = listOf(leading, trailing, title),
+        modifier = modifier,
+    ) { (leadingMeasurables, trailingMeasurables, titleMeasurables), constraints ->
+        val childConstraints = constraints.copy(minWidth = 0, minHeight = 0)
+        val leadingPlaceables = leadingMeasurables.fastMap { it.measure(childConstraints) }
+        val trailingPlaceables = trailingMeasurables.fastMap { it.measure(childConstraints) }
+
+        val leadingWidth = leadingPlaceables.fastMaxOfOrNull { it.width } ?: 0
+        val trailingWidth = trailingPlaceables.fastMaxOfOrNull { it.width } ?: 0
+        val sideReserved = maxOf(leadingWidth, trailingWidth)
+
+        // Reserving the wider cluster on both sides is what holds the title still, but it costs
+        // twice the wider cluster. Once the clusters are wide enough that nothing is left, a
+        // centered title would be a title of zero width — so fall back to the real gap between
+        // them. Off-centre and legible beats centred and invisible, and a header this crowded has
+        // no centre that clears both sides anyway.
+        val symmetricTitleWidth = constraints.maxWidth - sideReserved * 2
+        val fitsCentered = !constraints.hasBoundedWidth || symmetricTitleWidth > 0
+        val gapWidth = (constraints.maxWidth - leadingWidth - trailingWidth).coerceAtLeast(0)
+
+        val titleConstraints = when {
+            !constraints.hasBoundedWidth -> childConstraints
+            fitsCentered -> childConstraints.copy(maxWidth = symmetricTitleWidth)
+            else -> childConstraints.copy(maxWidth = gapWidth)
+        }
+        val titlePlaceables = titleMeasurables.fastMap { it.measure(titleConstraints) }
+        val titleWidth = titlePlaceables.fastMaxOfOrNull { it.width } ?: 0
+
+        // A header given no width to divide cannot reserve a share of it, so it wraps its children
+        // instead. Every built-in caller passes fillMaxWidth and takes the bounded branch.
+        val width = if (constraints.hasBoundedWidth) {
+            constraints.maxWidth
+        } else {
+            sideReserved * 2 + titleWidth
+        }
+        val height = maxOf(
+            leadingPlaceables.fastMaxOfOrNull { it.height } ?: 0,
+            trailingPlaceables.fastMaxOfOrNull { it.height } ?: 0,
+            titlePlaceables.fastMaxOfOrNull { it.height } ?: 0,
+            constraints.minHeight,
+        )
+
+        layout(width, height) {
+            leadingPlaceables.fastForEach { it.placeRelative(0, (height - it.height) / 2) }
+            trailingPlaceables.fastForEach { it.placeRelative(width - it.width, (height - it.height) / 2) }
+            titlePlaceables.fastForEach {
+                val x = if (fitsCentered) {
+                    (width - it.width) / 2
+                } else {
+                    leadingWidth + (gapWidth - it.width) / 2
+                }
+                it.placeRelative(x, (height - it.height) / 2)
+            }
+        }
+    }
+}
+
 @Composable
 private fun AnimatedHeaderTitle(
     title: String,

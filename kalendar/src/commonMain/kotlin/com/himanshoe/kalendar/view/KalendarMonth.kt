@@ -17,6 +17,7 @@
 package com.himanshoe.kalendar.view
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -151,7 +152,10 @@ public fun KalendarMonth(
         monthDates(monthStart = visibleMonthStart, visibleDaysOfWeek = config.visibleDaysOfWeek)
     }
 
-    Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
+    Column(
+        modifier = modifier.background(config.background ?: SolidColor(colors.background)),
+        verticalArrangement = Arrangement.spacedBy(kalendarDimensions().headerContentSpacing),
+    ) {
         val title = remember(state.visibleDate) { monthTitle(state.visibleDate, config.monthNameFormatter) }
         header(rememberKalendarHeaderScope(state = state, title = title))
         Box(

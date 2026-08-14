@@ -132,7 +132,10 @@ public fun KalendarYear(
     // every recomposition, so the cell's `onEventClick` parameter stays equal and skippable.
     val dayEventClick = onDayEventClick ?: {}
 
-    Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
+    Column(
+        modifier = modifier.background(config.background ?: SolidColor(colors.background)),
+        verticalArrangement = Arrangement.spacedBy(dimensions.headerContentSpacing),
+    ) {
         val title = remember(state.visibleDate) { state.visibleDate.year.toString() }
         header(rememberKalendarHeaderScope(state = state, title = title))
         HorizontalPager(

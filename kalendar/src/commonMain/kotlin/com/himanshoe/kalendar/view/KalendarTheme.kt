@@ -29,6 +29,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.geometry.Offset
@@ -475,6 +476,10 @@ public class KalendarShapes(
  * @property headerPadding Padding around the navigation header's contents.
  * @property headerIconSlotWidth Width reserved on each side of the header title for arrow and
  *   today buttons; the title's available width is computed from it.
+ * @property headerContentSpacing Gap between the navigation header and the calendar content below
+ *   it. Separate from [headerPadding] so a caller can retune the header's own inset without
+ *   changing how far the grid sits from it, and so a custom `header` slot of any height keeps the
+ *   same gap.
  * @property hourHeight Default vertical space for one hour on the Schedule views. The
  *   `hourHeight` parameter on those composables overrides this when supplied.
  * @property hourGutterWidth Width of the Schedule views' hour-label gutter.
@@ -514,6 +519,7 @@ public class KalendarDimensions(
     public val eventIndicatorTopPadding: Dp = 3.dp,
     public val headerPadding: PaddingValues = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
     public val headerIconSlotWidth: Dp = 48.dp,
+    public val headerContentSpacing: Dp = 8.dp,
     public val hourHeight: Dp = 64.dp,
     public val hourGutterWidth: Dp = 48.dp,
     public val gridLineThickness: Dp = 1.dp,
@@ -545,6 +551,7 @@ public class KalendarDimensions(
         eventIndicatorTopPadding: Dp = this.eventIndicatorTopPadding,
         headerPadding: PaddingValues = this.headerPadding,
         headerIconSlotWidth: Dp = this.headerIconSlotWidth,
+        headerContentSpacing: Dp = this.headerContentSpacing,
         hourHeight: Dp = this.hourHeight,
         hourGutterWidth: Dp = this.hourGutterWidth,
         gridLineThickness: Dp = this.gridLineThickness,
@@ -573,6 +580,7 @@ public class KalendarDimensions(
         eventIndicatorTopPadding = eventIndicatorTopPadding,
         headerPadding = headerPadding,
         headerIconSlotWidth = headerIconSlotWidth,
+        headerContentSpacing = headerContentSpacing,
         hourHeight = hourHeight,
         hourGutterWidth = hourGutterWidth,
         gridLineThickness = gridLineThickness,
@@ -606,6 +614,7 @@ public class KalendarDimensions(
         if (eventIndicatorTopPadding != other.eventIndicatorTopPadding) return false
         if (headerPadding != other.headerPadding) return false
         if (headerIconSlotWidth != other.headerIconSlotWidth) return false
+        if (headerContentSpacing != other.headerContentSpacing) return false
         if (hourHeight != other.hourHeight) return false
         if (hourGutterWidth != other.hourGutterWidth) return false
         if (gridLineThickness != other.gridLineThickness) return false
@@ -637,6 +646,7 @@ public class KalendarDimensions(
         result = 31 * result + eventIndicatorTopPadding.hashCode()
         result = 31 * result + headerPadding.hashCode()
         result = 31 * result + headerIconSlotWidth.hashCode()
+        result = 31 * result + headerContentSpacing.hashCode()
         result = 31 * result + hourHeight.hashCode()
         result = 31 * result + hourGutterWidth.hashCode()
         result = 31 * result + gridLineThickness.hashCode()
@@ -668,6 +678,7 @@ public class KalendarDimensions(
         "eventIndicatorTopPadding=$eventIndicatorTopPadding, " +
         "headerPadding=$headerPadding, " +
         "headerIconSlotWidth=$headerIconSlotWidth, " +
+        "headerContentSpacing=$headerContentSpacing, " +
         "hourHeight=$hourHeight, " +
         "hourGutterWidth=$hourGutterWidth, " +
         "gridLineThickness=$gridLineThickness, " +
@@ -906,13 +917,7 @@ public object KalendarThemeDefaults {
     )
 
     /** Kalendar's built-in [KalendarShapes] — circular day cells, lightly rounded event blocks. */
-    public fun shapes(): KalendarShapes = KalendarShapes(
-        dayCell = CircleShape,
-        eventIndicator = CircleShape,
-        eventBlock = RoundedCornerShape(EVENT_BLOCK_CORNER_RADIUS),
-        popup = RoundedCornerShape(POPUP_CORNER_RADIUS),
-        agendaCard = RoundedCornerShape(AGENDA_CARD_CORNER_RADIUS),
-    )
+    public fun shapes(): KalendarShapes = DefaultShapes
 }
 
 private val EVENT_OVERFLOW_FONT_SIZE = 7.sp
@@ -1115,24 +1120,35 @@ internal fun kalendarTypography(): KalendarTypography =
 
 /** The effective [KalendarShapes]: the ambient [KalendarTheme]'s, or Kalendar's built-in shapes. */
 @Composable
+@ReadOnlyComposable
 internal fun kalendarShapes(): KalendarShapes =
     LocalKalendarTokens.current?.shapes ?: KalendarThemeDefaults.shapes()
 
 /** The effective [KalendarDimensions]: the ambient [KalendarTheme]'s, or the built-in defaults. */
 @Composable
+@ReadOnlyComposable
 internal fun kalendarDimensions(): KalendarDimensions =
     LocalKalendarTokens.current?.dimensions ?: KalendarThemeDefaults.dimensions()
 
 /** The effective [KalendarAnimations]: the ambient [KalendarTheme]'s, or the built-in defaults. */
 @Composable
+@ReadOnlyComposable
 internal fun kalendarAnimations(): KalendarAnimations =
     LocalKalendarTokens.current?.animations ?: KalendarThemeDefaults.animations()
 
 /** The effective [KalendarStrings]: the ambient [KalendarTheme]'s, or the English defaults. */
 @Composable
+@ReadOnlyComposable
 internal fun kalendarStrings(): KalendarStrings =
     LocalKalendarTokens.current?.strings ?: KalendarThemeDefaults.strings()
 
+private val DefaultShapes = KalendarShapes(
+    dayCell = CircleShape,
+    eventIndicator = CircleShape,
+    eventBlock = RoundedCornerShape(EVENT_BLOCK_CORNER_RADIUS),
+    popup = RoundedCornerShape(POPUP_CORNER_RADIUS),
+    agendaCard = RoundedCornerShape(AGENDA_CARD_CORNER_RADIUS),
+)
 private val DefaultDimensions = KalendarDimensions()
 private val DefaultAnimations = KalendarAnimations()
 private val DefaultStrings = KalendarStrings()
