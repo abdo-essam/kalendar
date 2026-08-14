@@ -58,6 +58,11 @@ import kotlinx.datetime.LocalDateTime
  *   at least one event. Include the leading separator. See [dayAccessibilityLabel] to replace the
  *   whole description instead.
  * @property agendaEmptyState Shown in the middle of [KalendarAgenda] when it has no events at all.
+ * @property resourceEmptyState Shown in the middle of [KalendarResourceView] when it was given no
+ *   resources. Deliberately not [agendaEmptyState]: that grid is blank because it has no *lanes*,
+ *   which is a different sentence from "no events" in every language.
+ * @property showAllDayEvents Accessibility label for the `+N` overflow trigger on a day cell — the
+ *   button that opens the popover listing every event on that day.
  * @property eventOverflowLabel Formats the compact label shown when a day has more events than
  *   [KalendarViewConfig.eventIndicatorCap] dots, given the number of events not shown.
  * @property dayAccessibilityLabel Builds a day cell's base accessibility description from its date
@@ -74,6 +79,13 @@ import kotlinx.datetime.LocalDateTime
  *   its 24-hour time range; override it for a localized time format. Only the built-in
  *   [KalendarScheduleDefaults.EventBlock] applies it — a replacement `eventContent` slot draws its
  *   own semantics.
+ * @property resourceEventAccessibilityLabel What a screen reader announces for an event block in
+ *   [KalendarResourceView], given the event, its start/end on the rendered day, and the title of the
+ *   lane it sits in. The lane has to be spoken: an event's position in a two-dimensional grid
+ *   conveys nothing to a screen reader, so "Standup, 09:00 to 10:00" without "Room A" loses half of
+ *   what the view exists to show. Defaults to [eventAccessibilityLabel]'s default followed by the
+ *   lane title; note it is a separate hook, so overriding [eventAccessibilityLabel] alone does not
+ *   change what the lane grid announces — override both.
  * @property allDayEventAccessibilityLabel What a screen reader announces for an all-day chip.
  *   Defaults to the event's name followed by "all day". See [eventAccessibilityLabel] for how it
  *   interacts with a custom `allDayEventContent` slot.
@@ -89,11 +101,19 @@ public class KalendarStrings(
     public val todaySuffix: String = ", today",
     public val hasEventsSuffix: String = ", has events",
     public val agendaEmptyState: String = "No events",
+    public val resourceEmptyState: String = "No resources",
+    public val showAllDayEvents: String = "Show all events",
     public val eventOverflowLabel: (hiddenEventCount: Int) -> String = { "+$it" },
     public val dayAccessibilityLabel: (date: LocalDate, monthName: String) -> String = defaultDayAccessibilityLabel,
     public val dayOfWeekAccessibilityLabel: (DayOfWeek) -> String = defaultDayOfWeekAccessibilityLabel,
     public val eventAccessibilityLabel: (event: KalendarEvent, start: LocalDateTime, end: LocalDateTime) -> String =
         defaultEventAccessibilityLabel,
+    public val resourceEventAccessibilityLabel: (
+        event: KalendarEvent,
+        start: LocalDateTime,
+        end: LocalDateTime,
+        resourceTitle: String,
+    ) -> String = defaultResourceEventAccessibilityLabel,
     public val allDayEventAccessibilityLabel: (event: KalendarEvent) -> String = defaultAllDayEventAccessibilityLabel,
 ) {
 
@@ -108,11 +128,19 @@ public class KalendarStrings(
         todaySuffix: String = this.todaySuffix,
         hasEventsSuffix: String = this.hasEventsSuffix,
         agendaEmptyState: String = this.agendaEmptyState,
+        resourceEmptyState: String = this.resourceEmptyState,
+        showAllDayEvents: String = this.showAllDayEvents,
         eventOverflowLabel: (hiddenEventCount: Int) -> String = this.eventOverflowLabel,
         dayAccessibilityLabel: (date: LocalDate, monthName: String) -> String = this.dayAccessibilityLabel,
         dayOfWeekAccessibilityLabel: (DayOfWeek) -> String = this.dayOfWeekAccessibilityLabel,
         eventAccessibilityLabel: (event: KalendarEvent, start: LocalDateTime, end: LocalDateTime) -> String =
             this.eventAccessibilityLabel,
+        resourceEventAccessibilityLabel: (
+            event: KalendarEvent,
+            start: LocalDateTime,
+            end: LocalDateTime,
+            resourceTitle: String,
+        ) -> String = this.resourceEventAccessibilityLabel,
         allDayEventAccessibilityLabel: (event: KalendarEvent) -> String = this.allDayEventAccessibilityLabel,
     ): KalendarStrings = KalendarStrings(
         previousPage = previousPage,
@@ -124,10 +152,13 @@ public class KalendarStrings(
         todaySuffix = todaySuffix,
         hasEventsSuffix = hasEventsSuffix,
         agendaEmptyState = agendaEmptyState,
+        resourceEmptyState = resourceEmptyState,
+        showAllDayEvents = showAllDayEvents,
         eventOverflowLabel = eventOverflowLabel,
         dayAccessibilityLabel = dayAccessibilityLabel,
         dayOfWeekAccessibilityLabel = dayOfWeekAccessibilityLabel,
         eventAccessibilityLabel = eventAccessibilityLabel,
+        resourceEventAccessibilityLabel = resourceEventAccessibilityLabel,
         allDayEventAccessibilityLabel = allDayEventAccessibilityLabel,
     )
 
@@ -144,10 +175,13 @@ public class KalendarStrings(
         if (todaySuffix != other.todaySuffix) return false
         if (hasEventsSuffix != other.hasEventsSuffix) return false
         if (agendaEmptyState != other.agendaEmptyState) return false
+        if (resourceEmptyState != other.resourceEmptyState) return false
+        if (showAllDayEvents != other.showAllDayEvents) return false
         if (eventOverflowLabel != other.eventOverflowLabel) return false
         if (dayAccessibilityLabel != other.dayAccessibilityLabel) return false
         if (dayOfWeekAccessibilityLabel != other.dayOfWeekAccessibilityLabel) return false
         if (eventAccessibilityLabel != other.eventAccessibilityLabel) return false
+        if (resourceEventAccessibilityLabel != other.resourceEventAccessibilityLabel) return false
         if (allDayEventAccessibilityLabel != other.allDayEventAccessibilityLabel) return false
         return true
     }
@@ -162,10 +196,13 @@ public class KalendarStrings(
         result = 31 * result + todaySuffix.hashCode()
         result = 31 * result + hasEventsSuffix.hashCode()
         result = 31 * result + agendaEmptyState.hashCode()
+        result = 31 * result + resourceEmptyState.hashCode()
+        result = 31 * result + showAllDayEvents.hashCode()
         result = 31 * result + eventOverflowLabel.hashCode()
         result = 31 * result + dayAccessibilityLabel.hashCode()
         result = 31 * result + dayOfWeekAccessibilityLabel.hashCode()
         result = 31 * result + eventAccessibilityLabel.hashCode()
+        result = 31 * result + resourceEventAccessibilityLabel.hashCode()
         result = 31 * result + allDayEventAccessibilityLabel.hashCode()
         return result
     }
@@ -180,10 +217,13 @@ public class KalendarStrings(
         "todaySuffix=$todaySuffix, " +
         "hasEventsSuffix=$hasEventsSuffix, " +
         "agendaEmptyState=$agendaEmptyState, " +
+        "resourceEmptyState=$resourceEmptyState, " +
+        "showAllDayEvents=$showAllDayEvents, " +
         "eventOverflowLabel=$eventOverflowLabel, " +
         "dayAccessibilityLabel=$dayAccessibilityLabel, " +
         "dayOfWeekAccessibilityLabel=$dayOfWeekAccessibilityLabel, " +
         "eventAccessibilityLabel=$eventAccessibilityLabel, " +
+        "resourceEventAccessibilityLabel=$resourceEventAccessibilityLabel, " +
         "allDayEventAccessibilityLabel=$allDayEventAccessibilityLabel" +
         ")"
 }
@@ -197,6 +237,12 @@ private val defaultDayOfWeekAccessibilityLabel: (DayOfWeek) -> String = { dayOfW
 
 private val defaultEventAccessibilityLabel: (KalendarEvent, LocalDateTime, LocalDateTime) -> String =
     { event, start, end -> "${event.eventName}, ${clockLabel(start)} to ${clockLabel(end)}" }
+
+private val defaultResourceEventAccessibilityLabel:
+    (KalendarEvent, LocalDateTime, LocalDateTime, String) -> String =
+    { event, start, end, resourceTitle ->
+        "${event.eventName}, ${clockLabel(start)} to ${clockLabel(end)}, $resourceTitle"
+    }
 
 private val defaultAllDayEventAccessibilityLabel: (KalendarEvent) -> String = { "${it.eventName}, all day" }
 

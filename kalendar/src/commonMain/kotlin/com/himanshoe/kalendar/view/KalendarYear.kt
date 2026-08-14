@@ -68,6 +68,10 @@ import kotlinx.datetime.Month
  *   [datesUntil] for a range-selection helper). Hoist/`remember` the same instance across
  *   recompositions rather than building a fresh [Set] every time.
  * @param onDateClick Called when a non-disabled date is tapped, with the events on that date.
+ * @param onDayEventClick Called when a row of a day cell's `+N` overflow popover is tapped, with
+ *   the event that row represents; the popover closes itself afterwards. Defaults to `null`, which
+ *   leaves the popover a read-only list of what the cell could not show. Has no effect when
+ *   [dayContent] replaces the built-in cell — a replacement cell owns its own popover, if any.
  * @param config Shared visual/behavioural settings — disabled dates, arrow visibility, background.
  * @param header Replaces the navigation header above the year's months. Receives a
  *   [KalendarHeaderScope] carrying the formatted title and the navigation callbacks, so your own
@@ -87,6 +91,7 @@ public fun KalendarYear(
     events: KalendarEvents = emptyList(),
     selectedDates: Set<LocalDate> = setOf(selectedDate),
     onDateClick: (date: LocalDate, events: List<KalendarEvent>) -> Unit = { _, _ -> },
+    onDayEventClick: ((event: KalendarEvent) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     header: @Composable (KalendarHeaderScope) -> Unit = { headerScope ->
         KalendarHeaderDefaults.Header(
@@ -110,6 +115,9 @@ public fun KalendarYear(
     val dimensions = kalendarDimensions()
     val today = rememberKalendarToday(state.timeSource)
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
+    // Hoisted out of the cell lambda: `?:` on a non-capturing literal yields the same singleton
+    // every recomposition, so the cell's `onEventClick` parameter stays equal and skippable.
+    val dayEventClick = onDayEventClick ?: {}
 
     Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
         val title = remember(state.visibleDate) { state.visibleDate.year.toString() }
@@ -157,6 +165,7 @@ public fun KalendarYear(
                                 dayContent = dayContent,
                                 monthNameFormatter = config.monthNameFormatter,
                                 maxEventIndicators = config.eventIndicatorCap,
+                                onEventClick = dayEventClick,
                             )
                         }
                     }

@@ -67,10 +67,11 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
 
 /**
- * Thickness of the ring [KalendarDayCellDefaults.Cell] draws around a keyboard-focused cell. It is
- * always drawn — transparent when unfocused — so gaining focus never changes the cell's size.
+ * Thickness of the ring drawn around a keyboard-focused cell. [KalendarDayCellDefaults.Cell] always
+ * draws it — transparent when unfocused — so gaining focus never changes the cell's size, and
+ * [KalendarGrid]'s roving focus ring reuses the same width so the two are indistinguishable.
  */
-private val FOCUS_RING_WIDTH = 2.dp
+internal val FOCUS_RING_WIDTH = 2.dp
 
 /** Width bounds of [KalendarDayCellDefaults.OverflowPopup], which sizes itself to its longest row. */
 private val OVERFLOW_POPUP_MIN_WIDTH = 160.dp
@@ -81,16 +82,6 @@ private val OVERFLOW_POPUP_MAX_HEIGHT = 240.dp
 
 /** Inset above and below [KalendarDayCellDefaults.OverflowPopup]'s rows. */
 private val OVERFLOW_POPUP_PADDING = 4.dp
-
-/**
- * Accessibility label for the `+N` overflow trigger, until [KalendarStrings] carries one of its own.
- *
- * Every other announcement in the library is localizable through [KalendarStrings]; this one is not
- * yet, because the entry it belongs in does not exist. It is deliberately a private constant rather
- * than a public parameter so that adding `KalendarStrings.showAllDayEvents` later is a pure
- * addition — nothing here has to be removed or deprecated.
- */
-private const val OVERFLOW_TRIGGER_LABEL = "Show all events"
 
 /**
  * The state of a single date cell inside [KalendarWeek], [KalendarMonth], or [KalendarYear].
@@ -294,8 +285,13 @@ public fun Modifier.kalendarDaySemantics(
  * Renders one grid cell for [KalendarMonth], [KalendarYear], and [KalendarTimeline]: the real day
  * cell for dates in the current month, or — when [isCurrentMonth] is `false` and
  * [showAdjacentMonthDates] is `false` — an empty placeholder that preserves the grid's alignment.
+ *
+ * [onEventClick] is forwarded to [KalendarDayCellDefaults.Cell]'s overflow popover. Without it the
+ * popover opens on a `+N` tap and every row in it is inert, which is the one thing a list of events
+ * must not be.
  */
 @Composable
+@Suppress("LongParameterList")
 internal fun KalendarMonthGridCell(
     scope: KalendarDayScope,
     isCurrentMonth: Boolean,
@@ -305,6 +301,7 @@ internal fun KalendarMonthGridCell(
     showSelectionBackground: Boolean = true,
     monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
     maxEventIndicators: Int = DEFAULT_EVENT_INDICATOR_CAP,
+    onEventClick: (KalendarEvent) -> Unit = {},
 ) {
     val dimensions = kalendarDimensions()
     if (!isCurrentMonth && !showAdjacentMonthDates) {
@@ -320,6 +317,7 @@ internal fun KalendarMonthGridCell(
             showSelectionBackground = showSelectionBackground,
             monthNameFormatter = monthNameFormatter,
             maxEventIndicators = maxEventIndicators,
+            onEventClick = onEventClick,
         )
     }
 }
@@ -666,7 +664,7 @@ private fun EventIndicatorRow(
                     Modifier
                 } else {
                     Modifier
-                        .semantics { contentDescription = OVERFLOW_TRIGGER_LABEL }
+                        .semantics { contentDescription = strings.showAllDayEvents }
                         .clickable(
                             interactionSource = null,
                             indication = null,

@@ -315,6 +315,7 @@ class KalendarNoMaterialThemeTest {
             dayNumber = TextStyle(fontSize = dayNumberSize),
             dayNumberEmphasized = TextStyle(fontSize = dayNumberSize),
             weekDayNumber = TextStyle(fontSize = dayNumberSize),
+            resourceTitle = TextStyle(fontSize = dayNumberSize),
             eventLabel = TextStyle(fontSize = EVENT_LABEL_SIZE),
             eventOverflowLabel = TextStyle(fontSize = EVENT_LABEL_SIZE),
             hourLabel = TextStyle(fontSize = EVENT_LABEL_SIZE),

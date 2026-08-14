@@ -126,7 +126,7 @@ import kotlin.time.Duration
  *   to [KalendarDimensions.hourHeight].
  * @param minResourceColumnWidth Narrowest a lane column may become before the lanes stop dividing
  *   the width evenly and start scrolling horizontally. Defaults to
- *   [KalendarResourceDefaults.MinResourceColumnWidth].
+ *   [KalendarDimensions.resourceColumnMinWidth].
  * @param nowIndicatorTick How often the now-indicator's position is recomputed. One timer serves
  *   every lane, and the reading is consumed during layout, so a tick re-places the lines rather
  *   than recomposing the grid.
@@ -158,7 +158,7 @@ public fun KalendarResourceView(
     )? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     hourHeight: Dp = KalendarTheme.dimensions.hourHeight,
-    minResourceColumnWidth: Dp = KalendarResourceDefaults.MinResourceColumnWidth,
+    minResourceColumnWidth: Dp = KalendarTheme.dimensions.resourceColumnMinWidth,
     nowIndicatorTick: Duration = DEFAULT_NOW_TICK,
     resourceHeader: @Composable (resource: KalendarResource) -> Unit = {
         KalendarResourceDefaults.ResourceHeader(resource = it)
@@ -247,12 +247,6 @@ public fun KalendarResourceView(
 public object KalendarResourceDefaults {
 
     /**
-     * The default for [KalendarResourceView]'s `minResourceColumnWidth`: the narrowest a lane may
-     * become before the grid scrolls horizontally instead of squeezing.
-     */
-    public val MinResourceColumnWidth: Dp = 96.dp
-
-    /**
      * The built-in lane header: the resource's title over a rule in its
      * [KalendarResource.color], centred in the column.
      *
@@ -262,14 +256,15 @@ public object KalendarResourceDefaults {
     @Composable
     public fun ResourceHeader(resource: KalendarResource, modifier: Modifier = Modifier) {
         val colors = kalendarColors()
+        val dimensions = kalendarDimensions()
         val accent = resource.color ?: colors.eventIndicator
         Column(
-            modifier = modifier.padding(RESOURCE_HEADER_PADDING),
+            modifier = modifier.padding(dimensions.resourceHeaderPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             BasicText(
                 text = resource.title,
-                style = kalendarTypography().weekDayNumber.copy(color = colors.dayContent),
+                style = kalendarTypography().resourceTitle.copy(color = colors.dayContent),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -277,7 +272,7 @@ public object KalendarResourceDefaults {
                 modifier = Modifier
                     .padding(top = RESOURCE_HEADER_ACCENT_GAP)
                     .fillMaxWidth(fraction = RESOURCE_HEADER_ACCENT_FRACTION)
-                    .height(RESOURCE_HEADER_ACCENT_HEIGHT)
+                    .height(dimensions.resourceHeaderAccentHeight)
                     .clip(kalendarShapes().eventIndicator)
                     .background(accent),
             )
@@ -360,14 +355,16 @@ public object KalendarResourceDefaults {
     }
 
     /**
-     * The built-in empty state, shown when there are no resources to lay out.
+     * The built-in empty state, shown when there are no resources to lay out:
+     * [KalendarStrings.resourceEmptyState], which says the grid has no *lanes* rather than
+     * [KalendarStrings.agendaEmptyState]'s "no events" — an empty lane grid is a different fact.
      *
      * @param modifier [Modifier] applied to the message.
      */
     @Composable
     public fun EmptyState(modifier: Modifier = Modifier) {
         BasicText(
-            text = kalendarStrings().agendaEmptyState,
+            text = kalendarStrings().resourceEmptyState,
             style = kalendarTypography().agendaEventTitle.copy(color = kalendarColors().dayLabelContent),
             modifier = modifier,
         )
@@ -382,19 +379,19 @@ public object KalendarResourceDefaults {
 private fun resourceEventDescription(
     strings: KalendarStrings,
     scope: KalendarResourceEventScope,
-): String {
-    val timed = strings.eventAccessibilityLabel(scope.event, scope.start, scope.end)
-    return "$timed, ${scope.resource.title}"
-}
+): String = strings.resourceEventAccessibilityLabel(
+    scope.event,
+    scope.start,
+    scope.end,
+    scope.resource.title,
+)
 
 /** [KalendarEvent.calendarId] as a lane link — the default `resourceIdOf`. */
 private val defaultResourceIdOf: (KalendarEvent) -> String? = { it.calendarId }
 
 private const val RESOURCE_EVENT_LABEL_MAX_LINES = 2
 private const val RESOURCE_HEADER_ACCENT_FRACTION = 0.6f
-private val RESOURCE_HEADER_PADDING = 4.dp
 private val RESOURCE_HEADER_ACCENT_GAP = 2.dp
-private val RESOURCE_HEADER_ACCENT_HEIGHT = 2.dp
 
 @Composable
 private fun ResourceGrid(

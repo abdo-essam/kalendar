@@ -24,7 +24,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.dp
 import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
@@ -123,10 +128,43 @@ private val FROZEN_TIME_SOURCE = KalendarTimeSource(
  * a stability regression — a view that lost `restartable skippable`, or a token class whose
  * `equals` went identity-based — not a slow machine.
  */
+@OptIn(ExperimentalTestApi::class)
 class KalendarRecompositionBenchmark {
 
     @get:Rule
     val rule = createComposeRule()
+
+    /**
+     * Moving keyboard focus must not recompose a single cell.
+     *
+     * The focused date is a snapshot state shared by the whole grid, so it is exactly the sort of
+     * value that recomposes 42 cells per arrow press if it is read in a composable body. It is read
+     * only inside layout and semantics lambdas; this is what holds that line.
+     */
+    @Test
+    fun arrowKeyMovesFocusWithoutRecomposingAnyCell() {
+        reset()
+        rule.setContent {
+            Harness(tick = 0) {
+                KalendarMonth(selectedDate = FIXTURE_DATE, header = HEADER_PROBE, dayContent = DAY_PROBE)
+            }
+        }
+        rule.waitForIdle()
+        rule.onRoot().performKeyInput { pressKey(Key.Tab) }
+        rule.waitForIdle()
+
+        val before = CELLS.count
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
+        rule.waitForIdle()
+
+        println("BENCH after arrow key: cellsBefore=$before cellsAfter=${CELLS.count}")
+        assertEquals(
+            0,
+            CELLS.count - before,
+            "an arrow press recomposed ${CELLS.count - before} day cells; the focused date is being " +
+                "read in a composable body instead of in a layout or semantics lambda",
+        )
+    }
 
     /**
      * A month grid is 7 columns by up to 6 rows, none of it lazy in the vertical sense because the

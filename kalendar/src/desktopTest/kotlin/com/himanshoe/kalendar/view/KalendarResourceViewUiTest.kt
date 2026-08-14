@@ -225,7 +225,7 @@ class KalendarResourceViewUiTest {
                 emptyState = { KalendarResourceDefaults.EmptyState() },
             )
         }
-        rule.onNodeWithText("No events").assertExists()
+        rule.onNodeWithText("No resources").assertExists()
         rule.onNodeWithText("Orphan").assertDoesNotExist()
     }
 
@@ -238,7 +238,7 @@ class KalendarResourceViewUiTest {
                 events = emptyList(),
             )
         }
-        rule.onNodeWithText("No events").assertDoesNotExist()
+        rule.onNodeWithText("No resources").assertDoesNotExist()
         rule.onNodeWithText("Room A").assertExists()
     }
 

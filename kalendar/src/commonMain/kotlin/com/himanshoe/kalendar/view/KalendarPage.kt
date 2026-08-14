@@ -83,6 +83,15 @@ internal fun monthGridDates(monthStart: LocalDate, startDayOfWeek: DayOfWeek): L
     }
 }
 
+/**
+ * A month's own days, without the leading/trailing padding [monthGridDates] adds. This is the
+ * *period* a keyboard user navigates: `Home` belongs on the 1st, not on the previous month's 26th.
+ */
+internal fun monthDates(monthStart: LocalDate): List<LocalDate> {
+    val lastDayOfMonth = monthStart.plus(1, DateTimeUnit.MONTH).minus(1, DateTimeUnit.DAY)
+    return (0 until lastDayOfMonth.dayOfMonth).map { monthStart.plus(it, DateTimeUnit.DAY) }
+}
+
 internal fun weeksBetween(from: LocalDate, to: LocalDate, startDayOfWeek: DayOfWeek): Int {
     val fromWeekStart = from.startOfWeek(startDayOfWeek)
     val toWeekStart = to.startOfWeek(startDayOfWeek)

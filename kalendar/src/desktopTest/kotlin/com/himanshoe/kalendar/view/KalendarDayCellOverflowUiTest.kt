@@ -22,9 +22,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import kotlinx.datetime.LocalDate
@@ -182,6 +185,67 @@ class KalendarDayCellOverflowUiTest {
 
         assertEquals(true, dayClicked)
         rule.onNodeWithText("Alpha").assertDoesNotExist()
+    }
+
+    /**
+     * Opens the first `+N` trigger on screen and taps "Charlie" in the popover it shows, returning
+     * the event the view reported.
+     *
+     * The `onAllNodes...[0]` is deliberate: [KalendarYear] and [KalendarTimeline] render the same
+     * date on more than one month grid, so more than one trigger can exist. Any of them opens a
+     * popover listing the same day. [scrollToTrigger] is for the views whose months stack in a
+     * scrolling column, where the trigger starts below the viewport and a click at its coordinates
+     * would land on whatever is on screen there instead.
+     */
+    private fun tapPopupRow(
+        scrollToTrigger: Boolean = false,
+        view: @Composable ((KalendarEvent) -> Unit) -> Unit,
+    ): KalendarEvent? {
+        var clicked: KalendarEvent? = null
+        rule.setContent {
+            KalendarTheme(animations = KalendarAnimations(enabled = false)) {
+                view { clicked = it }
+            }
+        }
+        val trigger = rule.onAllNodesWithContentDescription(OVERFLOW_TRIGGER_DESCRIPTION)[0]
+        if (scrollToTrigger) {
+            trigger.performScrollTo()
+        }
+        trigger.performClick()
+        rule.onAllNodesWithText("Charlie")[0].performClick()
+        return clicked
+    }
+
+    @Test
+    fun monthView_overflowPopupRowTapped_reachesOnDayEventClick() {
+        val clicked = tapPopupRow { onEvent ->
+            KalendarMonth(selectedDate = date, events = fourEvents, onDayEventClick = onEvent)
+        }
+        assertEquals("Charlie", clicked?.eventName)
+    }
+
+    @Test
+    fun weekView_overflowPopupRowTapped_reachesOnDayEventClick() {
+        val clicked = tapPopupRow { onEvent ->
+            KalendarWeek(selectedDate = date, events = fourEvents, onDayEventClick = onEvent)
+        }
+        assertEquals("Charlie", clicked?.eventName)
+    }
+
+    @Test
+    fun yearView_overflowPopupRowTapped_reachesOnDayEventClick() {
+        val clicked = tapPopupRow(scrollToTrigger = true) { onEvent ->
+            KalendarYear(selectedDate = date, events = fourEvents, onDayEventClick = onEvent)
+        }
+        assertEquals("Charlie", clicked?.eventName)
+    }
+
+    @Test
+    fun timelineView_overflowPopupRowTapped_reachesOnDayEventClick() {
+        val clicked = tapPopupRow { onEvent ->
+            KalendarTimeline(selectedDate = date, events = fourEvents, onDayEventClick = onEvent)
+        }
+        assertEquals("Charlie", clicked?.eventName)
     }
 
     @Test

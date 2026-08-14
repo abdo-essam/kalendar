@@ -70,9 +70,10 @@ import androidx.compose.ui.unit.sp
  *   arrows look live and silently do nothing. Defaults to [headerContent] at
  *   [disabledContentAlpha]'s default opacity, and applies to the built-in chevron and today glyphs;
  *   a caller-supplied icon slot draws itself and is left alone.
- * @property focusIndicator Colour of the ring drawn around a keyboard-focused day cell. Every cell
- *   is a tab stop on desktop and wasmJs, so this is what makes keyboard navigation visible at all.
- *   Defaults to [todayContent].
+ * @property focusIndicator Colour of the ring drawn around the keyboard-focused day. On the paged
+ *   views this is the roving ring the arrow keys move around the grid, which is what makes keyboard
+ *   navigation visible at all; a standalone [KalendarDayCellDefaults.Cell] draws the same ring for
+ *   itself when it holds focus. Defaults to [todayContent].
  * @property hoverBackground Fill washed over a day cell while the pointer is over it. Defaults to
  *   [dayContent] at a low opacity.
  * @property eventIndicator Default event dot/block accent when
@@ -272,6 +273,10 @@ public class KalendarColors(
  * @property dayNumberEmphasized The day number when the cell is selected or is today. Defaults to
  *   [dayNumber] in bold; set it equal to [dayNumber] to drop the emphasis entirely.
  * @property weekDayNumber The date number in [KalendarScheduleWeek]'s day-column headers.
+ * @property resourceTitle A lane's name in [KalendarResourceView]'s column headers. Its own token
+ *   rather than [weekDayNumber], because a room name is not a day number: it is prose, it can be
+ *   long, and a design system will usually want a different style for it. Defaults to the same
+ *   scale step [weekDayNumber] uses, so the built-in look is unchanged.
  * @property eventLabel Event block titles and all-day chip titles.
  * @property eventOverflowLabel The compact `+N` label shown when a day has more events than
  *   [KalendarViewConfig.eventIndicatorCap].
@@ -289,6 +294,7 @@ public class KalendarTypography(
     public val dayNumber: TextStyle,
     public val dayNumberEmphasized: TextStyle,
     public val weekDayNumber: TextStyle,
+    public val resourceTitle: TextStyle,
     public val eventLabel: TextStyle,
     public val eventOverflowLabel: TextStyle,
     public val hourLabel: TextStyle,
@@ -304,6 +310,7 @@ public class KalendarTypography(
         dayNumber: TextStyle = this.dayNumber,
         dayNumberEmphasized: TextStyle = this.dayNumberEmphasized,
         weekDayNumber: TextStyle = this.weekDayNumber,
+        resourceTitle: TextStyle = this.resourceTitle,
         eventLabel: TextStyle = this.eventLabel,
         eventOverflowLabel: TextStyle = this.eventOverflowLabel,
         hourLabel: TextStyle = this.hourLabel,
@@ -316,6 +323,7 @@ public class KalendarTypography(
         dayNumber = dayNumber,
         dayNumberEmphasized = dayNumberEmphasized,
         weekDayNumber = weekDayNumber,
+        resourceTitle = resourceTitle,
         eventLabel = eventLabel,
         eventOverflowLabel = eventOverflowLabel,
         hourLabel = hourLabel,
@@ -323,6 +331,7 @@ public class KalendarTypography(
         agendaEventSubtitle = agendaEventSubtitle,
     )
 
+    @Suppress("CyclomaticComplexMethod")
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is KalendarTypography) return false
@@ -332,6 +341,7 @@ public class KalendarTypography(
         if (dayNumber != other.dayNumber) return false
         if (dayNumberEmphasized != other.dayNumberEmphasized) return false
         if (weekDayNumber != other.weekDayNumber) return false
+        if (resourceTitle != other.resourceTitle) return false
         if (eventLabel != other.eventLabel) return false
         if (eventOverflowLabel != other.eventOverflowLabel) return false
         if (hourLabel != other.hourLabel) return false
@@ -347,6 +357,7 @@ public class KalendarTypography(
         result = 31 * result + dayNumber.hashCode()
         result = 31 * result + dayNumberEmphasized.hashCode()
         result = 31 * result + weekDayNumber.hashCode()
+        result = 31 * result + resourceTitle.hashCode()
         result = 31 * result + eventLabel.hashCode()
         result = 31 * result + eventOverflowLabel.hashCode()
         result = 31 * result + hourLabel.hashCode()
@@ -362,6 +373,7 @@ public class KalendarTypography(
         "dayNumber=$dayNumber, " +
         "dayNumberEmphasized=$dayNumberEmphasized, " +
         "weekDayNumber=$weekDayNumber, " +
+        "resourceTitle=$resourceTitle, " +
         "eventLabel=$eventLabel, " +
         "eventOverflowLabel=$eventOverflowLabel, " +
         "hourLabel=$hourLabel, " +
@@ -472,11 +484,19 @@ public class KalendarShapes(
  * @property eventBlockAccentWidth Width of an event block's leading accent stripe. Set to `0.dp`
  *   to remove the stripe.
  * @property eventBlockPadding Padding around an event block's label.
- * @property eventBlockResizeHandleHeight Height of the grab strip at an event block's bottom edge
- *   that starts a resize rather than a move.
+ * @property eventBlockResizeHandleHeight Height of the grab strip at an event block's top *and*
+ *   bottom edge that starts a resize rather than a move — dragging the top edge moves the event's
+ *   start, the bottom edge its end. On a block too short for two full strips plus a middle, each
+ *   strip narrows to a third of the block's height, so the move region never disappears.
  * @property allDayRowPadding Padding around the all-day chip row.
  * @property allDayChipSpacing Gap between all-day chips.
  * @property allDayChipPadding Padding inside one all-day chip.
+ * @property resourceColumnMinWidth Narrowest a [KalendarResourceView] lane column may become
+ *   before the lanes stop dividing the width evenly and the grid scrolls horizontally instead. The
+ *   `minResourceColumnWidth` parameter on that composable overrides this when supplied.
+ * @property resourceHeaderPadding Inset around a [KalendarResourceView] lane header's contents.
+ * @property resourceHeaderAccentHeight Thickness of the rule in the lane's colour under a
+ *   [KalendarResourceView] lane header's title.
  * @property monthSpacing Vertical gap between month grids in [KalendarYear].
  * @property sectionPadding Padding around section titles — [KalendarTimeline]'s month titles and
  *   sticky header, [KalendarYear]'s month names, and [KalendarAgenda]'s date headers.
@@ -505,6 +525,9 @@ public class KalendarDimensions(
     public val allDayRowPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
     public val allDayChipSpacing: Dp = 4.dp,
     public val allDayChipPadding: PaddingValues = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+    public val resourceColumnMinWidth: Dp = 96.dp,
+    public val resourceHeaderPadding: Dp = 4.dp,
+    public val resourceHeaderAccentHeight: Dp = 2.dp,
     public val monthSpacing: Dp = 16.dp,
     public val sectionPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
     public val agendaRowPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
@@ -533,6 +556,9 @@ public class KalendarDimensions(
         allDayRowPadding: PaddingValues = this.allDayRowPadding,
         allDayChipSpacing: Dp = this.allDayChipSpacing,
         allDayChipPadding: PaddingValues = this.allDayChipPadding,
+        resourceColumnMinWidth: Dp = this.resourceColumnMinWidth,
+        resourceHeaderPadding: Dp = this.resourceHeaderPadding,
+        resourceHeaderAccentHeight: Dp = this.resourceHeaderAccentHeight,
         monthSpacing: Dp = this.monthSpacing,
         sectionPadding: PaddingValues = this.sectionPadding,
         agendaRowPadding: PaddingValues = this.agendaRowPadding,
@@ -558,6 +584,9 @@ public class KalendarDimensions(
         allDayRowPadding = allDayRowPadding,
         allDayChipSpacing = allDayChipSpacing,
         allDayChipPadding = allDayChipPadding,
+        resourceColumnMinWidth = resourceColumnMinWidth,
+        resourceHeaderPadding = resourceHeaderPadding,
+        resourceHeaderAccentHeight = resourceHeaderAccentHeight,
         monthSpacing = monthSpacing,
         sectionPadding = sectionPadding,
         agendaRowPadding = agendaRowPadding,
@@ -588,6 +617,9 @@ public class KalendarDimensions(
         if (allDayRowPadding != other.allDayRowPadding) return false
         if (allDayChipSpacing != other.allDayChipSpacing) return false
         if (allDayChipPadding != other.allDayChipPadding) return false
+        if (resourceColumnMinWidth != other.resourceColumnMinWidth) return false
+        if (resourceHeaderPadding != other.resourceHeaderPadding) return false
+        if (resourceHeaderAccentHeight != other.resourceHeaderAccentHeight) return false
         if (monthSpacing != other.monthSpacing) return false
         if (sectionPadding != other.sectionPadding) return false
         if (agendaRowPadding != other.agendaRowPadding) return false
@@ -616,6 +648,9 @@ public class KalendarDimensions(
         result = 31 * result + allDayRowPadding.hashCode()
         result = 31 * result + allDayChipSpacing.hashCode()
         result = 31 * result + allDayChipPadding.hashCode()
+        result = 31 * result + resourceColumnMinWidth.hashCode()
+        result = 31 * result + resourceHeaderPadding.hashCode()
+        result = 31 * result + resourceHeaderAccentHeight.hashCode()
         result = 31 * result + monthSpacing.hashCode()
         result = 31 * result + sectionPadding.hashCode()
         result = 31 * result + agendaRowPadding.hashCode()
@@ -644,6 +679,9 @@ public class KalendarDimensions(
         "allDayRowPadding=$allDayRowPadding, " +
         "allDayChipSpacing=$allDayChipSpacing, " +
         "allDayChipPadding=$allDayChipPadding, " +
+        "resourceColumnMinWidth=$resourceColumnMinWidth, " +
+        "resourceHeaderPadding=$resourceHeaderPadding, " +
+        "resourceHeaderAccentHeight=$resourceHeaderAccentHeight, " +
         "monthSpacing=$monthSpacing, " +
         "sectionPadding=$sectionPadding, " +
         "agendaRowPadding=$agendaRowPadding, " +
@@ -859,6 +897,7 @@ public object KalendarThemeDefaults {
         dayNumber = scale.bodyLarge,
         dayNumberEmphasized = scale.bodyLarge.copy(fontWeight = FontWeight.Bold),
         weekDayNumber = scale.labelLarge,
+        resourceTitle = scale.labelLarge,
         eventLabel = scale.labelSmall,
         eventOverflowLabel = scale.labelSmall.copy(fontSize = EVENT_OVERFLOW_FONT_SIZE),
         hourLabel = scale.labelSmall,
