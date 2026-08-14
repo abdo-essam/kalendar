@@ -5,18 +5,13 @@ public final class com/himanshoe/kalendar/view/ComposableSingletons$KalendarAgen
 	public final fun getLambda$1539279107$kalendar ()Lkotlin/jvm/functions/Function2;
 }
 
-public final class com/himanshoe/kalendar/view/ComposableSingletons$KalendarDatePickerDefaultsKt {
-	public static final field INSTANCE Lcom/himanshoe/kalendar/view/ComposableSingletons$KalendarDatePickerDefaultsKt;
-	public fun <init> ()V
-	public final fun getLambda$-1719297736$kalendar ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$1017194194$kalendar ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$1811698356$kalendar ()Lkotlin/jvm/functions/Function2;
-}
-
 public final class com/himanshoe/kalendar/view/ComposableSingletons$KalendarDatePickerKt {
 	public static final field INSTANCE Lcom/himanshoe/kalendar/view/ComposableSingletons$KalendarDatePickerKt;
 	public fun <init> ()V
 	public final fun getLambda$-303413896$kalendar ()Lkotlin/jvm/functions/Function3;
+	public final fun getLambda$-305125500$kalendar ()Lkotlin/jvm/functions/Function2;
+	public final fun getLambda$2134791526$kalendar ()Lkotlin/jvm/functions/Function2;
+	public final fun getLambda$388521962$kalendar ()Lkotlin/jvm/functions/Function2;
 }
 
 public final class com/himanshoe/kalendar/view/ComposableSingletons$KalendarDayCellKt {
