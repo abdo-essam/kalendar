@@ -38,8 +38,8 @@ so reading a token is always safe.
 Each token set is independent, so overriding one leaves the other five alone:
 
 ```kotlin
-import com.himanshoe.kalendar.view.KalendarTheme
-import com.himanshoe.kalendar.view.KalendarThemeDefaults
+import com.himanshoe.kalendar.theme.KalendarTheme
+import com.himanshoe.kalendar.theme.KalendarThemeDefaults
 
 KalendarTheme(
     colors = KalendarThemeDefaults.colors().copy(selectionBackground = BrandPurple),
@@ -86,7 +86,7 @@ fun MyDayCell(scope: KalendarDayScope) {
     val typography = KalendarTheme.typography
 
     Text(
-        text = scope.date.dayOfMonth.toString(),
+        text = scope.date.day.toString(),
         color = if (scope.isToday) colors.todayContent else colors.dayContent,
         style = if (scope.isSelected) typography.dayNumberEmphasized else typography.dayNumber,
     )
@@ -108,7 +108,7 @@ All of them are `@Composable` getters, and all fall back to `KalendarThemeDefaul
 
 ## Colours
 
-`KalendarColors` carries thirteen colours and four alpha values.
+`KalendarColors` carries fourteen required colours, three derived ones, and four alpha values.
 
 | Token | Used for | Material default | `lightColors()` | `darkColors()` |
 |---|---|---|---|---|
@@ -235,6 +235,7 @@ light and dark — so a single `KalendarTheme` can swap only `colors` and leave 
 | `dayNumber` | The day number in an ordinary cell | `bodyLarge` |
 | `dayNumberEmphasized` | The day number when the cell is selected or is today | `bodyLarge` in bold |
 | `weekDayNumber` | The date number in `KalendarScheduleWeek`'s day-column headers | `labelLarge` |
+| `resourceTitle` | A lane's name in `KalendarResourceView`'s column headers | `labelLarge` |
 | `eventLabel` | Event block titles and all-day chip titles | `labelSmall` |
 | `eventOverflowLabel` | The compact `+N` label | `labelSmall` at `7.sp` |
 | `hourLabel` | The hour-gutter labels on the Schedule views | `labelSmall` |
@@ -296,9 +297,11 @@ from scratch as a one-liner.
 | `dayCellAspectRatio` | `1f` | Width-to-height ratio of a day cell. Above `1f` gives short, wide cells. |
 | `eventIndicatorSize` | `4.dp` | Diameter of one event dot. |
 | `eventIndicatorSpacing` | `2.dp` | Gap between adjacent event dots. |
-| `eventIndicatorTopPadding` | `3.dp` | Gap between the day number and the dot row. |
+| `eventIndicatorBottomPadding` | `2.dp` | Gap below the event-dot row, between it and the cell's bottom edge. |
+| `eventIndicatorStripHeight` | `14.dp` | Height reserved for the dot/overflow strip. Fixed, so a cell with events and one without put the day number on the same baseline. |
 | `headerPadding` | `PaddingValues(horizontal = 4.dp, vertical = 8.dp)` | Padding around the navigation header's contents. |
 | `headerIconSlotWidth` | `48.dp` | Width reserved on each side of the header title for icons. The title's available width is computed from it. |
+| `headerContentSpacing` | `8.dp` | Gap between the header's title and the controls beside it. |
 | `hourHeight` | `64.dp` | Vertical space for one hour on the Schedule views. |
 | `hourGutterWidth` | `48.dp` | Width of the Schedule views' hour-label gutter. |
 | `gridLineThickness` | `1.dp` | Thickness of hour lines and separators. |
@@ -306,10 +309,13 @@ from scratch as a one-liner.
 | `eventBlockGap` | `1.dp` | Horizontal gap between side-by-side event blocks. |
 | `eventBlockAccentWidth` | `3.dp` | Width of an event block's leading accent stripe. `0.dp` removes it. |
 | `eventBlockPadding` | `PaddingValues(horizontal = 4.dp, vertical = 2.dp)` | Padding around an event block's label. |
-| `eventBlockResizeHandleHeight` | `12.dp` | Height of the grab strip at a block's bottom edge that starts a resize rather than a move. |
+| `eventBlockResizeHandleHeight` | `12.dp` | Height of the grab strip at **each** edge of a block that starts a resize rather than a move. Narrowed on short blocks so the middle stays grabbable. |
 | `allDayRowPadding` | `PaddingValues(horizontal = 16.dp, vertical = 4.dp)` | Padding around the all-day chip row. |
 | `allDayChipSpacing` | `4.dp` | Gap between all-day chips. |
 | `allDayChipPadding` | `PaddingValues(horizontal = 6.dp, vertical = 2.dp)` | Padding inside one all-day chip. |
+| `resourceColumnMinWidth` | `96.dp` | Narrowest a `KalendarResourceView` lane may become before the lanes stop dividing the width evenly and start scrolling horizontally. |
+| `resourceHeaderPadding` | `4.dp` | Padding inside a resource column header. |
+| `resourceHeaderAccentHeight` | `2.dp` | Thickness of a lane header's accent underline. |
 | `monthSpacing` | `16.dp` | Vertical gap between month grids in `KalendarYear`. |
 | `sectionPadding` | `PaddingValues(horizontal = 16.dp, vertical = 8.dp)` | Padding around section titles — the Timeline's month titles and sticky header, `KalendarYear`'s month names, and `KalendarAgenda`'s date headers. |
 | `agendaRowPadding` | `PaddingValues(horizontal = 12.dp, vertical = 10.dp)` | Padding inside one `KalendarAgenda` row. |
@@ -332,9 +338,10 @@ KalendarTheme(
 }
 ```
 
-> **Note:** `KalendarSchedule` and `KalendarScheduleWeek` also take an `hourHeight: Dp` parameter,
-> which defaults from `KalendarDimensions.hourHeight` and overrides it for that one calendar. Use the
-> parameter for a single view, the token for every view.
+> **Note:** `KalendarSchedule`, `KalendarScheduleWeek` and `KalendarResourceView` also take an
+> `hourHeight: Dp` parameter, which defaults from `KalendarDimensions.hourHeight` and overrides it for
+> that one calendar. Use the parameter for a single view, the token for every view.
+> `KalendarResourceView` does the same with `minResourceColumnWidth`.
 
 ## Animations
 

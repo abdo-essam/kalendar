@@ -13,33 +13,49 @@ paging, gestures, accessibility plumbing — and hands you the part that is your
 
 ## What is replaceable, where
 
-| Slot | Week | Month | Year | Timeline | Schedule | ScheduleWeek | Agenda |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| `dayContent` | yes | yes | yes | yes | no | no | no |
-| `header` | yes | yes | yes | yes | no | no | no |
-| `dayOfWeekLabel` | yes | yes | yes | yes | no | no | no |
-| `eventContent` | no | no | no | no | yes | yes | yes |
-| `allDayEventContent` | no | no | no | no | yes | yes | no |
-| `hourLabel` | no | no | no | no | yes | yes | no |
-| `nowIndicator` | no | no | no | no | yes | yes | no |
-| `dayHeader` | no | no | no | no | no | yes | no |
-| `dateHeader` | no | no | no | no | no | no | yes |
-| `emptyState` | no | no | no | no | no | no | yes |
+| Slot | Week | Month | Year | Timeline | Schedule | ScheduleWeek | Resource | Agenda | DatePicker |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| `dayContent` | yes | yes | yes | yes | no | no | no | no | yes |
+| `header` | yes | yes | yes | yes | no | no | no | no | yes |
+| `dayOfWeekLabel` | yes | yes | yes | yes | no | no | no | no | yes |
+| `eventContent` | no | no | no | no | yes | yes | yes | yes | no |
+| `allDayEventContent` | no | no | no | no | yes | yes | no | no | no |
+| `hourLabel` | no | no | no | no | yes | yes | yes | no | no |
+| `nowIndicator` | no | no | no | no | yes | yes | yes | no | no |
+| `dayHeader` | no | no | no | no | no | yes | no | no | no |
+| `resourceHeader` | no | no | no | no | no | no | yes | no | no |
+| `dateHeader` | no | no | no | no | no | no | no | yes | no |
+| `emptyState` | no | no | no | no | no | no | yes | yes | no |
+| `actions` | no | no | no | no | no | no | no | no | yes |
 
-> **Note:** `eventContent` appears in two shapes. On the Schedule views it takes a
-> `KalendarScheduleEventScope` — the event plus where the grid placed it; on
-> [`KalendarAgenda`](views/agenda.md) it takes the `KalendarEvent` alone, because a list row has no
-> position to describe.
+One more sits a level down rather than on a view: `overflowPopup`, on
+[`KalendarDayCellDefaults.Cell`](#reusing-the-built-in-cell), which is what the date grids' default
+`dayContent` calls.
 
-The three default-rendering objects are `KalendarHeaderDefaults` (the chrome around a date grid),
-`KalendarScheduleDefaults` (everything inside a time grid) and `KalendarAgendaDefaults` (the pieces
-of an event list). Every slot defaults to one of their functions, which also makes them the thing to
-reach for when you want to keep the built-in look and only add to it.
+> **Note:** `eventContent` appears in three shapes. On `KalendarSchedule`/`KalendarScheduleWeek` it
+> takes a `KalendarScheduleEventScope` — the event plus where the grid placed it; on
+> `KalendarResourceView` it takes a `KalendarResourceEventScope`, which *extends* that with the lane;
+> on [`KalendarAgenda`](views/agenda.md) it takes the `KalendarEvent` alone, because a list row has no
+> position to describe. Contravariance means one
+> `@Composable (KalendarScheduleEventScope) -> Unit` serves both hour-grid shapes.
+
+> **Note:** `eventContent` is the **last** parameter of every view that has one, so trailing-lambda
+> syntax lands on the view's primary slot. The same is true of `dayContent` on the date grids.
+
+The default-rendering objects are `KalendarHeaderDefaults` (the chrome around a date grid),
+`KalendarDayCellDefaults` (the cell itself and its overflow popover), `KalendarScheduleDefaults`
+(everything inside a time grid), `KalendarResourceDefaults` (a lane grid's pieces),
+`KalendarAgendaDefaults` (the pieces of an event list) and `KalendarDatePickerDefaults` (the picker's
+header, cell and action rail). Every slot defaults to one of their functions, which also makes them
+the thing to reach for when you want to keep the built-in look and only add to it. Each is documented
+symbol by symbol in the [API reference](reference/index.md).
 
 ## Custom day cells
 
 `dayContent` replaces the built-in day cell entirely on the four date-grid views. It receives a
-`KalendarDayScope` describing the date being rendered.
+`KalendarDayScope` describing the date being rendered. `KalendarDatePicker` has the same slot but
+wraps that scope in a [`KalendarDatePickerDayScope`](reference/kalendar-views.md), which adds where
+the date sits in a range band.
 
 ### `KalendarDayScope`
 
@@ -47,7 +63,7 @@ reach for when you want to keep the built-in look and only add to it.
 |---|---|---|
 | `date` | `LocalDate` | The date this cell represents. |
 | `isSelected` | `Boolean` | Whether `date` is in the calendar's `selectedDates`. |
-| `isToday` | `Boolean` | Whether `date` is today, in the system time zone. |
+| `isToday` | `Boolean` | Whether `date` is today, as read through the view's [`KalendarTimeSource`](reference/foundation-datetime.md) — not necessarily the system time zone. |
 | `isDisabled` | `Boolean` | Whether `date` matched `KalendarViewConfig.disabledDates`. On the month-grid views this is also `true` for adjacent-month dates. |
 | `events` | `List<KalendarEvent>` | The events occurring on `date`, multi-day spans included. |
 
@@ -69,7 +85,7 @@ KalendarMonth(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = scope.date.dayOfMonth.toString(),
+                text = scope.date.day.toString(),
                 color = when {
                     scope.isSelected -> KalendarTheme.colors.onSelectionBackground
                     scope.isToday -> KalendarTheme.colors.todayContent
@@ -87,14 +103,14 @@ A custom `dayContent` replaces the built-in cell — **including its accessibili
 handling**. `Modifier.kalendarDaySemantics()` gives both back:
 
 ```kotlin
-import com.himanshoe.kalendar.view.kalendarDaySemantics
+import com.himanshoe.kalendar.component.kalendarDaySemantics
 
 KalendarMonth(
     selectedDate = today,
     onDateClick = { date, _ -> select(date) },
     dayContent = { scope ->
         MyDayCell(
-            day = scope.date.dayOfMonth,
+            day = scope.date.day,
             modifier = Modifier.kalendarDaySemantics(
                 scope = scope,
                 onClick = { select(scope.date) },
@@ -158,6 +174,32 @@ KalendarMonth(
 | `showSelectionBackground` | `Boolean` | `true` | Whether this cell draws its own selection fill. The views pass `false` when the sliding indicator is already drawing it. |
 | `monthNameFormatter` | `(Month) -> String` | English month names | Used for the accessibility description. |
 | `maxEventIndicators` | `Int` | `3` | Dots drawn before the remainder collapses into `+N`. The views pass `KalendarViewConfig.eventIndicatorCap`. |
+| `onEventClick` | `(KalendarEvent) -> Unit` | `{}` | Called when an event is tapped inside the overflow popover. The views pass `onDayEventClick`. |
+| `showOverflowPopup` | `Boolean` | `true` | Whether the `+N` label opens a popover at all. `false` leaves it as a plain count. |
+| `overflowPopup` | `@Composable (KalendarDayOverflowScope) -> Unit` | `KalendarDayCellDefaults.OverflowPopup` | Replaces the popover. **Last**, so trailing-lambda syntax lands on it. |
+
+### The `+N` overflow popover
+
+Tapping a cell's `+N` label opens a popover listing the date's **whole** event list — not just the
+hidden tail, because a list starting at the fourth event is a list with no beginning. Its
+`KalendarDayOverflowScope` carries `date`, `events`, `hiddenEventCount`, `onEventClick(event)` and
+`dismiss()`:
+
+```kotlin
+dayContent = { scope ->
+    KalendarDayCellDefaults.Cell(
+        scope = scope,
+        onClick = { select(scope.date) },
+        onEventClick = { event -> openDetails(event) },
+    ) { overflowScope ->
+        MySheet(onDismiss = overflowScope::dismiss) {
+            overflowScope.events.forEach { event ->
+                MyEventRow(event = event, onClick = { overflowScope.onEventClick(event) })
+            }
+        }
+    }
+}
+```
 
 ## The header slot
 
@@ -233,12 +275,15 @@ KalendarMonth(
 | `showNavigationArrows` | `Boolean` | `true` | Whether to draw the previous/next buttons. Each disables itself when the matching `canScrollBackward` / `canScrollForward` is `false`. |
 | `showTodayButton` | `Boolean` | `true` | Whether to draw the today button. |
 | `showJumpPicker` | `Boolean` | `true` | Whether tapping the title opens the month/year jump picker. |
-| `monthNameFormatter` | `(Month) -> String` | English month names | Formats the month names inside the jump picker. |
+| `monthNameFormatter` | `(Month) -> String` | English month names | Formats the title's month name. |
+| `shortMonthNameFormatter` | `(Month) -> String` | first three letters | Formats the jump picker's fixed-width month buttons, and the week/day titles. |
 | `previousIcon` | `@Composable () -> Unit` | A Foundation-drawn chevron | The glyph inside the previous-page button. |
 | `nextIcon` | `@Composable () -> Unit` | The same chevron, reversed | The glyph inside the next-page button. |
 | `todayIcon` | `@Composable () -> Unit` | A Foundation-drawn calendar page | The glyph inside the today button. |
+| `actions` | `@Composable RowScope.() -> Unit` | `{}` | Extra controls appended to the header's trailing edge, inside its `Row`. |
 
-The last four default to values the view derives from [`KalendarViewConfig`](configuration.md).
+The flags and formatters default to values the view derives from
+[`KalendarViewConfig`](configuration.md).
 
 `Header` also works in [`KalendarTimeline`](views/timeline.md)'s `header` slot — every control drives
 the `scope` rather than any particular state type — if you would rather have arrows there than the
@@ -385,7 +430,7 @@ KalendarScheduleWeek(
     allDayEventContent = { event ->
         KalendarScheduleDefaults.AllDayChip(
             event = event,
-            prefix = event.date.dayOfMonth.toString(),
+            prefix = event.date.day.toString(),
         )
     },
 )
@@ -432,7 +477,7 @@ KalendarScheduleWeek(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(text = date.dayOfWeek.name.take(3))
             Text(
-                text = date.dayOfMonth.toString(),
+                text = date.day.toString(),
                 color = if (isToday) BrandAccent else Color.Unspecified,
             )
         }
@@ -455,6 +500,31 @@ clicks, and drag-to-reschedule.
 
 Falling back to one of them for the cases you do not render specially is the intended pattern — it
 keeps a custom slot consistent with the rest of the calendar.
+
+### `KalendarResourceDefaults`
+
+`KalendarResourceView`'s equivalents. Its `eventContent` scope adds `resource`, so a block can show
+which lane it is in.
+
+| Function | Signature |
+|---|---|
+| `ResourceHeader` | `(resource: KalendarResource, modifier: Modifier = Modifier)` |
+| `EventBlock` | `(scope: KalendarResourceEventScope, modifier: Modifier = Modifier)` |
+| `HourLabel` | `(hour: Int, formatter: (Int) -> String, modifier: Modifier = Modifier)` |
+| `NowIndicator` | `(modifier: Modifier = Modifier)` |
+| `EmptyState` | `(modifier: Modifier = Modifier)` |
+
+### `KalendarDatePickerDefaults`
+
+`KalendarDatePicker`'s own chrome, which is a different shape from a grid view's — see the
+[reference](reference/kalendar-views.md) for the full parameter lists.
+
+| Member | What it is |
+|---|---|
+| `Width` | `312.dp`, the width the picker is drawn for. It imposes no size of its own. |
+| `Header` | Month and year controls, each opening onto its own grid, with the page arrows demoted to the trailing corner. |
+| `DayCell` | Today as a rule under the number, selected as a filled `KalendarShapes.dayCell` — different marks, so both can be true of one cell and still be read apart. |
+| `ActionRow` | The Clear/Today rail. |
 
 ## Agenda content slots
 
@@ -544,12 +614,14 @@ the [header scope](#kalendarheaderscope).
 | Day cell | `"August 12, 2026, today, has events"` | `dayAccessibilityLabel` + `todaySuffix` + `hasEventsSuffix` |
 | Day-of-week column header | `"Monday"` — the header only *shows* `"M"` | `dayOfWeekAccessibilityLabel` |
 | Timed event block | `"Design review, 09:30 to 11:00"` | `eventAccessibilityLabel` |
+| Timed block in a lane | `"Design review, 09:30 to 11:00, Room A"` | `resourceEventAccessibilityLabel` |
 | All-day chip | `"Release day, all day"` | `allDayEventAccessibilityLabel` |
 | Header arrows, today, jump picker | `"Previous"`, `"Next"`, `"Today"`, `"Choose month and year"` | `previousPage`, `nextPage`, `today`, `openJumpPicker` |
 
 All of them live on [`KalendarStrings`](localization.md), so translating the calendar translates what
-is announced. The event labels are applied by `KalendarScheduleDefaults.EventBlock` and `.AllDayChip`
-— a replacement `eventContent` or `allDayEventContent` slot draws its own semantics, and should.
+is announced. The event labels are applied by `KalendarScheduleDefaults.EventBlock`, `.AllDayChip`
+and `KalendarResourceDefaults.EventBlock` — a replacement `eventContent` or `allDayEventContent` slot
+draws its own semantics, and should.
 
 ## Choosing between a token, a config value, and a slot
 
@@ -566,3 +638,8 @@ Reach for the cheapest thing that works:
 A slot is the most powerful option and the most work — it opts you out of every future improvement
 to that piece of the rendering. Prefer tokens and config until they genuinely cannot express what
 you need.
+
+And if what you want is not a different *rendering* but a different **calendar** — a booking grid, a
+shift planner, a picker with its own layout entirely — the slots are the wrong lever. Build on the
+[headless engine](engine.md) instead: the same date, paging, overlap and selection arithmetic these
+views run on, with no rendering attached.

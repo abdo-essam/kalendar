@@ -16,8 +16,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.himanshoe.kalendar.view.KalendarTimeline
-import com.himanshoe.kalendar.view.rememberKalendarTimelineState
+import com.himanshoe.kalendar.KalendarTimeline
+import com.himanshoe.kalendar.state.rememberKalendarTimelineState
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
@@ -47,6 +47,7 @@ fun Timeline() {
 | `events` | `KalendarEvents` | `emptyList()` | Shown as indicator dots on day cells. |
 | `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | The highlighted dates. Hoist your own set for multi-select or range. |
 | `onDateClick` | `(date: LocalDate, events: List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped, with that date's events. |
+| `onDayEventClick` | `((event: KalendarEvent) -> Unit)?` | `null` | Called when an individual event is tapped inside a day cell's `+N` overflow popover. |
 | `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Shared visual and behavioural settings. `showNavigationArrows` and `showJumpPicker` have no effect here. See [Configuration](../configuration.md). |
 | `header` | `@Composable (KalendarHeaderScope) -> Unit` | `KalendarHeaderDefaults.TimelineHeader` | Replaces the sticky overlay pinned above the scrolling months. See [The header scope on a timeline](#the-header-scope-on-a-timeline). |
 | `dayOfWeekLabel` | `@Composable (DayOfWeek) -> Unit` | `KalendarHeaderDefaults.DayOfWeekLabel` | Replaces the content of each weekday column header, on every month grid. |

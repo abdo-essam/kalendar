@@ -24,13 +24,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,10 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 /** Copies generated Kotlin to the system clipboard, reporting whether it actually worked. */
 internal fun interface PlaygroundClipboard {
@@ -77,6 +72,11 @@ internal fun rememberDefaultClipboard(): PlaygroundClipboard {
  * The code is inside a [SelectionContainer] on purpose: if the platform clipboard refuses (a
  * browser outside a secure context, say) the pane says so and the text is still selectable by
  * hand, rather than pretending the copy succeeded.
+ *
+ * The pane wraps its content and scrolls **horizontally only**. It used to be pinned to a fixed
+ * height with a vertical scroll of its own, which put a second vertical scroller inside the page's
+ * — a wheel over the snippet moved the snippet, hit its end, and the page lurched. Long lines still
+ * need somewhere to go, so the horizontal scroll stays: it never competes with a vertical page.
  */
 @Composable
 internal fun PlaygroundCodePane(
@@ -90,21 +90,19 @@ internal fun PlaygroundCodePane(
     val buttonBackground = if (failed) PlaygroundChrome.Surface else PlaygroundChrome.Accent
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(PaneCorner))
             .background(PlaygroundChrome.CodeBackground)
-            .border(width = 1.dp, color = PlaygroundChrome.Border, shape = RoundedCornerShape(16.dp)),
+            .border(width = 1.dp, color = PlaygroundChrome.Border, shape = RoundedCornerShape(PaneCorner)),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = PanePadding, vertical = PaneHeaderPadding),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = "GENERATED KOTLIN",
                 color = PlaygroundChrome.MutedText,
-                fontSize = 11.sp,
-                letterSpacing = 1.6.sp,
-                fontWeight = FontWeight.Bold,
+                style = PlaygroundType.Eyebrow,
             )
             Text(
                 text = when (copyState) {
@@ -113,10 +111,10 @@ internal fun PlaygroundCodePane(
                     CopyState.Failed -> "Select the code to copy"
                 },
                 color = if (failed) PlaygroundChrome.MutedText else PlaygroundChrome.OnAccent,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
+                style = PlaygroundType.Action,
+                maxLines = 1,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(9.dp))
+                    .clip(RoundedCornerShape(ButtonCorner))
                     .background(buttonBackground)
                     .clickable {
                         clipboard.copy(code) { success ->
@@ -124,26 +122,30 @@ internal fun PlaygroundCodePane(
                         }
                     }
                     .testTag("copy-code")
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .padding(horizontal = ButtonPaddingHorizontal, vertical = ButtonPaddingVertical),
             )
         }
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 14.dp, vertical = 4.dp),
+                .padding(start = PanePadding, end = PanePadding, bottom = PanePadding),
         ) {
             SelectionContainer {
                 Text(
                     text = code,
                     color = PlaygroundChrome.CodeText,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    lineHeight = 17.sp,
+                    style = PlaygroundType.Code,
                     modifier = Modifier.testTag("generated-code"),
                 )
             }
         }
     }
 }
+
+private val PaneCorner = 16.dp
+private val PanePadding = 16.dp
+private val PaneHeaderPadding = 12.dp
+private val ButtonCorner = 10.dp
+private val ButtonPaddingHorizontal = 14.dp
+private val ButtonPaddingVertical = 7.dp

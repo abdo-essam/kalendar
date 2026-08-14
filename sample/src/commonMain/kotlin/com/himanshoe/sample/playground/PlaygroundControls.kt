@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -47,10 +48,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
+
+/** The gutter the control cards and the code pane share, so their edges line up. */
+internal val ControlsInset = 16.dp
 
 /**
  * The playground's control column: every group mutates one field of [config] and hands the whole
@@ -64,8 +66,8 @@ internal fun PlaygroundControls(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = modifier.padding(horizontal = ControlsInset),
+        verticalArrangement = Arrangement.spacedBy(SectionSpacing),
     ) {
         PresetSection(config = config, onConfigChange = onConfigChange)
         ViewSection(config = config, onConfigChange = onConfigChange)
@@ -79,7 +81,7 @@ internal fun PlaygroundControls(
 @Composable
 private fun PresetSection(config: PlaygroundConfig, onConfigChange: (PlaygroundConfig) -> Unit) {
     val active = presetOf(config)
-    ControlSection(title = "Presets", subtitle = "One library, four looks") {
+    ControlSection(title = "Presets", caption = "Four looks, one library and one set of events.") {
         ChipRow(
             items = PlaygroundPreset.entries,
             isSelected = { preset -> preset == active },
@@ -92,7 +94,7 @@ private fun PresetSection(config: PlaygroundConfig, onConfigChange: (PlaygroundC
 
 @Composable
 private fun ViewSection(config: PlaygroundConfig, onConfigChange: (PlaygroundConfig) -> Unit) {
-    ControlSection(title = "View") {
+    ControlSection(title = "View", caption = "Every calendar surface Kalendar ships.") {
         ChipRow(
             items = PlaygroundView.entries,
             isSelected = { view -> view == config.view },
@@ -100,7 +102,7 @@ private fun ViewSection(config: PlaygroundConfig, onConfigChange: (PlaygroundCon
             tag = { view -> "view-${view.name}" },
             onSelect = { view -> onConfigChange(config.copy(view = view)) },
         )
-        ControlLabel(text = "Selection")
+        GroupLabel(text = "Selection")
         ChipRow(
             items = PlaygroundSelection.entries,
             isSelected = { selection -> selection == config.selection },
@@ -113,7 +115,7 @@ private fun ViewSection(config: PlaygroundConfig, onConfigChange: (PlaygroundCon
 
 @Composable
 private fun AppearanceSection(config: PlaygroundConfig, onConfigChange: (PlaygroundConfig) -> Unit) {
-    ControlSection(title = "Appearance") {
+    ControlSection(title = "Appearance", caption = "The colour, shape and spacing tokens.") {
         ChipRow(
             items = PlaygroundAppearance.entries,
             isSelected = { appearance -> appearance == config.appearance },
@@ -121,9 +123,9 @@ private fun AppearanceSection(config: PlaygroundConfig, onConfigChange: (Playgro
             tag = { appearance -> "appearance-${appearance.name}" },
             onSelect = { appearance -> onConfigChange(config.copy(appearance = appearance)) },
         )
-        ControlLabel(text = "Accent")
+        GroupLabel(text = "Accent")
         AccentRow(config = config, onConfigChange = onConfigChange)
-        ControlLabel(text = "Day cell shape")
+        GroupLabel(text = "Day cell shape")
         ChipRow(
             items = PlaygroundCellShape.entries,
             isSelected = { shape -> shape == config.cellShape },
@@ -133,7 +135,7 @@ private fun AppearanceSection(config: PlaygroundConfig, onConfigChange: (Playgro
         )
         ControlSlider(
             label = "Day cell padding",
-            valueText = dpSource(config.dayCellPadding),
+            valueText = dpLabel(config.dayCellPadding),
             value = config.dayCellPadding.value,
             range = MinCellPadding..MaxCellPadding,
             steps = CellPaddingSteps,
@@ -141,8 +143,17 @@ private fun AppearanceSection(config: PlaygroundConfig, onConfigChange: (Playgro
             onValueChange = { value -> onConfigChange(config.copy(dayCellPadding = value.roundToInt().dp)) },
         )
         ControlSlider(
+            label = "Day cell height",
+            valueText = "${ratioLabel(config.dayCellAspectRatio)} w:h",
+            value = config.dayCellAspectRatio,
+            range = MinCellRatio..MaxCellRatio,
+            steps = CellRatioSteps,
+            tag = "slider-dayCellAspectRatio",
+            onValueChange = { value -> onConfigChange(config.copy(dayCellAspectRatio = roundToStep(value))) },
+        )
+        ControlSlider(
             label = "Event dot size",
-            valueText = dpSource(config.eventIndicatorSize),
+            valueText = dpLabel(config.eventIndicatorSize),
             value = config.eventIndicatorSize.value,
             range = MinDotSize..MaxDotSize,
             steps = DotSizeSteps,
@@ -151,7 +162,7 @@ private fun AppearanceSection(config: PlaygroundConfig, onConfigChange: (Playgro
         )
         ControlSlider(
             label = "Grid line thickness",
-            valueText = dpSource(config.gridLineThickness),
+            valueText = dpLabel(config.gridLineThickness),
             value = config.gridLineThickness.value,
             range = MinGridThickness..MaxGridThickness,
             steps = GridThicknessSteps,
@@ -163,10 +174,10 @@ private fun AppearanceSection(config: PlaygroundConfig, onConfigChange: (Playgro
 
 @Composable
 private fun ScheduleSection(config: PlaygroundConfig, onConfigChange: (PlaygroundConfig) -> Unit) {
-    ControlSection(title = "Schedule", subtitle = "Applies to Schedule and Week grid") {
+    ControlSection(title = "Schedule", caption = "The hour grid: Schedule, Week grid and Resources.") {
         ControlSlider(
             label = "Hour height",
-            valueText = dpSource(config.hourHeight),
+            valueText = dpLabel(config.hourHeight),
             value = config.hourHeight.value,
             range = MinHourHeight..MaxHourHeight,
             steps = HourHeightSteps,
@@ -174,8 +185,8 @@ private fun ScheduleSection(config: PlaygroundConfig, onConfigChange: (Playgroun
             onValueChange = { value -> onConfigChange(config.copy(hourHeight = value.roundToInt().dp)) },
         )
         ControlSlider(
-            label = "Initial scroll hour",
-            valueText = "${config.scheduleInitialScrollHour}:00",
+            label = "Opens at",
+            valueText = hourLabel(config.scheduleInitialScrollHour),
             value = config.scheduleInitialScrollHour.toFloat(),
             range = MinScrollHour..MaxScrollHour,
             steps = ScrollHourSteps,
@@ -200,40 +211,45 @@ private fun ScheduleSection(config: PlaygroundConfig, onConfigChange: (Playgroun
 
 @Composable
 private fun BehaviourSection(config: PlaygroundConfig, onConfigChange: (PlaygroundConfig) -> Unit) {
-    ControlSection(title = "Behaviour") {
+    ControlSection(title = "Behaviour", caption = "What the header and the day cells offer.") {
         ControlSwitch(
             label = "Navigation arrows",
+            hint = "showNavigationArrows",
             checked = config.showNavigationArrows,
             tag = "toggle-showNavigationArrows",
             onCheckedChange = { checked -> onConfigChange(config.copy(showNavigationArrows = checked)) },
         )
         ControlSwitch(
             label = "Today button",
+            hint = "showTodayButton",
             checked = config.showTodayButton,
             tag = "toggle-showTodayButton",
             onCheckedChange = { checked -> onConfigChange(config.copy(showTodayButton = checked)) },
         )
         ControlSwitch(
             label = "Jump picker",
+            hint = "showJumpPicker",
             checked = config.showJumpPicker,
             tag = "toggle-showJumpPicker",
             onCheckedChange = { checked -> onConfigChange(config.copy(showJumpPicker = checked)) },
         )
         ControlSwitch(
             label = "Selection indicator",
+            hint = "showSelectionIndicator",
             checked = config.showSelectionIndicator,
             tag = "toggle-showSelectionIndicator",
             onCheckedChange = { checked -> onConfigChange(config.copy(showSelectionIndicator = checked)) },
         )
         ControlSwitch(
             label = "Adjacent month dates",
+            hint = "showAdjacentMonthDates",
             checked = config.showAdjacentMonthDates,
             tag = "toggle-showAdjacentMonthDates",
             onCheckedChange = { checked -> onConfigChange(config.copy(showAdjacentMonthDates = checked)) },
         )
         ControlSlider(
-            label = "Event dot cap",
-            valueText = config.eventIndicatorCap.toString(),
+            label = "Event dots per day",
+            valueText = "${config.eventIndicatorCap} max",
             value = config.eventIndicatorCap.toFloat(),
             range = MinIndicatorCap..MaxIndicatorCap,
             steps = IndicatorCapSteps,
@@ -245,21 +261,24 @@ private fun BehaviourSection(config: PlaygroundConfig, onConfigChange: (Playgrou
 
 @Composable
 private fun MotionSection(config: PlaygroundConfig, onConfigChange: (PlaygroundConfig) -> Unit) {
-    ControlSection(title = "Motion and slots") {
+    ControlSection(title = "Motion and slots", caption = "Springs, and your own composables.") {
         ControlSwitch(
             label = "Animations",
+            hint = "KalendarAnimations",
             checked = config.animationsEnabled,
             tag = "toggle-animations",
             onCheckedChange = { checked -> onConfigChange(config.copy(animationsEnabled = checked)) },
         )
         ControlSwitch(
-            label = "Custom cell (dayContent)",
+            label = "Custom day cell",
+            hint = "dayContent",
             checked = config.customCell,
             tag = "toggle-customCell",
             onCheckedChange = { checked -> onConfigChange(config.copy(customCell = checked)) },
         )
         ControlSwitch(
-            label = "Custom header (header)",
+            label = "Custom header",
+            hint = "header",
             checked = config.customHeader,
             tag = "toggle-customHeader",
             onCheckedChange = { checked -> onConfigChange(config.copy(customHeader = checked)) },
@@ -270,16 +289,16 @@ private fun MotionSection(config: PlaygroundConfig, onConfigChange: (PlaygroundC
 @Composable
 private fun AccentRow(config: PlaygroundConfig, onConfigChange: (PlaygroundConfig) -> Unit) {
     val dark = config.isDark()
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(SwatchSpacing)) {
         PlaygroundAccent.entries.forEach { accent ->
             val selected = accent == config.accent
             Box(
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(SwatchSize)
                     .clip(CircleShape)
                     .background(accent.swatchColor(dark))
                     .border(
-                        width = if (selected) 3.dp else 1.dp,
+                        width = if (selected) SelectedSwatchBorder else UnselectedSwatchBorder,
                         color = if (selected) PlaygroundChrome.Text else PlaygroundChrome.Border,
                         shape = CircleShape,
                     )
@@ -290,38 +309,51 @@ private fun AccentRow(config: PlaygroundConfig, onConfigChange: (PlaygroundConfi
     }
 }
 
+/**
+ * One card in the control column: an all-caps eyebrow, a sentence saying what the card is for, and
+ * the controls.
+ *
+ * The heading block is spaced on its own — 3dp between the eyebrow and its caption, then a full gap
+ * before the controls — because a single [Arrangement.spacedBy] over all three put the caption as
+ * far from its own heading as the heading was from the card above it, and the caption read as a
+ * floating aside rather than as part of the title.
+ */
 @Composable
 private fun ControlSection(
     title: String,
-    subtitle: String? = null,
+    caption: String,
     content: @Composable () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(CardCorner))
             .background(PlaygroundChrome.Surface)
-            .border(width = 1.dp, color = PlaygroundChrome.Border, shape = RoundedCornerShape(16.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .border(width = 1.dp, color = PlaygroundChrome.Border, shape = RoundedCornerShape(CardCorner))
+            .padding(horizontal = CardPadding, vertical = CardPadding),
+        verticalArrangement = Arrangement.spacedBy(ControlSpacing),
     ) {
-        Text(
-            text = title.uppercase(),
-            color = PlaygroundChrome.MutedText,
-            fontSize = 11.sp,
-            letterSpacing = 1.6.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        if (subtitle != null) {
-            Text(text = subtitle, color = PlaygroundChrome.DimText, fontSize = 11.sp)
+        Column(verticalArrangement = Arrangement.spacedBy(HeadingGap)) {
+            Text(
+                text = title.uppercase(),
+                color = PlaygroundChrome.MutedText,
+                style = PlaygroundType.Eyebrow,
+            )
+            Text(text = caption, color = PlaygroundChrome.DimText, style = PlaygroundType.Caption)
         }
         content()
     }
 }
 
+/** Names a group of controls inside a card, with room above it so it reads as a divider. */
 @Composable
-private fun ControlLabel(text: String) {
-    Text(text = text, color = PlaygroundChrome.MutedText, fontSize = 11.sp)
+private fun GroupLabel(text: String) {
+    Text(
+        text = text,
+        color = PlaygroundChrome.MutedText,
+        style = PlaygroundType.GroupLabel,
+        modifier = Modifier.padding(top = GroupLabelTopSpacing),
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -334,8 +366,8 @@ private fun <T> ChipRow(
     onSelect: (T) -> Unit,
 ) {
     FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(ChipSpacing),
+        verticalArrangement = Arrangement.spacedBy(ChipSpacing),
     ) {
         items.forEach { item ->
             Chip(
@@ -352,7 +384,7 @@ private fun <T> ChipRow(
 private fun Chip(label: String, selected: Boolean, tag: String, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val hovered by interactionSource.collectIsHoveredAsState()
-    val shape = RoundedCornerShape(9.dp)
+    val shape = RoundedCornerShape(ChipCorner)
     val border = when {
         selected -> PlaygroundChrome.Accent
         hovered -> PlaygroundChrome.BorderStrong
@@ -366,8 +398,8 @@ private fun Chip(label: String, selected: Boolean, tag: String, onClick: () -> U
     Text(
         text = label,
         color = content,
-        fontSize = 12.sp,
-        fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+        style = PlaygroundType.Chip,
+        maxLines = 1,
         modifier = Modifier
             .clip(shape)
             .background(if (selected) PlaygroundChrome.Accent else Color.Transparent)
@@ -375,7 +407,7 @@ private fun Chip(label: String, selected: Boolean, tag: String, onClick: () -> U
             .hoverable(interactionSource = interactionSource)
             .clickable { onClick() }
             .testTag(tag)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = ChipPaddingHorizontal, vertical = ChipPaddingVertical),
     )
 }
 
@@ -393,16 +425,22 @@ private fun ControlSlider(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = label, color = PlaygroundChrome.MutedText, fontSize = 11.sp)
-            Text(text = valueText, color = PlaygroundChrome.Text, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            ControlName(label = label, hint = null)
+            Text(
+                text = valueText,
+                color = PlaygroundChrome.Text,
+                style = PlaygroundType.Value,
+                maxLines = 1,
+            )
         }
         Slider(
             value = value,
             onValueChange = onValueChange,
             valueRange = range,
             steps = steps,
-            modifier = Modifier.height(28.dp).testTag(tag),
+            modifier = Modifier.height(SliderHeight).testTag(tag),
             colors = SliderDefaults.colors(
                 thumbColor = PlaygroundChrome.Accent,
                 activeTrackColor = PlaygroundChrome.Accent,
@@ -415,13 +453,19 @@ private fun ControlSlider(
 }
 
 @Composable
-private fun ControlSwitch(label: String, checked: Boolean, tag: String, onCheckedChange: (Boolean) -> Unit) {
+private fun ControlSwitch(
+    label: String,
+    hint: String,
+    checked: Boolean,
+    tag: String,
+    onCheckedChange: (Boolean) -> Unit,
+) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().padding(vertical = SwitchRowPadding),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = label, color = PlaygroundChrome.Text, fontSize = 12.sp)
+        ControlName(label = label, hint = hint)
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
@@ -438,14 +482,61 @@ private fun ControlSwitch(label: String, checked: Boolean, tag: String, onChecke
     }
 }
 
+/**
+ * A control's name, and under it the API it maps onto.
+ *
+ * Weighted rather than sized, and allowed to wrap, so a long label in a narrow column reflows
+ * instead of being ellipsized into "Adjacent month d…" — the panel's job is to name the token, and a
+ * truncated token names nothing.
+ */
+@Composable
+private fun RowScope.ControlName(label: String, hint: String?) {
+    Column(modifier = Modifier.weight(1f).padding(end = ControlNameGap)) {
+        Text(text = label, color = PlaygroundChrome.Text, style = PlaygroundType.ControlLabel)
+        if (hint != null) {
+            Text(text = hint, color = PlaygroundChrome.DimText, style = PlaygroundType.ControlHint)
+        }
+    }
+}
+
+/**
+ * Rounds a ratio to hundredths, so the slider reports exactly the number it prints — and so that
+ * dragging back to `1.00` really does restore the stock token rather than leaving `0.9999998` behind
+ * and an override in the snippet forever.
+ */
+private fun roundToStep(value: Float): Float = (value * RatioSteps).roundToInt() / RatioSteps
+
 private fun snapToStep(value: Float): Int {
     val snapped = (value / SnapMinutesStep).roundToInt() * SnapMinutesStep
     return snapped.coerceIn(minimumValue = MinSnapMinutes.roundToInt(), maximumValue = MaxSnapMinutes.roundToInt())
 }
 
+private val SectionSpacing = 18.dp
+private val ControlSpacing = 12.dp
+private val HeadingGap = 3.dp
+private val GroupLabelTopSpacing = 6.dp
+private val CardCorner = 16.dp
+private val CardPadding = 16.dp
+private val ChipCorner = 10.dp
+private val ChipSpacing = 8.dp
+private val ChipPaddingHorizontal = 12.dp
+private val ChipPaddingVertical = 8.dp
+private val SliderHeight = 30.dp
+private val SwitchRowPadding = 2.dp
+private val ControlNameGap = 16.dp
+private val SwatchSize = 30.dp
+private val SwatchSpacing = 12.dp
+private val SelectedSwatchBorder = 3.dp
+private val UnselectedSwatchBorder = 1.dp
+
 private const val MinCellPadding = 0f
 private const val MaxCellPadding = 12f
 private const val CellPaddingSteps = 11
+
+private const val MinCellRatio = 0.55f
+private const val MaxCellRatio = 1.4f
+private const val CellRatioSteps = 16
+private const val RatioSteps = 100f
 
 private const val MinDotSize = 2f
 private const val MaxDotSize = 12f

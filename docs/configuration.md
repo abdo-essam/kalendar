@@ -2,15 +2,15 @@
 
 Every view — [`KalendarWeek`](views/week.md), [`KalendarMonth`](views/month.md),
 [`KalendarYear`](views/year.md), [`KalendarTimeline`](views/timeline.md),
-[`KalendarSchedule`](views/schedule.md), [`KalendarScheduleWeek`](views/schedule-week.md), and
-[`KalendarAgenda`](views/agenda.md) — takes the same `KalendarViewConfig` through its `config`
-parameter.
+[`KalendarSchedule`](views/schedule.md), [`KalendarScheduleWeek`](views/schedule-week.md),
+[`KalendarAgenda`](views/agenda.md), `KalendarResourceView` and `KalendarDatePicker` — takes the same
+`KalendarViewConfig` through its `config` parameter.
 
 Options that apply to only some views say so below. Passing one to a view that ignores it is
 harmless.
 
 ```kotlin
-import com.himanshoe.kalendar.view.KalendarViewConfig
+import com.himanshoe.kalendar.KalendarViewConfig
 import kotlinx.datetime.DayOfWeek
 
 KalendarMonth(
@@ -37,15 +37,18 @@ KalendarMonth(
 | `shortMonthNameFormatter` | `(Month) -> String` | First three letters | Month names where the full one will not fit: week and day titles, and the jump picker's month buttons. See [Localization](localization.md). |
 | `dayOfWeekNameFormatter` | `(DayOfWeek) -> String` | First three letters | The abbreviated day name in `KalendarSchedule`'s day title. See [Localization](localization.md). |
 | `dayOfWeekLabelFormatter` | `(DayOfWeek) -> String` | First letter | The day-of-week column headers. See [Localization](localization.md). |
-| `hourLabelFormatter` | `(Int) -> String` | `"HH:00"` | Hour-gutter labels on the Schedule views. See [Localization](localization.md). |
-| `scheduleInitialScrollHour` | `Int` | `7` | The hour the Schedule views scroll to when a page first appears. Must be `0..23`. |
-| `scheduleDragSnapMinutes` | `Int` | `15` | Snap step, in minutes, for dragging and resizing event blocks. Must be at least `1`. |
+| `hourLabelFormatter` | `(Int) -> String` | `"HH:00"` | Hour-gutter labels on the hour-grid views. See [Localization](localization.md). |
+| `visibleDaysOfWeek` | `Set<DayOfWeek>` | all seven | Which weekdays get a column. `KalendarWeek`, `KalendarMonth`, `KalendarYear`, `KalendarTimeline`, `KalendarScheduleWeek` and `KalendarDatePicker`; the single-day views have no columns to drop. See [Work weeks](#work-weeks). Must not be empty. |
+| `scheduleVisibleHours` | `KalendarHourWindow` | `FullDay` | The slice of the day the hour grids draw. `KalendarSchedule`, `KalendarScheduleWeek` and `KalendarResourceView`. See [Business hours](#business-hours). |
+| `scheduleInitialScrollHour` | `Int` | `7` | The hour the hour-grid views scroll to when a page first appears. **Absolute**, not relative to `scheduleVisibleHours` — an hour above the window opens the grid at its top rather than scrolling backwards past it. Must be `0..23`. |
+| `scheduleDragSnapMinutes` | `Int` | `15` | Snap step, in minutes, for dragging, resizing and sweeping out event blocks. Must be at least `1`. |
 | `eventIndicatorCap` | `Int` | `3` | Maximum event dots below a day number before collapsing into `+N`. Must be at least `1`. |
 | `background` | `Brush?` | `null` | Background brush for the calendar container. `null` means `KalendarColors.background`. |
 
-> **Warning:** the three numeric options are validated in `KalendarViewConfig`'s `init` block and
-> throw `IllegalArgumentException` on construction — not at render time. `scheduleInitialScrollHour`
-> must be in `0..23`, `scheduleDragSnapMinutes` at least `1`, and `eventIndicatorCap` at least `1`.
+> **Warning:** four options are validated in `KalendarViewConfig`'s `init` block and throw
+> `IllegalArgumentException` **on construction** — not at render time. `visibleDaysOfWeek` must be
+> non-empty, `scheduleInitialScrollHour` must be in `0..23`, `scheduleDragSnapMinutes` at least `1`,
+> and `eventIndicatorCap` at least `1`.
 
 `KalendarViewConfig` is an `@Immutable` class with a hand-written `copy()`, so you can derive one
 config from another:
@@ -81,6 +84,46 @@ stays stable.
 > of this predicate, so `KalendarDayScope.isDisabled` is `true` for them too. Check
 > `scope.date.month` in a custom `dayContent` if you need to tell the two cases apart.
 
+## Work weeks
+
+`visibleDaysOfWeek` drops a weekday's column entirely, rather than dimming it:
+
+```kotlin
+KalendarViewConfig(
+    visibleDaysOfWeek = ALL_DAYS_OF_WEEK - setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY),
+)
+```
+
+Everything narrows together: the grid to five columns, the day-of-week header row with it, the month
+grid's leading padding recomputed so the columns stay under their labels, and keyboard arrows
+stepping *over* the hidden days rather than onto them. That last one is
+[`visibleDateStep`](reference/foundation-grid.md) in the engine — `Right` from Friday lands on
+Monday, because Saturday is not a cell the focus ring can sit on.
+
+It is independent of `KalendarViewState.startDayOfWeek`, which still decides where the week *begins*.
+
+## Business hours
+
+`scheduleVisibleHours` is the slice of the day an hour grid draws:
+
+```kotlin
+KalendarViewConfig(scheduleVisibleHours = KalendarHourWindow(startHour = 8, endHour = 20))
+```
+
+The end hour is exclusive: this grid's last labelled row is 19:00 and its bottom edge is 20:00.
+Everything follows the window rather than midnight — the gutter labels, the rules, block positions,
+the now-indicator's visibility, and the clamps on dragging and resizing.
+
+> **Note: the window clips, it does not filter.** A 07:00–09:00 meeting on an 08:00 grid is drawn
+> from the top edge to 09:00 with its start cut off, so the window never silently hides that
+> something is booked. Only an event lying *entirely* outside is dropped. It is a display range, not
+> a business rule: it does not stop your events starting at 03:00, and callbacks always report real
+> wall-clock times.
+
+It lives on the config rather than on each composable because it is a policy an app sets once for
+every hour grid it shows. See [`KalendarHourWindow`](reference/foundation-schedule.md) for its full
+surface.
+
 ## Backgrounds
 
 `background` accepts a `Brush`, so it exists for what a single colour cannot express:
@@ -107,8 +150,8 @@ calling `Clock.System` directly. It is the one seam between the calendar and the
 exists because that seam is needed twice:
 
 ```kotlin
-import com.himanshoe.kalendar.view.KalendarTimeSource
-import com.himanshoe.kalendar.view.ProvideKalendarTimeSource
+import com.himanshoe.kalendar.foundation.datetime.KalendarTimeSource
+import com.himanshoe.kalendar.state.ProvideKalendarTimeSource
 
 val fixed = remember {
     KalendarTimeSource(
@@ -159,7 +202,7 @@ Three kinds of setting deliberately live elsewhere:
 | Colours, text styles, shapes, sizes, motion | [`KalendarTheme`](theming.md) tokens |
 | Words and accessibility announcements | [`KalendarStrings`](localization.md) |
 | Initial date, week start day, min/max bounds, the clock | The `rememberKalendar*State` factories and [`KalendarTimeSource`](views/index.md#the-state-factories) |
-| Which dates are selected, and what a tap does | `selectedDates` / `onDateClick`, or [`rememberKalendarSelectionState`](getting-started.md) |
+| Which dates are selected, and what a tap does | `selectedDates` / `onDateClick`, or [`rememberKalendarSelectionState`](reference/kalendar-state.md) |
 
 `KalendarViewConfig` holds *behaviour and formatting*: what appears, what is interactive, and how
 dates are turned into text.

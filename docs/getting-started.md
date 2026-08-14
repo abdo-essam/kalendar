@@ -21,7 +21,7 @@ Every view takes a `selectedDate` and nothing else is required:
 ```kotlin
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import com.himanshoe.kalendar.view.KalendarMonth
+import com.himanshoe.kalendar.KalendarMonth
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
@@ -66,8 +66,8 @@ For the three common behaviours — single, multiple, range — `rememberKalenda
 implements the tap logic for you and survives configuration changes and process death:
 
 ```kotlin
-import com.himanshoe.kalendar.view.KalendarSelectionMode
-import com.himanshoe.kalendar.view.rememberKalendarSelectionState
+import com.himanshoe.kalendar.foundation.selection.KalendarSelectionMode
+import com.himanshoe.kalendar.state.rememberKalendarSelectionState
 
 @Composable
 fun RangeCalendar() {
@@ -142,7 +142,7 @@ or navigate from your own UI:
 
 ```kotlin
 import androidx.compose.runtime.rememberCoroutineScope
-import com.himanshoe.kalendar.view.rememberKalendarMonthState
+import com.himanshoe.kalendar.state.rememberKalendarMonthState
 import kotlinx.coroutines.launch
 import kotlinx.datetime.DayOfWeek
 
@@ -176,8 +176,8 @@ Colours, type, shapes, sizing, motion, and strings all resolve through an ambien
 Material 3 app the defaults already follow your colour scheme, so you may not need this at all:
 
 ```kotlin
-import com.himanshoe.kalendar.view.KalendarTheme
-import com.himanshoe.kalendar.view.KalendarThemeDefaults
+import com.himanshoe.kalendar.theme.KalendarTheme
+import com.himanshoe.kalendar.theme.KalendarThemeDefaults
 
 KalendarTheme(
     colors = KalendarThemeDefaults.colors().copy(selectionBackground = BrandPurple),
@@ -192,7 +192,9 @@ If your app does **not** use Material 3, pass `KalendarThemeDefaults.systemColor
 ## Next steps
 
 - [**Views**](views/index.md) — pick the right composable and see its full parameter table.
+- [**The headless engine**](engine.md) — build a calendar we did not design, on the same arithmetic.
+- [**API reference**](reference/index.md) — every public symbol in both modules, by package.
 - [**Theming**](theming.md) — every token and its default.
-- [**Configuration**](configuration.md) — the `KalendarViewConfig` knobs shared by all seven views.
+- [**Configuration**](configuration.md) — the `KalendarViewConfig` knobs shared by all nine views.
 - [**Customization**](customization.md) — replace the day cell, the header, or an event block.
 - [**Device sync**](sync.md) — read and write the user's real calendar.

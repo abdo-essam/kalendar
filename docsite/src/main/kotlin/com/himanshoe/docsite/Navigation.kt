@@ -18,6 +18,8 @@ data class DocSource(
 
 /** A titled group of pages in the sidebar. */
 data class NavSection(
+    /** What the section is declared under: a directory name, or a [rootSections] group. */
+    val key: String,
     /** The group heading shown in the sidebar. */
     val title: String,
     /** The pages in this group, in reading order. */
@@ -68,36 +70,41 @@ private fun toDocSource(
 }
 
 /**
- * Groups the discovered pages into the sidebar: a directory is a section, a file is a page.
+ * Groups the discovered pages into the sidebar's sections.
+ *
+ * A page in a directory belongs to that directory's section; a page at the top of `docs/` belongs to
+ * the section [rootSections] places it in, or to [DEFAULT_ROOT_SECTION] if nothing places it. The two
+ * routes share one key space, so `engine.md` and `engine/index.md` land in the same section rather
+ * than in two sections with the same heading — which matters while pages are still being written and
+ * nobody has settled on whether the engine's documentation is one page or several.
+ *
+ * A section with no pages is not a section: the sidebar is built from what exists, so a group whose
+ * pages have not been written yet is absent rather than empty.
  *
  * `docs/index.md` is left out — it is the landing page, and the sidebar links to it separately as
  * the way home rather than as one entry among the guides.
  */
-fun buildNavigation(pages: List<DocSource>): List<NavSection> {
-    val grouped = pages.filterNot { page -> page.path == "index.md" }.groupBy { page -> page.directory }
-    val root =
-        grouped[""]
-            ?.sortedWith(pageComparator)
-            ?.let { entries -> listOf(NavSection(title = ROOT_SECTION_TITLE, entries = entries)) }
-            .orEmpty()
-    val sections =
-        grouped
-            .filterKeys { directory -> directory.isNotEmpty() }
-            .toList()
-            .sortedWith(sectionComparator)
-            .map { (directory, entries) ->
-                NavSection(title = sectionTitle(directory), entries = entries.sortedWith(pageComparator))
-            }
-    return root + sections
-}
+fun buildNavigation(pages: List<DocSource>): List<NavSection> =
+    pages
+        .filterNot { page -> page.path == "index.md" }
+        .groupBy { page -> sectionKey(page) }
+        .toList()
+        .sortedWith(sectionComparator)
+        .map { (key, entries) ->
+            NavSection(key = key, title = sectionTitle(key), entries = entries.sortedWith(pageComparator))
+        }
 
 /** Every page in sidebar order, which is also the order the previous/next links walk. */
 fun readingOrder(sections: List<NavSection>): List<DocSource> = sections.flatMap { section -> section.entries }
 
+/** The section a page belongs to: its directory, or the group its filename is declared under. */
+private fun sectionKey(page: DocSource): String =
+    page.directory.ifEmpty { rootSections[page.path] ?: DEFAULT_ROOT_SECTION }
+
 private val sectionComparator =
     compareBy<Pair<String, List<DocSource>>>(
-        { (directory, _) -> orderIndex(sectionOrder, directory) },
-        { (directory, _) -> directory }
+        { (key, _) -> orderIndex(sectionOrder, key) },
+        { (key, _) -> key }
     )
 
 private val pageComparator =
@@ -112,9 +119,9 @@ private fun orderIndex(
     value: String
 ): Int = order.indexOf(value).takeIf { index -> index >= 0 } ?: order.size
 
-/** A directory's sidebar heading: the declared one, or the directory name made readable. */
-private fun sectionTitle(directory: String): String =
-    sectionTitles[directory]
-        ?: directory
+/** A section's sidebar heading: the declared one, or the key made readable. */
+private fun sectionTitle(key: String): String =
+    sectionTitles[key]
+        ?: key
             .split('-', '_')
             .joinToString(" ") { word -> word.replaceFirstChar { character -> character.uppercaseChar() } }

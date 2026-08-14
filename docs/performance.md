@@ -7,9 +7,10 @@ reasoning rather than measurement, it says so.
 
 ## Summary
 
-The library is in good shape. All seven public views are `restartable skippable`, every class the
-compiler sees is stable, and a recomposition above a calendar costs zero day cells. The one real
-cost found is `KalendarYear`, which eagerly composes **404 day cells** on its first frame.
+The library is in good shape. All **nine** public views are `restartable skippable`, every class the
+compiler sees is stable, and a recomposition above a calendar costs zero day cells. `KalendarYear`,
+which used to eagerly compose 400-odd day cells on its first frame, is now viewport-bounded and
+measures **235** with this benchmark's deliberately tiny probe cell.
 
 ## Regenerating the compiler reports
 
@@ -35,23 +36,25 @@ Output lands in:
 
 ## What the reports say
 
-From `kalendar-composables.txt`, 89 composables, 59 `restartable skippable`. Every public view:
+From `kalendar-composables.txt`, 106 composables, 72 `restartable skippable`. Every public view:
 
 ```
-restartable skippable fun com.himanshoe.kalendar.view.KalendarMonth(
-restartable skippable fun com.himanshoe.kalendar.view.KalendarWeek(
-restartable skippable fun com.himanshoe.kalendar.view.KalendarYear(
-restartable skippable fun com.himanshoe.kalendar.view.KalendarAgenda(
-restartable skippable fun com.himanshoe.kalendar.view.KalendarTimeline(
-restartable skippable fun com.himanshoe.kalendar.view.KalendarSchedule(
-restartable skippable fun com.himanshoe.kalendar.view.KalendarScheduleWeek(
+restartable skippable fun com.himanshoe.kalendar.KalendarWeek(
+restartable skippable fun com.himanshoe.kalendar.KalendarMonth(
+restartable skippable fun com.himanshoe.kalendar.KalendarYear(
+restartable skippable fun com.himanshoe.kalendar.KalendarTimeline(
+restartable skippable fun com.himanshoe.kalendar.KalendarSchedule(
+restartable skippable fun com.himanshoe.kalendar.KalendarScheduleWeek(
+restartable skippable fun com.himanshoe.kalendar.KalendarResourceView(
+restartable skippable fun com.himanshoe.kalendar.KalendarAgenda(
+restartable skippable fun com.himanshoe.kalendar.KalendarDatePicker(
 ```
 
-The 30 composables that are neither restartable nor skippable are all `remember*` factories and
+The 34 composables that are neither restartable nor skippable are all `remember*` factories and
 `KalendarTheme` accessors. A composable that returns a value is never skippable, by construction —
 that is correct, not a finding.
 
-`kalendar-classes.txt` lists 26 classes, **all** of them `stable`, none `unstable` or `runtime`.
+`kalendar-classes.txt` lists 22 classes, **all** of them `stable`, none `unstable` or `runtime`.
 
 ### The token classes are genuinely structural
 
@@ -61,13 +64,17 @@ verified two ways.
 
 By inspection, `KalendarColors`, `KalendarTypography`, `KalendarShapes`, `KalendarDimensions`,
 `KalendarAnimations`, `KalendarThemeTokens`, `KalendarStrings`, `KalendarViewConfig`,
-`KalendarDayScope` and `KalendarTimeSource` all compare field by field after the usual
-`if (this === other) return true` fast path. None of them stops at identity.
+`KalendarDayScope` and `KalendarDatePickerDayScope` all compare field by field after the usual
+`if (this === other) return true` fast path. None of them stops at identity. The same is true of the
+engine's own value types — `BasicKalendarEvent`, `KalendarScheduleBlock`, `KalendarHourWindow`,
+`KalendarSelection`, `KalendarResource`, `KalendarPager`, `KalendarTimeSource` — which do not appear
+in this report because they compile in `:kalendar-foundation`, but reach a consumer's composables as
+parameters all the same.
 
 By report, each is `stable` with every field enumerated, e.g.:
 
 ```
-stable class com.himanshoe.kalendar.view.KalendarColors {
+stable class com.himanshoe.kalendar.theme.KalendarColors {
   stable val background: Color
   stable val selectionBackground: Color
   ...
@@ -80,11 +87,11 @@ exists, and why it asserts on behaviour rather than on the report.
 
 ### "unstable" parameters are not a problem here
 
-55 parameters are marked `unstable`, and they are all `kotlinx.datetime.LocalDate`, `List`, or
+77 parameters are marked `unstable`, and they are all `kotlinx.datetime.LocalDate`, `List`, or
 `Set`:
 
 ```
-restartable skippable fun com.himanshoe.kalendar.view.KalendarMonth(
+restartable skippable fun com.himanshoe.kalendar.KalendarMonth(
   unstable selectedDate: LocalDate
   stable modifier: Modifier? = @static <expression>
   stable state: KalendarViewState? = @dynamic <expression>
@@ -102,7 +109,7 @@ recomposition — and constructed from the tick counter, so the compiler cannot 
 `remember` as compile-time constants — and asserts that zero day cells recompose. It passes.
 
 A stability configuration file listing `kotlinx.datetime.LocalDate` and the collection interfaces
-was written, measured, and **reverted**: it cleaned the report from 55 unstable parameters to 0 and
+was written, measured, and **reverted**: it cleaned every unstable parameter out of the report and
 changed no runtime number whatsoever. It is not worth the standing claim that every `List` handed
 to the library is immutable. If the benchmark above ever starts failing, that file is the fix, and
 it belongs at `kalendar/compose-stability.conf` wired in via `composeCompiler {
@@ -114,7 +121,7 @@ measurable and would cost real API churn. Not recommended.
 
 ## The benchmark
 
-`kalendar/src/desktopTest/kotlin/com/himanshoe/kalendar/view/KalendarRecompositionBenchmark.kt`,
+`kalendar/src/desktopTest/kotlin/com/himanshoe/kalendar/KalendarRecompositionBenchmark.kt`,
 run by the ordinary `:kalendar:desktopTest`. It counts **compositions**, not milliseconds — a
 composition count reproduces across machines, a timing does not.
 
@@ -124,14 +131,22 @@ composition count reproduces across machines, a timing does not.
 
 Measured baseline:
 
-| Measurement | Cells |
+| Measurement | Count |
 |---|---|
-| `KalendarMonth` first composition | 37 |
-| `KalendarWeek` first composition | 7 |
-| `KalendarYear` first composition | **404** |
-| `KalendarMonth`, caller recomposes, hoisted params | 0 |
-| `KalendarWeek`, caller recomposes, hoisted params | 0 |
-| `KalendarMonth`, caller recomposes, freshly allocated equal params | 0 |
+| `KalendarMonth` first composition | 37 cells |
+| `KalendarWeek` first composition | 7 cells |
+| `KalendarYear` first composition | **235 cells** — see below |
+| `KalendarMonth`, caller recomposes, hoisted params | 0 cells |
+| `KalendarWeek`, caller recomposes, hoisted params | 0 cells |
+| `KalendarMonth`, caller recomposes, freshly allocated equal params | 0 cells |
+| An arrow keypress moving the focus ring | 0 cells |
+| One whole drag gesture, 8 blocks on screen | 4 block slots |
+| Inserting an earlier event, 8 blocks on screen | 1 block slot |
+| A now-indicator tick, 8 blocks on screen | 0 block slots |
+
+The last four are the ones that catch real regressions. Keyed slots are why inserting an event at the
+top of a day recomposes one block rather than all nine; reading the clock in the **placement** phase
+is why a minute passing recomposes nothing at all and simply re-places the line.
 
 ### Three traps this benchmark had to survive
 
@@ -156,26 +171,31 @@ Hoist it. Before that was found, every view in this repo appeared not to skip.
 
 ## The known suspects, assessed
 
-### `KalendarYear` — 404 eager cells. Real, and the only real one
+### `KalendarYear` — fixed. The month column is lazy
 
-**Measured.** `KalendarYear` composes 404 day cells on its first frame. Twelve month grids sit in a
-non-lazy `verticalScroll` `Column` (`KalendarYear.kt:122-125`), so every cell of every month is
-composed whether or not it is on screen — roughly eleven months of invisible work.
+**This was the one real cost, and it is no longer one.** `KalendarYear` used to stack twelve month
+grids in a non-lazy `verticalScroll` `Column`, composing every cell of every month whether or not it
+was on screen — 400-odd cells, roughly eleven months of invisible work on a first frame.
 
-It is not a *recomposition* problem: once composed, a caller recomposition costs zero cells, and
-paging between years reuses the pager's own slot management. It is a first-frame and
+That column is now a `LazyColumn`, so only the months in the viewport compose.
+`yearComposesOnlyTheMonthsOnScreen` measures **235** cells and asserts the count stays under 300,
+against a `YEAR_EAGER_CELL_FLOOR` of 400 recorded as what the eager version cost.
+
+> **Read 235 as a ceiling, not a target.** The benchmark's probe cell is 8dp tall, so seven of the
+> twelve months fit in the test window at once and a lazy list has to compose all of them. With a day
+> cell of any realistic height — the built-in one is an order of magnitude taller — far fewer months
+> are on screen and the count falls with them. That is the whole point of the container being lazy,
+> and it is why the budget is "materially below the eager cost" rather than a tight fit.
+
+It was never a *recomposition* problem: once composed, a caller recomposition costs zero cells, and
+paging between years reuses the pager's own slot management. It was a first-frame and
 memory-footprint problem, worst on a cold page in the `HorizontalPager`.
-
-Not fixed here, deliberately. The fix is to make that `Column` a `LazyColumn`, which changes scroll
-and measurement behaviour and risks the golden images — too big to land as a drive-by next to three
-other agents editing the same files. `yearComposesEveryMonthEagerly` pins the current number so the
-improvement is visible when someone takes it on.
 
 ### `KalendarGrid`'s `mutableStateMapOf` written from `onGloballyPositioned`
 
-`KalendarGrid.kt:115` holds `mutableStateMapOf<LocalDate, LayoutCoordinates>`, written at line 265
-inside `onGloballyPositioned` (layout phase) and read at line 118 during composition. That is a
-textbook cross-phase back-write, and it is the one thing here I would still call a latent hazard.
+`KalendarGrid.kt` holds a `mutableStateMapOf<LocalDate, LayoutCoordinates>`, written from
+`onGloballyPositioned` (layout phase) and read during composition. That is a textbook cross-phase
+back-write, and it is the one thing here I would still call a latent hazard.
 
 In practice the cost is bounded: the writes only change when layout changes, so they cost one extra
 composition pass after the first layout and nothing per frame. Measured indirectly — the
@@ -184,8 +204,8 @@ composition pass after the first layout and nothing per frame. Measured indirect
 It is correct today for a reason worth preserving: the value read during composition
 (`targetPosition`) is only used to key a `LaunchedEffect` and as a first-frame fallback, while the
 actual positioning happens in `Modifier.offset { }` — the placement phase. So the frame-rate path
-never reads snapshot state during composition. The comment at lines 128-136 shows this was thought
-about.
+never reads snapshot state during composition. The comment above `targetPosition` shows this was
+thought about.
 
 I did not change it. A safe improvement, if someone wants it, is to move the coordinate lookup used
 by `dateAtOffset` off the snapshot map entirely (it is only read from pointer callbacks, never
@@ -194,11 +214,12 @@ simplification, not a measured win.
 
 ### `byDateExpandingSpans()` and `scheduleBlocks()`
 
-Both are already guarded. `byDateExpandingSpans()` is called inside `remember(events)`
-(`KalendarYear.kt:112`, `KalendarMonth.kt:115`), and `remember` compares its key with `equals`
-regardless of Compose stability — so a value-equal event list does not rebuild the map. Confirmed
-by `freshlyAllocatedEqualParametersRecomposeNothing`, which hands the view a brand-new list every
-recomposition and still costs zero cells.
+Both are already guarded. `byDateExpandingSpans()` is called inside `remember(events)` in every view
+that indexes by date, and `remember` compares its key with `equals` regardless of Compose stability —
+so a value-equal event list does not rebuild the map. Confirmed by
+`freshlyAllocatedEqualParametersRecomposeNothing`, which hands the view a brand-new list every
+recomposition and still costs zero cells. If you are building on the
+[engine](engine.md) directly, wrap the call the same way.
 
 `scheduleBlocks()` re-packs overlaps per page, which is `O(n log n)` in the events of one day. Not
 measured — the visible-page event count is small enough that this was not worth instrumenting, and
@@ -212,22 +233,42 @@ Reasoned, not measured — there is nothing to measure, since nothing is allocat
 
 ### The now-indicator timer — the fix holds
 
-Verified by reading the code, which is the right tool here since the fix is structural.
+Now measured as well as read. `aNowIndicatorTickRecomposesNoScheduleBlock` advances a fixed clock past
+the tick interval and asserts **zero** event-block slots recompose while the line itself moves —
+`128.0.dp` to `129.0.dp` on the run above.
 
-- One timer per view, not one per column: `rememberKalendarNowState(timeSource, nowIndicatorTick)`
-  is called once in `KalendarSchedule` (`KalendarSchedule.kt:171`) and once in
-  `KalendarScheduleWeek` (line 306), and its `LaunchedEffect` is keyed on `(timeSource, tick)`.
-- "Which column is today" goes through `derivedStateOf`, so it invalidates on date change rather
-  than every minute: `remember(now) { derivedStateOf { now.value.date } }` (lines 172 and 307).
-- The minute-by-minute value is read in the **placement** phase, not composition.
-  `ScheduleNowIndicator` (`KalendarSchedule.kt:971`) takes `now: State<LocalDateTime>` and reads
-  `now.value` inside `Modifier.offset { }`, so a minute passing re-places one line instead of
-  recomposing the indicator, its slot content, and everything above the read.
+Three structural properties make that possible, and all three are intact:
 
-All three properties are intact.
+- **One timer per view, not one per column.** `rememberKalendarNowState(timeSource, nowIndicatorTick)`
+  is called once in `KalendarSchedule` and once in `KalendarScheduleWeek`, and its `LaunchedEffect`
+  is keyed on `(timeSource, tick)`.
+- **"Which column is today" goes through `derivedStateOf`**, so it invalidates on a date change
+  rather than every minute: `remember(nowState) { derivedStateOf { nowState.value.date } }`.
+- **The minute-by-minute value is read in the placement phase, not composition.** `KalendarNowLine`
+  in `component/KalendarHourGrid.kt` takes `now: () -> LocalDateTime` and calls it inside
+  `Modifier.offset { }`, so a minute passing re-places one line instead of recomposing the indicator,
+  its slot content, and everything above the read. Its *visibility* — whether the clock is inside
+  `KalendarViewConfig.scheduleVisibleHours` — goes through `derivedStateOf`, whose result changes at
+  most twice a day.
+
+This is the shape to copy if you are building your own hour grid on the
+[engine](engine.md): hold the reading as a `State`, and read it in `offset`.
+
+### Keyed event slots
+
+`insertingAnEarlierEventRecomposesOnlyTheNewScheduleBlock` inserts one event at the top of a day
+already holding eight, and asserts at most **2** slot compositions — measured, 1.
+
+Unkeyed, the loop body would be memoized by position, so an insertion at the top re-associates every
+slot below it with a different event: nine compositions, and any state a caller's card holds lands on
+the wrong block. Keyed by the event, the existing subtrees move instead of being rebuilt.
+
+The same assertion exists for `KalendarResourceView`, whose lanes have the same hazard.
 
 ## Regressions this catches
 
 `KalendarRecompositionBenchmark` fails if a view loses `restartable skippable`, if a token class's
-`equals` becomes identity-based, or if `KalendarYear` silently changes its composition strategy. It
-does not catch draw-phase or layout-phase regressions; there is no coverage for those yet.
+`equals` becomes identity-based, if `KalendarYear`'s month column stops being lazy, if event slots
+lose their keys, if a now-indicator tick starts recomposing blocks, or if arrow-key focus movement
+starts recomposing cells. It does not catch draw-phase or layout-phase regressions; there is no
+coverage for those yet.

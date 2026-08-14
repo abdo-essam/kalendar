@@ -40,7 +40,18 @@
   --bar: 56px;
   --sidebar: 260px;
   --toc: 232px;
-  --measure: 760px;
+
+  /* The content column, sized for the widest thing in it: a table, a screenshot, a snippet.
+     Prose is not that thing — see --measure. */
+  --content: 800px;
+
+  /* The line length of running text. In `ch` so it stays a count of characters rather than a
+     distance — it tracks both the font size and whichever face the reader's platform actually
+     picked. About seventy of them, which is the length a reader can carry from the end of one line
+     to the start of the next without losing the thread. The column is usually narrower than this
+     anyway; the cap is what stops a wide screen turning a paragraph into a single long line. */
+  --measure: 66ch;
+
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
@@ -91,7 +102,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.7;
   -webkit-font-smoothing: antialiased;
   overflow-wrap: break-word;
@@ -323,7 +334,7 @@ a:hover {
 
 .content {
   min-width: 0;
-  max-width: var(--measure);
+  max-width: var(--content);
   padding: 32px 0 96px;
 }
 
@@ -424,12 +435,15 @@ a:hover {
   color: var(--dim);
 }
 
+/* `--muted`, not `--dim`. These are 13px links a reader is meant to read and choose between, and
+   --dim on the page background is about 4.2:1 — under the 4.5:1 that text this size needs. --dim
+   stays where it belongs: on labels that name a thing rather than being read. */
 .toc a {
   display: block;
   padding: 4px 0 4px 14px;
   margin-left: -1px;
   border-left: 1px solid transparent;
-  color: var(--dim);
+  color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
   transition: color 150ms var(--ease), border-color 150ms var(--ease);
@@ -452,40 +466,50 @@ a:hover {
 
 /* ── Prose ───────────────────────────────────────────────────────────────── */
 
+/* Headings. Four steps that stay apart at every size — 36 / 24 / 19 / 16 against 16px body — because
+   a heading a reader has to compare against its neighbour to rank is not doing its job. `h4` is the
+   one that has to work at body size: it earns its rank on weight and colour instead, since going
+   any smaller would put a heading below the text it introduces.
+   `text-wrap: balance` evens out the lines of a heading that wraps, so a two-line title does not
+   arrive as eight words and a widow. Ignored where it is not supported, which costs nothing. */
 .prose h1,
 .prose h2,
 .prose h3,
 .prose h4 {
-  line-height: 1.3;
+  line-height: 1.25;
   letter-spacing: -0.02em;
+  text-wrap: balance;
   scroll-margin-top: calc(var(--bar) + 16px);
 }
 
 .prose h1 {
-  margin: 0 0 20px;
-  font-size: 34px;
+  margin: 0 0 24px;
+  font-size: 36px;
   font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
 }
 
 .prose h2 {
-  margin: 52px 0 14px;
-  padding-top: 16px;
+  margin: 56px 0 16px;
+  padding-top: 18px;
   border-top: 1px solid var(--border);
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 600;
 }
 
 .prose h3 {
-  margin: 34px 0 10px;
-  font-size: 17px;
+  margin: 36px 0 12px;
+  font-size: 19px;
   font-weight: 600;
 }
 
 .prose h4 {
-  margin: 26px 0 8px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--muted);
+  margin: 28px 0 10px;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--text);
 }
 
 .prose p,
@@ -493,18 +517,38 @@ a:hover {
   color: var(--muted);
 }
 
+/* The measure applies to running text, not to the column that holds it: a table, a snippet and a
+   screenshot all want the full width, and narrowing them to a comfortable *reading* width would
+   only add a horizontal scrollbar to each. Direct children only, so text nested inside something
+   that sets its own width keeps that width. */
+.prose > p,
+.prose > ul,
+.prose > ol,
+.prose > blockquote {
+  max-width: var(--measure);
+}
+
 .prose p {
-  margin: 0 0 16px;
+  margin: 0 0 18px;
+  text-wrap: pretty;
 }
 
 .prose ul,
 .prose ol {
-  margin: 0 0 16px;
-  padding-left: 22px;
+  margin: 0 0 18px;
+  padding-left: 24px;
 }
 
 .prose li {
-  margin: 4px 0;
+  margin: 6px 0;
+  text-wrap: pretty;
+}
+
+/* A nested list belongs to the item above it. Without this it inherits the gap that separates one
+   top-level list from the paragraph after it, and reads as a new list rather than a continuation. */
+.prose li > ul,
+.prose li > ol {
+  margin: 6px 0 0;
 }
 
 .prose li::marker {
@@ -601,8 +645,8 @@ a:hover {
 }
 
 .prose blockquote {
-  margin: 20px 0;
-  padding: 2px 0 2px 18px;
+  margin: 24px 0;
+  padding: 2px 0 2px 20px;
   border-left: 2px solid var(--accent-line);
   color: var(--muted);
 }
@@ -649,22 +693,25 @@ h4:hover > .anchor,
 /* ── Tables ──────────────────────────────────────────────────────────────── */
 
 .table-wrap {
-  margin: 20px 0;
+  margin: 24px 0;
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
 }
 
+/* A table's own type: one step under the prose, and tighter leading than a paragraph gets. A cell is
+   read across, not down a column of lines, so 1.7 only pushes the rows apart. */
 .table-wrap table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 14.5px;
+  line-height: 1.55;
 }
 
 .table-wrap th,
 .table-wrap td {
-  padding: 10px 14px;
+  padding: 11px 14px;
   text-align: left;
   vertical-align: top;
   border-bottom: 1px solid var(--border);
@@ -685,7 +732,7 @@ h4:hover > .anchor,
 /* ── Code blocks ─────────────────────────────────────────────────────────── */
 
 .code-block {
-  margin: 20px 0;
+  margin: 24px 0;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--code-bg);
@@ -734,14 +781,17 @@ h4:hover > .anchor,
 
 .code-block pre {
   margin: 0;
-  padding: 14px 16px;
+  padding: 16px 18px;
   overflow-x: auto;
 }
 
+/* Monospace reads smaller than the sans beside it at the same size, so a snippet is set a little
+   under the prose rather than well under it. Leading is tighter than a paragraph's: code is read a
+   line at a time, and 1.7 pulls the lines of one expression apart. */
 .code-block code {
   font-family: var(--mono);
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 13.5px;
+  line-height: 1.6;
   color: var(--text);
   white-space: pre;
 }
@@ -898,10 +948,11 @@ h4:hover > .anchor,
 
 .hero-tagline {
   margin: 0 auto 32px;
-  max-width: 620px;
+  max-width: 640px;
   color: var(--muted);
-  font-size: 17px;
-  line-height: 1.6;
+  font-size: 18px;
+  line-height: 1.55;
+  text-wrap: pretty;
 }
 
 .hero-tagline strong {
@@ -1053,7 +1104,7 @@ h4:hover > .anchor,
 .tile-title {
   margin: 0 0 6px;
   color: var(--text);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -1066,7 +1117,7 @@ h4:hover > .anchor,
   overflow: hidden;
   margin: 0;
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
@@ -1086,7 +1137,7 @@ h4:hover > .anchor,
 }
 
 .home-prose {
-  max-width: var(--measure);
+  max-width: var(--content);
 }
 
 /* ── 404 ─────────────────────────────────────────────────────────────────── */
@@ -1106,7 +1157,7 @@ h4:hover > .anchor,
 
 .notfound h1 {
   margin: 12px 0 8px;
-  font-size: 34px;
+  font-size: 36px;
   font-weight: 650;
   letter-spacing: -0.03em;
 }
@@ -1256,12 +1307,19 @@ h4:hover > .anchor,
     padding-top: 24px;
   }
 
+  /* The heading scale, stepped down for a phone. The body stays at 16px — text a reader holds at
+     arm's length is the last thing to shrink — so the headings come down to meet it rather than
+     towering over a narrow column. */
   .prose h1 {
-    font-size: 27px;
+    font-size: 29px;
   }
 
   .prose h2 {
-    font-size: 20px;
+    font-size: 21px;
+  }
+
+  .prose h3 {
+    font-size: 18px;
   }
 
   .hero {

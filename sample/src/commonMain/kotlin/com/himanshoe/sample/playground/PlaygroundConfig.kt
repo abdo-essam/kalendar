@@ -21,15 +21,38 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.himanshoe.kalendar.foundation.selection.KalendarSelectionMode
 
-/** The Kalendar view the playground is currently rendering. */
-internal enum class PlaygroundView(val label: String, val call: String) {
-    Week(label = "Week", call = "KalendarWeek"),
-    Month(label = "Month", call = "KalendarMonth"),
-    Year(label = "Year", call = "KalendarYear"),
-    Timeline(label = "Timeline", call = "KalendarTimeline"),
-    Schedule(label = "Schedule", call = "KalendarSchedule"),
-    ScheduleWeek(label = "Week grid", call = "KalendarScheduleWeek"),
-    Agenda(label = "Agenda", call = "KalendarAgenda"),
+/**
+ * The Kalendar view the playground is currently rendering — every public view the library ships,
+ * so nothing is reachable only by reading the docs.
+ *
+ * @property label The chip's text.
+ * @property call The composable this view calls, which is also what the generated snippet prints.
+ * @property scrollsInternally Whether the view owns a scrolling container of its own — a
+ *   `LazyColumn` or a `Modifier.verticalScroll` — and will therefore take every pixel of height it
+ *   is offered and page the rest. A view without one wraps to a height its width implies: seven
+ *   columns of square cells, six rows deep.
+ *
+ *   What it does **not** mean is that the other views may be given an unbounded height. None of
+ *   them may: every grid in the library is drawn by a `LazyVerticalGrid` (kept unscrollable so the
+ *   cells' own long-press gestures survive), and a lazy layout measured against an infinite maximum
+ *   throws rather than wrapping. So the demo always hands the calendar a bounded height and never
+ *   puts a view inside a scroll of its own; this flag only decides whether that bound should be a
+ *   height the view fills, or a ceiling it is free to come in under.
+ */
+internal enum class PlaygroundView(
+    val label: String,
+    val call: String,
+    val scrollsInternally: Boolean,
+) {
+    Week(label = "Week", call = "KalendarWeek", scrollsInternally = false),
+    Month(label = "Month", call = "KalendarMonth", scrollsInternally = false),
+    Year(label = "Year", call = "KalendarYear", scrollsInternally = true),
+    Timeline(label = "Timeline", call = "KalendarTimeline", scrollsInternally = true),
+    Schedule(label = "Schedule", call = "KalendarSchedule", scrollsInternally = true),
+    ScheduleWeek(label = "Week grid", call = "KalendarScheduleWeek", scrollsInternally = true),
+    Resource(label = "Resources", call = "KalendarResourceView", scrollsInternally = true),
+    Agenda(label = "Agenda", call = "KalendarAgenda", scrollsInternally = true),
+    DatePicker(label = "Date picker", call = "KalendarDatePicker", scrollsInternally = false),
     ;
 
     /** Whether this view renders day cells, and therefore honours the `dayContent` slot. */
@@ -42,7 +65,11 @@ internal enum class PlaygroundView(val label: String, val call: String) {
 
     /** Whether this view lays events out on an hour grid, and therefore honours `hourHeight`. */
     val isSchedule: Boolean
-        get() = this == Schedule || this == ScheduleWeek
+        get() = this == Schedule || this == ScheduleWeek || this == Resource
+
+    /** Whether this view tracks selected dates, and therefore honours the selection mode. */
+    val hasSelection: Boolean
+        get() = hasDayCells || this == DatePicker
 }
 
 /** How many dates the playground calendar lets you select at once. */
@@ -75,6 +102,7 @@ internal enum class PlaygroundSkin {
 }
 
 internal val DefaultDayCellPadding = 2.dp
+internal const val DefaultDayCellAspectRatio = 1f
 internal val DefaultEventIndicatorSize = 4.dp
 internal val DefaultGridLineThickness = 1.dp
 internal val DefaultHourHeight = 64.dp
@@ -97,6 +125,7 @@ internal data class PlaygroundConfig(
     val skin: PlaygroundSkin = PlaygroundSkin.Material,
     val cellShape: PlaygroundCellShape = PlaygroundCellShape.Circle,
     val dayCellPadding: Dp = DefaultDayCellPadding,
+    val dayCellAspectRatio: Float = DefaultDayCellAspectRatio,
     val eventIndicatorSize: Dp = DefaultEventIndicatorSize,
     val gridLineThickness: Dp = DefaultGridLineThickness,
     val hourHeight: Dp = DefaultHourHeight,
@@ -142,6 +171,7 @@ internal enum class PlaygroundPreset(val label: String) {
                 skin = PlaygroundSkin.Minimal,
                 cellShape = PlaygroundCellShape.Square,
                 dayCellPadding = MinimalDayCellPadding,
+                dayCellAspectRatio = MinimalDayCellAspectRatio,
                 eventIndicatorSize = MinimalEventIndicatorSize,
                 eventIndicatorCap = MinimalEventIndicatorCap,
                 showSelectionIndicator = false,
@@ -154,6 +184,7 @@ internal enum class PlaygroundPreset(val label: String) {
                 skin = PlaygroundSkin.Brutalist,
                 cellShape = PlaygroundCellShape.Square,
                 dayCellPadding = BrutalistDayCellPadding,
+                dayCellAspectRatio = BrutalistDayCellAspectRatio,
                 eventIndicatorSize = BrutalistEventIndicatorSize,
                 gridLineThickness = BrutalistGridLineThickness,
                 hourHeight = BrutalistHourHeight,
@@ -166,6 +197,7 @@ internal enum class PlaygroundPreset(val label: String) {
                 skin = PlaygroundSkin.Playful,
                 cellShape = PlaygroundCellShape.Rounded,
                 dayCellPadding = PlayfulDayCellPadding,
+                dayCellAspectRatio = PlayfulDayCellAspectRatio,
                 eventIndicatorSize = PlayfulEventIndicatorSize,
                 eventIndicatorCap = PlayfulEventIndicatorCap,
                 hourHeight = PlayfulHourHeight,
@@ -180,15 +212,18 @@ internal fun presetOf(config: PlaygroundConfig): PlaygroundPreset? =
     PlaygroundPreset.entries.firstOrNull { it.applyTo(config) == config }
 
 private val MinimalDayCellPadding = 6.dp
+private const val MinimalDayCellAspectRatio = 0.85f
 private val MinimalEventIndicatorSize = 3.dp
 private const val MinimalEventIndicatorCap = 1
 
 private val BrutalistDayCellPadding = 0.dp
+private const val BrutalistDayCellAspectRatio = 0.75f
 private val BrutalistEventIndicatorSize = 6.dp
 private val BrutalistGridLineThickness = 3.dp
 private val BrutalistHourHeight = 88.dp
 
 private val PlayfulDayCellPadding = 5.dp
+private const val PlayfulDayCellAspectRatio = 0.8f
 private val PlayfulEventIndicatorSize = 9.dp
 private const val PlayfulEventIndicatorCap = 4
 private val PlayfulHourHeight = 80.dp

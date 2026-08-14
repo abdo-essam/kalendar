@@ -21,7 +21,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.himanshoe.kalendar.KalendarAgenda
+import com.himanshoe.kalendar.KalendarDatePicker
 import com.himanshoe.kalendar.KalendarMonth
+import com.himanshoe.kalendar.KalendarResourceView
 import com.himanshoe.kalendar.KalendarSchedule
 import com.himanshoe.kalendar.KalendarScheduleWeek
 import com.himanshoe.kalendar.KalendarTimeline
@@ -29,6 +31,7 @@ import com.himanshoe.kalendar.KalendarWeek
 import com.himanshoe.kalendar.KalendarYear
 import com.himanshoe.kalendar.component.KalendarHeaderDefaults
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
+import com.himanshoe.kalendar.foundation.schedule.KalendarResource
 import com.himanshoe.kalendar.slot.KalendarDayScope
 import com.himanshoe.kalendar.slot.KalendarHeaderScope
 import com.himanshoe.kalendar.state.KalendarSelectionState
@@ -52,11 +55,13 @@ private const val TimelineBoundYears = 1
  * Everything the playground's controls touch flows through here, which is also what makes the
  * playground a standing test that the tokens really do control every view.
  */
+@Suppress("LongMethod")
 @Composable
 internal fun PlaygroundCalendar(
     config: PlaygroundConfig,
     today: LocalDate,
     events: List<KalendarEvent>,
+    resources: List<KalendarResource>,
     selection: KalendarSelectionState,
     onEventTimeChange: (event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit,
     onEventDrop: (events: List<KalendarEvent>, newDate: LocalDate) -> Unit,
@@ -185,11 +190,32 @@ internal fun PlaygroundCalendar(
                 config = viewConfig,
             )
 
+            PlaygroundView.Resource -> KalendarResourceView(
+                resources = resources,
+                modifier = modifier,
+                state = rememberKalendarScheduleState(initialDate = today),
+                events = events,
+                onEventClick = {},
+                onEventChange = { event, newStart, newEnd, _ -> onEventTimeChange(event, newStart, newEnd) },
+                config = viewConfig,
+            )
+
             PlaygroundView.Agenda -> KalendarAgenda(
                 events = events,
                 modifier = modifier.fillMaxSize(),
                 onEventClick = {},
                 config = viewConfig,
+            )
+
+            PlaygroundView.DatePicker -> KalendarDatePicker(
+                selectedDates = selection.selectedDates,
+                onDateClick = { date -> selection.onDateClick(date) },
+                modifier = modifier,
+                state = rememberKalendarMonthState(initialDate = today),
+                selectionMode = config.selection.mode,
+                config = viewConfig,
+                onClear = { selection.clear() },
+                onTodayClick = { date -> selection.onDateClick(date) },
             )
         }
     }

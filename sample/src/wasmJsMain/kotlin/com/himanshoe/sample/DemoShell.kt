@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -31,13 +33,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -46,11 +45,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.himanshoe.sample.playground.Playground
 import com.himanshoe.sample.playground.PlaygroundChrome
+import com.himanshoe.sample.playground.PlaygroundFootnote
+import com.himanshoe.sample.playground.PlaygroundType
 import com.himanshoe.sample.playground.TwoPaneMinWidth
 import kotlinx.browser.window
 
@@ -67,18 +68,43 @@ private val PageGradient = Brush.verticalGradient(
         Color(GRADIENT_END_COLOR),
     ),
 )
-private val PhoneMaxWidth = 380.dp
+
+/**
+ * The widest the device may get.
+ *
+ * A real handset is 360–430dp across, and the library's own header assumes as much: below roughly
+ * 300dp of screen the navigation header runs out of room between its arrow buttons and ellipsizes
+ * the month title. A demo whose "phone" is narrower than any phone therefore shows the calendar
+ * behaving worse than it ever does on a device.
+ */
+private val PhoneMaxWidth = 392.dp
 
 /** Width divided by height, roughly a modern handset at 9:19.5. */
 private const val PHONE_ASPECT_RATIO = 9f / 19.5f
 
 /** Leaves a margin so the device reads as an object sitting on the page, not a cropped panel. */
-private const val PHONE_HEIGHT_FRACTION = 0.94f
-private val PlaygroundHeight = 880.dp
+private const val PHONE_HEIGHT_FRACTION = 0.96f
+
+/** The hero row's height, fixed so the playground below it can be sized to the rest of the window. */
+private val HeaderHeight = 76.dp
+
+/**
+ * How short the playground is allowed to get before the page starts scrolling instead of shrinking.
+ * Below this the device would be too small to read and the controls too cramped to use.
+ */
+private val MinPlaygroundHeight = 660.dp
+
+private const val TAGLINE = "A Compose Multiplatform calendar. Pick a view, restyle it, copy the Kotlin."
+private const val FOOTNOTE =
+    "Everything on this page runs in your browser: Kalendar compiled to WebAssembly by Compose " +
+        "Multiplatform, drawing to a single canvas."
 
 /**
  * The GitHub Pages playground page: a dark gradient landing layout with the two-pane playground
- * underneath, the live calendar running inside a phone-shaped frame. Viewports too narrow for two
+ * underneath, the live calendar running inside a phone-shaped frame.
+ *
+ * The wide layout gives the playground the whole window below the hero, so the device is as large as
+ * the viewport allows and the controls scroll in the column beside it. Viewports too narrow for two
  * panes get the playground full-bleed with the hero scrolling above it, so the page never nests one
  * scrolling column inside another.
  */
@@ -89,53 +115,59 @@ fun DemoShell() {
             Playground(
                 modifier = Modifier.fillMaxSize(),
                 clipboard = browserClipboard(),
-                header = { DemoHeader() },
+                header = { DemoHeader(modifier = Modifier.fillMaxWidth()) },
+                footer = { PlaygroundFootnote(text = FOOTNOTE) },
             )
         } else {
-            Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                DemoHeader()
+            // Sized to the window, with a floor. At or above the floor the column is exactly the
+            // viewport and the page has nothing to scroll; below it the page scrolls rather than
+            // shrinking the device into illegibility.
+            val playgroundHeight = maxOf(maxHeight - HeaderHeight, MinPlaygroundHeight)
+            Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                DemoHeader(modifier = Modifier.fillMaxWidth().height(HeaderHeight))
                 Playground(
-                    modifier = Modifier.fillMaxWidth().height(PlaygroundHeight),
+                    modifier = Modifier.fillMaxWidth().height(playgroundHeight),
                     clipboard = browserClipboard(),
+                    footer = { PlaygroundFootnote(text = FOOTNOTE) },
                     calendarFrame = { content -> PhoneFrame(content = content) },
-                )
-                Text(
-                    text = "Runs entirely in your browser via Compose Multiplatform for Web (wasm).",
-                    color = PlaygroundChrome.DimText,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(vertical = 24.dp),
                 )
             }
         }
     }
 }
 
+/**
+ * Wordmark, one line saying what this is, and the outbound links.
+ *
+ * The links are a [FlowRow] rather than a [Row]: at the two-pane breakpoint four pills plus the
+ * wordmark are wider than the bar, and a Row would have squeezed "Buy me a coffee" until it
+ * ellipsized. Wrapping to a second line costs nothing and never truncates a label.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DemoHeader() {
+private fun DemoHeader(modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+        modifier = modifier.padding(horizontal = HeaderPadding, vertical = HeaderVerticalPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column {
+        Column(
+            modifier = Modifier.padding(end = HeaderPadding),
+            verticalArrangement = Arrangement.spacedBy(WordmarkGap),
+        ) {
+            Text(text = "Kalendar", color = PlaygroundChrome.Text, style = PlaygroundType.Wordmark)
             Text(
-                text = "Kalendar",
-                color = PlaygroundChrome.Text,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = "Playground",
-                color = PlaygroundChrome.DimText,
-                style = MaterialTheme.typography.labelMedium,
+                text = TAGLINE,
+                color = PlaygroundChrome.MutedText,
+                style = PlaygroundType.Tagline,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(LinkSpacing),
+            verticalArrangement = Arrangement.spacedBy(LinkSpacing),
+        ) {
             LinkChip(label = "Docs", url = "https://hi-manshu.github.io/Kalendar/")
             LinkChip(label = "GitHub", url = "https://github.com/hi-manshu/Kalendar")
             LinkChip(label = "Sponsor", url = "https://github.com/sponsors/hi-manshu")
@@ -149,53 +181,61 @@ private fun LinkChip(label: String, url: String) {
     Text(
         text = label,
         color = PlaygroundChrome.Text,
-        style = MaterialTheme.typography.labelLarge,
+        style = PlaygroundType.Link,
+        maxLines = 1,
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(LinkCorner))
             .background(PlaygroundChrome.Surface)
-            .border(width = 1.dp, color = PlaygroundChrome.Border, shape = RoundedCornerShape(20.dp))
+            .border(width = 1.dp, color = PlaygroundChrome.Border, shape = RoundedCornerShape(LinkCorner))
             .clickable { window.open(url, "_blank") }
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = LinkPaddingHorizontal, vertical = LinkPaddingVertical),
     )
 }
 
 /**
  * A handset silhouette around the live calendar.
  *
- * Sized by aspect ratio rather than by filling the pane, so the whole device — including its
- * bottom bezel — is visible; a frame cut off by the viewport reads as a panel, not a phone. The
- * screen itself is transparent so the calendar's own themed background shows through, which is
+ * Sized by whichever of the pane's height and [PhoneMaxWidth] binds first, so the whole device —
+ * including its bottom bezel — is always visible and never grows into a tall, narrow sliver on a
+ * very tall window. Deriving the height explicitly rather than composing `fillMaxHeight` with
+ * `aspectRatio` is what makes the width predictable: those two together let the device end up any
+ * width the pane's height happened to imply, which on the old fixed-height playground meant a 250dp
+ * "phone" and a month title ellipsized to "A…".
+ *
+ * The screen itself is transparent so the calendar's own themed background shows through, which is
  * what lets a dark preset render a dark phone instead of a dark calendar on a white screen.
  */
 @Composable
 private fun PhoneFrame(content: @Composable () -> Unit) {
-    Box(modifier = Modifier.fillMaxHeight(), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier = Modifier.fillMaxHeight(), contentAlignment = Alignment.Center) {
+        val heightFromPane = maxHeight * PHONE_HEIGHT_FRACTION
+        val heightFromWidth = PhoneMaxWidth / PHONE_ASPECT_RATIO
+        val frameHeight: Dp = minOf(heightFromPane, heightFromWidth)
         Box(
             modifier = Modifier
-                .fillMaxHeight(PHONE_HEIGHT_FRACTION)
-                .widthIn(max = PhoneMaxWidth)
+                .height(frameHeight)
                 .aspectRatio(PHONE_ASPECT_RATIO)
-                .shadow(elevation = 28.dp, shape = RoundedCornerShape(46.dp), clip = false)
-                .clip(RoundedCornerShape(46.dp))
+                .shadow(elevation = PhoneShadow, shape = RoundedCornerShape(PhoneCorner), clip = false)
+                .clip(RoundedCornerShape(PhoneCorner))
                 .background(Color(PHONE_BEZEL_COLOR))
                 .border(
                     width = 1.dp,
                     color = Color(PHONE_RIM_COLOR),
-                    shape = RoundedCornerShape(46.dp),
+                    shape = RoundedCornerShape(PhoneCorner),
                 )
-                .padding(12.dp),
+                .padding(PhoneBezel),
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(34.dp)),
+                    .clip(RoundedCornerShape(ScreenCorner)),
             ) {
                 content()
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
-                        .padding(top = 10.dp)
-                        .size(10.dp)
+                        .padding(top = CameraInset)
+                        .size(CameraSize)
                         .clip(CircleShape)
                         .background(Color(PHONE_BEZEL_COLOR)),
                 )
@@ -203,3 +243,17 @@ private fun PhoneFrame(content: @Composable () -> Unit) {
         }
     }
 }
+
+private val HeaderPadding = 24.dp
+private val HeaderVerticalPadding = 12.dp
+private val WordmarkGap = 3.dp
+private val LinkSpacing = 8.dp
+private val LinkCorner = 20.dp
+private val LinkPaddingHorizontal = 16.dp
+private val LinkPaddingVertical = 9.dp
+private val PhoneShadow = 28.dp
+private val PhoneCorner = 46.dp
+private val PhoneBezel = 12.dp
+private val ScreenCorner = 34.dp
+private val CameraInset = 10.dp
+private val CameraSize = 10.dp

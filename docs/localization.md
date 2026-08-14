@@ -28,8 +28,8 @@ Every one of those is a hook. Fill them from a platform date API and the calenda
 Provided as a token, so it reaches every view inside the theme:
 
 ```kotlin
-import com.himanshoe.kalendar.view.KalendarStrings
-import com.himanshoe.kalendar.view.KalendarTheme
+import com.himanshoe.kalendar.theme.KalendarStrings
+import com.himanshoe.kalendar.theme.KalendarTheme
 
 KalendarTheme(
     strings = KalendarStrings(
@@ -60,10 +60,13 @@ KalendarTheme(
 | `todaySuffix` | `String` | `", today"` | Appended to a day cell's announcement when the date is today. **Include the leading separator.** |
 | `hasEventsSuffix` | `String` | `", has events"` | Appended when the date has at least one event. **Include the leading separator.** |
 | `agendaEmptyState` | `String` | `"No events"` | Shown in place of the list when `KalendarAgenda` is given no events. |
+| `resourceEmptyState` | `String` | `"No resources"` | Shown in place of the grid when `KalendarResourceView` is given no lanes. |
+| `showAllDayEvents` | `String` | `"Show all events"` | Accessibility label for the control that expands a truncated all-day row. |
 | `eventOverflowLabel` | `(hiddenEventCount: Int) -> String` | `{ "+$it" }` | The compact label when a day has more events than `KalendarViewConfig.eventIndicatorCap`. |
-| `dayAccessibilityLabel` | `(date: LocalDate, monthName: String) -> String` | `"$monthName ${date.dayOfMonth}, ${date.year}"` | Builds a day cell's base announcement. `todaySuffix` and `hasEventsSuffix` are appended to whatever this returns. |
+| `dayAccessibilityLabel` | `(date: LocalDate, monthName: String) -> String` | `"$monthName ${date.day}, ${date.year}"` | Builds a day cell's base announcement. `todaySuffix` and `hasEventsSuffix` are appended to whatever this returns. |
 | `dayOfWeekAccessibilityLabel` | `(DayOfWeek) -> String` | `"Monday"` | The full day name announced for a column header. The header *shows* `dayOfWeekLabelFormatter`'s short form — a bare "M" reads as an initial, not a weekday — so this supplies the name behind it. |
 | `eventAccessibilityLabel` | `(event, start: LocalDateTime, end: LocalDateTime) -> String` | `"Design review, 09:30 to 11:00"` | What a screen reader announces for a timed event block. Override for a localized time format. Applied by `KalendarScheduleDefaults.EventBlock` — a replacement `eventContent` slot draws its own semantics. |
+| `resourceEventAccessibilityLabel` | `(event, start, end, resourceTitle: String) -> String` | `"Design review, 09:30 to 11:00, Room A"` | The same, for a block in `KalendarResourceView` — it adds the lane, since a time alone does not say which room. Applied by `KalendarResourceDefaults.EventBlock`. |
 | `allDayEventAccessibilityLabel` | `(event) -> String` | `"Release day, all day"` | The same, for an all-day chip. |
 
 `KalendarStrings` is fully defaulted, so overriding one field is a one-liner — but inside a nested
@@ -85,7 +88,7 @@ punctuate dates differently:
 KalendarTheme(
     strings = KalendarStrings(
         // "12. August 2026"
-        dayAccessibilityLabel = { date, monthName -> "${date.dayOfMonth}. $monthName ${date.year}" },
+        dayAccessibilityLabel = { date, monthName -> "${date.day}. $monthName ${date.year}" },
         todaySuffix = ", heute",
         hasEventsSuffix = ", hat Termine",
     ),
@@ -120,8 +123,10 @@ KalendarTheme(
 
 ## Date formatting
 
-The three formatters live on [`KalendarViewConfig`](configuration.md), because they are per-view
-formatting rather than fixed text.
+The five formatters live on [`KalendarViewConfig`](configuration.md), because they are per-view
+formatting rather than fixed text. Each one's plain-English fallback is a property of
+[`KalendarFormatters`](reference/foundation-format.md) in the engine, so a calendar built directly on
+`kalendar-foundation` has the same hooks.
 
 | Formatter | Type | Default | Used for |
 |---|---|---|---|
@@ -129,7 +134,7 @@ formatting rather than fixed text.
 | `shortMonthNameFormatter` | `(Month) -> String` | `"Aug"` | Week and day titles (`"Aug 10–16, 2026"`) and the jump picker's fixed-width month buttons. Its own hook rather than a `take(3)` on `monthNameFormatter`, because abbreviating is language-specific: truncating blindly turns Finnish `"toukokuu"` into `"tou"` and can cut a Devanagari name after a virama. |
 | `dayOfWeekNameFormatter` | `(DayOfWeek) -> String` | `"Tue"` | The abbreviated day name in `KalendarSchedule`'s day title (`"Tue, Aug 11, 2026"`). |
 | `dayOfWeekLabelFormatter` | `(DayOfWeek) -> String` | `"M"` | The day-of-week column headers, and `KalendarScheduleWeek`'s day-column labels. |
-| `hourLabelFormatter` | `(Int) -> String` | `"08:00"` | The hour-gutter labels on both Schedule views. |
+| `hourLabelFormatter` | `(Int) -> String` | `"08:00"` | The hour-gutter labels on `KalendarSchedule`, `KalendarScheduleWeek` and `KalendarResourceView`. Given the **absolute** hour, so it is unaffected by `scheduleVisibleHours`. |
 
 ```kotlin
 KalendarMonth(

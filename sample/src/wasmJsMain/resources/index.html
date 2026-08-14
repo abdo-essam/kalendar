@@ -47,6 +47,7 @@
             --border: rgba(255, 255, 255, 0.08);
             --border-strong: rgba(255, 255, 255, 0.16);
             --text: #ededed;
+            --muted: #a1a1a1;
             --dim: #707070;
             --ghost: rgba(255, 255, 255, 0.1);
             --ghost-soft: rgba(255, 255, 255, 0.04);
@@ -95,25 +96,30 @@
             pointer-events: none;
         }
 
+        /* 76px is `HeaderHeight` in DemoShell.kt: the hero is a fixed band there so the playground
+           below it can be sized to whatever is left of the window, and the shell has to agree or
+           the phone jumps vertically the moment Compose takes over. */
         .sk-bar {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 14px 20px;
+            height: 76px;
+            padding: 12px 24px;
             flex: none;
         }
 
         .sk-wordmark {
-            font-size: 20px;
+            font-size: 23px;
             font-weight: 700;
-            letter-spacing: -0.01em;
-            line-height: 1.2;
+            letter-spacing: -0.02em;
+            line-height: 28px;
         }
 
         .sk-subtitle {
-            font-size: 12px;
-            color: var(--dim);
-            line-height: 1.4;
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 18px;
+            margin-top: 3px;
         }
 
         .sk-chips {
@@ -122,38 +128,38 @@
         }
 
         .sk-chip {
-            height: 32px;
+            height: 36px;
             border: 1px solid var(--border);
             border-radius: 20px;
             background: var(--surface);
         }
 
-        .sk-chip-1 { width: 62px; }
-        .sk-chip-2 { width: 76px; }
-        .sk-chip-3 { width: 82px; }
-        .sk-chip-4 { width: 124px; }
+        .sk-chip-1 { width: 66px; }
+        .sk-chip-2 { width: 80px; }
+        .sk-chip-3 { width: 88px; }
+        .sk-chip-4 { width: 132px; }
 
         .sk-stage {
             flex: 1 1 auto;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 48px;
-            padding: 4px 24px 24px;
+            gap: 20px;
+            padding: 20px;
             min-height: 0;
         }
 
-        /* Height-driven, exactly as the live `PhoneFrame` is: `fillMaxHeight(0.94)` with an aspect
-           ratio and a width cap. Sizing from the width instead would let the frame grow taller than
-           the stage and lose its bottom bezel off-screen, which is the one thing that stops a phone
-           silhouette reading as a phone. `min-width: 0` because a flex item's automatic minimum
-           size — here the min-content width of a seven-column grid — otherwise beats the aspect
-           ratio and the frame comes out square. */
+        /* Whichever of the stage's height and the 392px width cap binds first, exactly as the live
+           `PhoneFrame` computes it. Height alone would let a tall window stretch the device into a
+           sliver; width alone would let a short one push its bottom bezel off-screen, and a phone
+           silhouette missing its bottom bezel reads as a panel. `min-width: 0` because a flex
+           item's automatic minimum size — here the min-content width of a seven-column grid —
+           otherwise beats the aspect ratio and the frame comes out square. */
         .sk-phone {
             flex: none;
-            height: 94%;
+            height: 96%;
             aspect-ratio: 9 / 19.5;
-            max-width: 82vw;
+            max-width: min(392px, 82vw);
             min-width: 0;
             padding: 12px;
             border: 1px solid #3a3a3a;
@@ -259,28 +265,47 @@
             background: rgba(255, 255, 255, 0.13);
         }
 
-        /* The controls column the two-pane layout puts beside the calendar. The 900px breakpoint is
-           `TwoPaneMinWidth`, so the shell collapses on exactly the widths the live layout does. */
-        .sk-panel {
-            flex: 0 1 400px;
-            align-self: center;
+        /* The controls column the two-pane layout puts beside the calendar — including the snippet,
+           which lives at the bottom of that column rather than under both panes. The 900px
+           breakpoint is `TwoPaneMinWidth`, so the shell collapses on exactly the widths the live
+           layout does. */
+        .sk-column {
+            flex: 1 1 auto;
+            align-self: stretch;
             display: flex;
             flex-direction: column;
-            gap: 14px;
-            padding: 20px;
+            justify-content: center;
+            gap: 18px;
+            min-width: 0;
+            max-width: 640px;
+        }
+
+        .sk-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 16px;
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: 16px;
             background: var(--surface);
         }
 
         .sk-panel-row {
             display: flex;
+            flex-wrap: wrap;
             gap: 8px;
         }
 
+        .sk-eyebrow {
+            width: 74px;
+            height: 11px;
+            border-radius: 3px;
+            background: var(--ghost);
+        }
+
         .sk-pill {
-            height: 30px;
-            border-radius: 15px;
+            height: 32px;
+            border-radius: 10px;
             background: var(--surface-2);
             border: 1px solid var(--border);
         }
@@ -291,35 +316,38 @@
 
         .sk-swatches {
             display: flex;
-            gap: 10px;
+            gap: 12px;
         }
 
         .sk-swatch {
-            width: 24px;
-            height: 24px;
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
             border: 1px solid var(--border);
             background: var(--surface-2);
         }
 
         .sk-code {
-            height: 138px;
-            border-radius: 10px;
+            height: 150px;
+            border-radius: 16px;
             border: 1px solid var(--border);
             background: #0e0e0e;
+            margin: 0 16px;
         }
 
         .sk-status {
             flex: none;
             text-align: center;
             font-size: 12px;
+            line-height: 18px;
             color: var(--dim);
-            padding-bottom: 20px;
+            padding-bottom: 16px;
         }
 
         /* One animation drives every placeholder, so the shell breathes as a single surface rather
            than as forty independently twitching boxes. */
         .sk-month-label,
+        .sk-eyebrow,
         .sk-nav-dot,
         .sk-day,
         .sk-chip,
@@ -337,6 +365,7 @@
 
         @media (prefers-reduced-motion: reduce) {
             .sk-month-label,
+            .sk-eyebrow,
             .sk-nav-dot,
             .sk-day,
             .sk-chip,
@@ -354,7 +383,7 @@
         }
 
         @media (max-width: 900px) {
-            .sk-panel,
+            .sk-column,
             .sk-chips {
                 display: none;
             }
@@ -369,7 +398,7 @@
     <div class="sk-bar">
         <div>
             <div class="sk-wordmark">Kalendar</div>
-            <div class="sk-subtitle">Playground</div>
+            <div class="sk-subtitle">A Compose Multiplatform calendar. Pick a view, restyle it, copy the Kotlin.</div>
         </div>
         <div class="sk-chips">
             <div class="sk-chip sk-chip-1"></div>
@@ -453,24 +482,33 @@
             </div>
         </div>
 
-        <div class="sk-panel">
-            <div class="sk-panel-row">
-                <div class="sk-pill sk-pill-md"></div>
-                <div class="sk-pill sk-pill-sm"></div>
-                <div class="sk-pill sk-pill-lg"></div>
+        <div class="sk-column">
+            <div class="sk-panel">
+                <div class="sk-eyebrow"></div>
+                <div class="sk-panel-row">
+                    <div class="sk-pill sk-pill-md"></div>
+                    <div class="sk-pill sk-pill-sm"></div>
+                    <div class="sk-pill sk-pill-lg"></div>
+                    <div class="sk-pill sk-pill-md"></div>
+                </div>
             </div>
-            <div class="sk-panel-row">
-                <div class="sk-pill sk-pill-sm"></div>
-                <div class="sk-pill sk-pill-lg"></div>
-                <div class="sk-pill sk-pill-md"></div>
-            </div>
-            <div class="sk-swatches">
-                <div class="sk-swatch"></div>
-                <div class="sk-swatch"></div>
-                <div class="sk-swatch"></div>
-                <div class="sk-swatch"></div>
-                <div class="sk-swatch"></div>
-                <div class="sk-swatch"></div>
+            <div class="sk-panel">
+                <div class="sk-eyebrow"></div>
+                <div class="sk-panel-row">
+                    <div class="sk-pill sk-pill-sm"></div>
+                    <div class="sk-pill sk-pill-lg"></div>
+                    <div class="sk-pill sk-pill-md"></div>
+                    <div class="sk-pill sk-pill-lg"></div>
+                    <div class="sk-pill sk-pill-sm"></div>
+                </div>
+                <div class="sk-swatches">
+                    <div class="sk-swatch"></div>
+                    <div class="sk-swatch"></div>
+                    <div class="sk-swatch"></div>
+                    <div class="sk-swatch"></div>
+                    <div class="sk-swatch"></div>
+                    <div class="sk-swatch"></div>
+                </div>
             </div>
             <div class="sk-code"></div>
         </div>

@@ -44,6 +44,32 @@ internal data class ShapeChoice(val shape: Shape, val source: String)
 /** Renders a [Dp] the way it would be written in source, e.g. `12.dp`. */
 internal fun dpSource(value: Dp): String = "${value.value.roundToInt()}.dp"
 
+/**
+ * Renders a [Dp] the way a person reads it, e.g. `12 dp`.
+ *
+ * Deliberately not [dpSource]: a readout that says `12.dp` is a debug panel quoting its own
+ * variable. The Kotlin spelling belongs in the generated snippet, which is where a visitor goes to
+ * copy it.
+ */
+internal fun dpLabel(value: Dp): String = "${value.value.roundToInt()} dp"
+
+/** Renders an hour of the day as a zero-padded 24-hour clock reading, e.g. `07:00`. */
+internal fun hourLabel(hour: Int): String = "${hour.toString().padStart(length = 2, padChar = '0')}:00"
+
+/**
+ * Renders a ratio to two places, in both the readout and the generated snippet — `0.75f` in source
+ * and `0.75` on screen, so the number a visitor drags to is the number they end up copying.
+ */
+internal fun ratioLabel(value: Float): String {
+    val hundredths = (value * RatioScale).roundToInt()
+    return "${hundredths / RatioScale}.${(hundredths % RatioScale).toString().padStart(2, '0')}"
+}
+
+/** The Kotlin literal for a ratio, e.g. `0.75f`. */
+internal fun ratioSource(value: Float): String = "${ratioLabel(value)}f"
+
+private const val RatioScale = 100
+
 /** Whether the calendar should resolve its dark palette right now. */
 @Composable
 internal fun PlaygroundConfig.isDark(): Boolean = when (appearance) {
@@ -93,6 +119,7 @@ internal fun PlaygroundConfig.resolveShapes(): KalendarShapes = KalendarThemeDef
 
 internal fun PlaygroundConfig.resolveDimensions(): KalendarDimensions = KalendarDimensions(
     dayCellPadding = dayCellPadding,
+    dayCellAspectRatio = dayCellAspectRatio,
     eventIndicatorSize = eventIndicatorSize,
     gridLineThickness = gridLineThickness,
     hourHeight = hourHeight,

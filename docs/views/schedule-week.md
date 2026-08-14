@@ -13,8 +13,8 @@ today's column.
 ## Minimal example
 
 ```kotlin
-import com.himanshoe.kalendar.view.KalendarScheduleWeek
-import com.himanshoe.kalendar.view.rememberKalendarWeekState
+import com.himanshoe.kalendar.KalendarScheduleWeek
+import com.himanshoe.kalendar.state.rememberKalendarWeekState
 
 KalendarScheduleWeek(
     state = rememberKalendarWeekState(initialDate = today),
@@ -31,15 +31,16 @@ KalendarScheduleWeek(
 | `state` | `KalendarViewState` | `rememberKalendarWeekState()` | Navigation state — pages by week. Note this is the **week** factory, not a schedule-specific one. Pass one built with `initialDate` to open on a week other than this one. |
 | `events` | `KalendarEvents` | `emptyList()` | Events for the calendar; only those in the visible week are rendered. |
 | `onEventClick` | `(KalendarEvent) -> Unit` | no-op | Called when an event block or all-day chip is tapped. |
-| `onEventTimeChange` | `((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?` | `null` | When non-null, blocks become draggable and resizable, and a horizontal drag moves the event across day columns. See [Dragging across days](#dragging-across-days). |
-| `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Shared settings. `disabledDates` and `showAdjacentMonthDates` have no effect here. See [Configuration](../configuration.md). |
+| `onEventTimeChange` | `((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?` | `null` | When non-null, blocks become draggable and resizable from either edge, and a horizontal drag moves the event across day columns. See [Dragging across days](#dragging-across-days). |
+| `onEventCreate` | `((start: LocalDateTime, end: LocalDateTime) -> Unit)?` | `null` | When non-null, a press-and-drag on empty grid sweeps out a new time range and reports it on release. |
+| `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Shared settings. `visibleDaysOfWeek` narrows the column count and `scheduleVisibleHours` narrows the hours; `disabledDates` and `showAdjacentMonthDates` have no effect. See [Configuration](../configuration.md). |
 | `hourHeight` | `Dp` | `KalendarTheme.dimensions.hourHeight` | Vertical space for one hour; block heights scale with it. Defaults to the theme's `hourHeight` (64.dp). |
 | `nowIndicatorTick` | `Duration` | `1.minutes` | How often the now-indicator re-reads the clock. |
-| `eventContent` | `@Composable (KalendarScheduleEventScope) -> Unit` | `KalendarScheduleDefaults.EventBlock` | Slot for one timed event block. |
 | `allDayEventContent` | `@Composable (KalendarEvent) -> Unit` | `KalendarScheduleDefaults.AllDayChip`, prefixed with the day of month | Slot for one all-day chip. |
-| `hourLabel` | `@Composable (Int) -> Unit` | `KalendarScheduleDefaults.HourLabel` | Slot for one hour-gutter label, given the hour as `0..23`. |
+| `hourLabel` | `@Composable (Int) -> Unit` | `KalendarScheduleDefaults.HourLabel` | Slot for one hour-gutter label, given the **absolute** hour as `0..23`. |
 | `nowIndicator` | `@Composable () -> Unit` | `KalendarScheduleDefaults.NowIndicator` | Slot for the current-time line. Drawn only on today's column; the grid owns its offset. |
 | `dayHeader` | `@Composable (date: LocalDate, isToday: Boolean) -> Unit` | `KalendarScheduleDefaults.WeekDayHeader` | Slot for one day column's header. Filled to the column's width. |
+| `eventContent` | `@Composable (KalendarScheduleEventScope) -> Unit` | `KalendarScheduleDefaults.EventBlock` | Slot for one timed event block. **Last**, so trailing-lambda syntax lands on the view's primary slot. |
 
 > **Note:** as on [`KalendarSchedule`](schedule.md), there is no `selectedDate` parameter — the
 > Schedule views have no date selection, so the visible week is the `state`'s business alone.
@@ -119,7 +120,7 @@ built-in chip:
 KalendarScheduleWeek(
     events = events,
     allDayEventContent = { event ->
-        KalendarScheduleDefaults.AllDayChip(event = event, prefix = event.date.dayOfMonth.toString())
+        KalendarScheduleDefaults.AllDayChip(event = event, prefix = event.date.day.toString())
     },
 )
 ```
@@ -137,7 +138,7 @@ KalendarScheduleWeek(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(text = date.dayOfWeek.name.take(3))
             Text(
-                text = date.dayOfMonth.toString(),
+                text = date.day.toString(),
                 color = if (isToday) KalendarTheme.colors.todayContent else KalendarTheme.colors.dayContent,
             )
         }

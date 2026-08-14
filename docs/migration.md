@@ -3,6 +3,13 @@
 Kalendar 2.0 replaces the `Kalendar(type = ...)` dispatcher with **standalone composables**. If you
 were on 1.x, this page is the whole story.
 
+> **Coming from a 2.0.0 release candidate instead?** The move you need is the package one, not this
+> one: `com.himanshoe.kalendar.view` was retired and its contents redistributed across
+> `com.himanshoe.kalendar`, `.state`, `.theme`, `.slot`, `.component` and the `kalendar-foundation`
+> engine. Fifty-one top-level entities moved, none was renamed and none was removed, so it is a
+> find-and-replace on import lines. The full old-name → new-name table is in the
+> [changelog](changelog.md).
+
 The short version: `KalendarType` and the `Kalendar` dispatcher are gone entirely, and every former
 type has become a composable you call directly.
 
@@ -176,9 +183,12 @@ Things that had no 1.x equivalent at all, worth knowing exist:
 
 | Feature | Where |
 |---|---|
+| **`kalendar-foundation` as a public headless engine** — date, paging, grid, overlap and selection arithmetic with no UI | [The headless engine](engine.md) |
 | [`KalendarTimeline`](views/timeline.md) — continuous vertical month scroll | New view |
 | [`KalendarSchedule`](views/schedule.md) — hourly day grid | New view |
 | [`KalendarScheduleWeek`](views/schedule-week.md) — hourly 7-day grid | New view |
+| `KalendarResourceView` — hourly grid with one lane per room, chair or vehicle | [Views](reference/kalendar-views.md) |
+| `KalendarDatePicker` — a compact single-month picker for a form field | [Views](reference/kalendar-views.md) |
 | [`KalendarAgenda`](views/agenda.md) — themed, slot-based event list | Rewritten view |
 | `KalendarEvent.id` — a stable key for list state | [Events](events.md) |
 | Multi-day events via `KalendarEvent.endDate` | [Events](events.md) |
@@ -188,6 +198,10 @@ Things that had no 1.x equivalent at all, worth knowing exist:
 | Accessibility semantics on day cells, and `Modifier.kalendarDaySemantics()` | [Customization](customization.md) |
 | Content slots for the header, day cells, and every part of the Schedule grid | [Customization](customization.md) |
 | Locale hooks for month, weekday, and hour formatting | [Localization](localization.md) |
+| Work weeks (`visibleDaysOfWeek`) and business hours (`scheduleVisibleHours`) | [Configuration](configuration.md) |
+| Sweep out a new event on the hour grids (`onEventCreate`) | [Events](events.md) |
 | [`kalendar-sync`](sync.md) — device calendar read/write, recurrence, iCal | New module |
 
-The full history is in the [changelog](changelog.md).
+The full history — and the exhaustive old-FQN → new-FQN table — is in the
+[changelog](changelog.md). Every public symbol in both modules is documented in the
+[API reference](reference/index.md).

@@ -46,7 +46,7 @@ internal fun generatePlaygroundCode(config: PlaygroundConfig, dark: Boolean): St
     val call = viewCall(config = config)
     return buildString {
         appendLine("// today and events are your own state")
-        if (config.view.hasDayCells) {
+        if (config.view.hasSelection) {
             appendLine("val selection = rememberKalendarSelectionState(mode = ${config.selection.code})")
         }
         appendLine()
@@ -121,6 +121,9 @@ private fun dimensionsParameter(config: PlaygroundConfig): String? {
     if (config.dayCellPadding != DefaultDayCellPadding) {
         overrides += "dayCellPadding = ${dpSource(config.dayCellPadding)}"
     }
+    if (config.dayCellAspectRatio != DefaultDayCellAspectRatio) {
+        overrides += "dayCellAspectRatio = ${ratioSource(config.dayCellAspectRatio)}"
+    }
     if (config.eventIndicatorSize != DefaultEventIndicatorSize) {
         overrides += "eventIndicatorSize = ${dpSource(config.eventIndicatorSize)}"
     }
@@ -169,15 +172,25 @@ private fun viewConfigSource(config: PlaygroundConfig): String? {
     return block(header = "KalendarViewConfig(", entries = overrides)
 }
 
-private fun viewCall(config: PlaygroundConfig): String {
-    if (config.view == PlaygroundView.Agenda) {
-        return agendaCall(config)
-    }
-    val arguments = mutableListOf("selectedDate = today", "events = events")
+private fun viewCall(config: PlaygroundConfig): String = when (config.view) {
+    PlaygroundView.Agenda -> agendaCall(config)
+    PlaygroundView.Resource -> resourceCall(config)
+    PlaygroundView.DatePicker -> datePickerCall(config)
+    else -> gridOrScheduleCall(config)
+}
+
+private fun gridOrScheduleCall(config: PlaygroundConfig): String {
+    val arguments = mutableListOf<String>()
     if (config.view.isSchedule) {
+        // The schedule views take no `selectedDate`: the day on screen is the state's, so the
+        // snippet has to name the state the way a caller would to open on a chosen day.
+        arguments += "state = ${scheduleStateSource(config.view)}"
+        arguments += "events = events"
         arguments += "onEventClick = { event -> openEvent(event) }"
         arguments += "onEventTimeChange = { event, start, end -> reschedule(event, start, end) }"
     } else {
+        arguments += "selectedDate = today"
+        arguments += "events = events"
         arguments += "selectedDates = selection.selectedDates"
         arguments += "onDateClick = { date, _ -> selection.onDateClick(date) }"
         if (config.selection == PlaygroundSelection.Range) {
@@ -202,6 +215,42 @@ private fun agendaCall(config: PlaygroundConfig): String {
     val arguments = mutableListOf("events = events", "onEventClick = { event -> openEvent(event) }")
     viewConfigSource(config)?.let { source -> arguments += "config = $source" }
     return block(header = "KalendarAgenda(", entries = arguments)
+}
+
+/**
+ * The resource view's call. `resourceIdOf` is spelled out even though it defaults to
+ * [com.himanshoe.kalendar.foundation.event.KalendarEvent.calendarId], because which field carries
+ * the lane link is the one decision a caller has to make here.
+ */
+private fun resourceCall(config: PlaygroundConfig): String {
+    val arguments = mutableListOf(
+        "resources = rooms",
+        "state = rememberKalendarScheduleState(initialDate = today)",
+        "events = events",
+        "resourceIdOf = { event -> event.calendarId }",
+        "onEventClick = { event -> openEvent(event) }",
+        "onEventChange = { event, start, end, roomId -> reschedule(event, start, end, roomId) }",
+    )
+    viewConfigSource(config)?.let { source -> arguments += "config = $source" }
+    return block(header = "KalendarResourceView(", entries = arguments)
+}
+
+private fun datePickerCall(config: PlaygroundConfig): String {
+    val arguments = mutableListOf(
+        "selectedDates = selection.selectedDates",
+        "onDateClick = { date -> selection.onDateClick(date) }",
+        "state = rememberKalendarMonthState(initialDate = today)",
+        "selectionMode = ${config.selection.code}",
+        "onTodayClick = { date -> selection.onDateClick(date) }",
+        "onClear = { selection.clear() }",
+    )
+    viewConfigSource(config)?.let { source -> arguments += "config = $source" }
+    return block(header = "KalendarDatePicker(", entries = arguments)
+}
+
+private fun scheduleStateSource(view: PlaygroundView): String = when (view) {
+    PlaygroundView.ScheduleWeek -> "rememberKalendarWeekState(initialDate = today)"
+    else -> "rememberKalendarScheduleState(initialDate = today)"
 }
 
 private fun block(header: String, entries: List<String>): String = buildString {

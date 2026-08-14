@@ -30,8 +30,10 @@ everything else defaults, so existing implementations stay source-compatible as 
 
 ## `BasicKalendarEvent`
 
-The ready-made implementation. It is a `data class`, so it has `copy()` — worth knowing, because
-`KalendarEvent` itself does not.
+The ready-made implementation. It is an `@Immutable` class with a **hand-written** `copy()` — worth
+knowing on both counts. It has `copy()` where `KalendarEvent` itself does not; and being a plain
+class rather than a `data class`, it has no `componentN`, so it cannot be destructured. Value
+`equals`, `hashCode` and `toString` all work as you would expect.
 
 ```kotlin
 import androidx.compose.ui.graphics.Color
@@ -133,7 +135,9 @@ On the date grids, each day cell draws one dot per event below the day number:
 - On a **selected** cell the dots switch to the day number's colour, so they stay legible against
   the selection fill.
 - Past `KalendarViewConfig.eventIndicatorCap` (**3** by default) the remainder collapses into a
-  compact `+N` label — with four events you get three dots and `+1`.
+  compact `+N` label — with four events you get three dots and `+1`. Tapping that label opens a
+  popover listing the day's **whole** event list; wire `onDayEventClick` to react to a tap inside it,
+  and replace the popover through `KalendarDayCellDefaults.Cell`'s `overflowPopup` slot.
 
 Tune the cap per calendar:
 
@@ -148,7 +152,9 @@ KalendarMonth(
 The cap must be at least `1`; `KalendarViewConfig` throws on construction otherwise.
 
 Dot size, spacing, and the gap above them are [dimension tokens](theming.md)
-(`eventIndicatorSize`, `eventIndicatorSpacing`, `eventIndicatorTopPadding`); the `+N` text style is
+(`eventIndicatorSize`, `eventIndicatorSpacing`, `eventIndicatorBottomPadding`, and
+`eventIndicatorStripHeight`, which reserves the strip's height so a cell with events and one without
+put the day number on the same baseline); the `+N` text style is
 `KalendarTypography.eventOverflowLabel`; the dot shape is `KalendarShapes.eventIndicator`. The label
 text itself comes from [`KalendarStrings.eventOverflowLabel`](localization.md).
 
@@ -163,6 +169,9 @@ The Schedule views split the same list in two:
 |---|---|
 | Has a `startTime` | A block on the hour grid, sized by its duration. |
 | No `startTime` | An all-day chip in the row above the grid. |
+
+`KalendarResourceView` splits them differently: it draws only the timed ones, because a lane grid has
+no all-day row to pin the rest to.
 
 A missing `endTime` means a one-hour block. Anything shorter than 15 minutes is drawn 15 minutes
 tall so it stays tappable. An event crossing midnight is truncated at each day's edges. Overlapping
@@ -227,10 +236,17 @@ drag-to-select can both be enabled at once.
 
 ### Across times, on the Schedule views
 
-Press and hold a block to move it; press and hold its bottom edge to resize it. Movement snaps to
-`KalendarViewConfig.scheduleDragSnapMinutes` (15 by default). On
-[`KalendarScheduleWeek`](views/schedule-week.md) a horizontal drag also moves the event across day
-columns.
+Press and hold a block to move it; press and hold **either its top or its bottom edge** to move that
+edge alone, changing the start or the end while the other stays put. The grab strip is
+`KalendarDimensions.eventBlockResizeHandleHeight`, narrowed on short blocks so the middle stays
+grabbable. Movement snaps to `KalendarViewConfig.scheduleDragSnapMinutes` (15 by default).
+
+On [`KalendarScheduleWeek`](views/schedule-week.md) a horizontal drag also moves the event across day
+columns; on `KalendarResourceView` it moves the event between lanes, and the callback reports the id
+of the lane it landed in as a fourth argument.
+
+Dragging is clamped to `KalendarViewConfig.scheduleVisibleHours` rather than to the whole day, so a
+drag cannot push a block off a business-hours grid into space the user has no way to scroll back to.
 
 ```kotlin
 KalendarSchedule(
@@ -246,6 +262,26 @@ KalendarSchedule(
     },
 )
 ```
+
+### Sweeping out a new event
+
+`KalendarSchedule` and `KalendarScheduleWeek` take an `onEventCreate` callback. When it is non-null,
+a press-and-drag on **empty** grid sweeps out a time range, snapped to the same
+`scheduleDragSnapMinutes`, and reports it on release:
+
+```kotlin
+KalendarSchedule(
+    events = events,
+    onEventCreate = { start, end -> events = events + BasicKalendarEvent(
+        date = start.date,
+        eventName = "New event",
+        startTime = start,
+        endTime = end,
+    ) },
+)
+```
+
+A sweep shorter than 15 minutes is grown to 15, so a tap-sized gesture still produces a usable event.
 
 ### Pitfalls worth knowing
 
@@ -269,3 +305,10 @@ Both `events` and `selectedDates` are read on every recomposition of the grid, a
 `remember` derived maps keyed on the list instance. Hoist a stable list — from `remember`,
 `mutableStateOf`, or a `StateFlow` — rather than rebuilding it inline in the composable body, or the
 derived grouping is recomputed every frame.
+
+The index the grids build is
+[`byDateExpandingSpans()`](reference/foundation-event.md), which is public: if you are laying out
+cells yourself on the [engine](engine.md), wrap it in `remember(events)` exactly as the views do.
+
+Event slots on the hour grids are **keyed by the event**, so inserting one at the top of a day
+recomposes the newcomer and nothing else — measured in [Performance](performance.md).

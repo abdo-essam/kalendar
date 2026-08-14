@@ -28,12 +28,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,15 +57,27 @@ import kotlinx.datetime.todayIn
 import kotlin.time.Clock
 
 internal val TwoPaneMinWidth = 900.dp
-internal val CodePaneHeight = 260.dp
-private val CalendarPaneWidth = 420.dp
-private val ControlsMaxWidth = 620.dp
+private val CalendarPaneWidth = 440.dp
+private val ControlsMaxWidth = 640.dp
 private val NarrowCalendarHeight = 620.dp
-private val PaneSpacing = 16.dp
+private val PaneSpacing = 20.dp
+private val ColumnSpacing = 18.dp
 
 /**
  * The Kalendar playground: a live calendar, the controls that restyle it, and the Kotlin those
  * controls add up to.
+ *
+ * ## Where the scrolling lives
+ *
+ * The calendar is never put inside a scroll of the demo's making. Every Kalendar view is built on a
+ * lazy layout, and a lazy layout measured against an unbounded height throws, so the calendar always
+ * gets a bounded height and does its own scrolling — which is also the only way its long-press drag
+ * gestures survive, since a scrollable wrapped around them would consume the drag first.
+ *
+ * That leaves the demo one vertical scroll per layout. Wide, it is the right-hand column, carrying
+ * the controls, the snippet and the footnote while the calendar sits in a fixed-size device frame
+ * beside it. Narrow, it is the single page column, with the calendar capped inside it. The snippet
+ * pane scrolls only horizontally, so nothing ever competes with either of them.
  *
  * @param modifier [Modifier] for the playground's outermost container. In a scrolling page this
  *   needs a bounded height, since the control column scrolls inside it.
@@ -71,6 +85,7 @@ private val PaneSpacing = 16.dp
  *   which every target except the browser is happy with.
  * @param header Optional content shown above the playground when it stacks into one column, so a
  *   landing page can keep its hero on narrow viewports without nesting two scrolling containers.
+ * @param footer Optional content closing the scrolling column, wide or narrow.
  * @param calendarFrame Wraps the live calendar — the GitHub Pages build puts a phone frame here.
  */
 @Composable
@@ -78,6 +93,7 @@ internal fun Playground(
     modifier: Modifier = Modifier,
     clipboard: PlaygroundClipboard? = null,
     header: @Composable () -> Unit = {},
+    footer: @Composable () -> Unit = {},
     calendarFrame: @Composable (content: @Composable () -> Unit) -> Unit = { content ->
         DefaultCalendarFrame(content = content)
     },
@@ -85,6 +101,7 @@ internal fun Playground(
     val today = remember { Clock.System.todayIn(TimeZone.currentSystemDefault()) }
     var config by remember { mutableStateOf(PlaygroundConfig()) }
     var events by remember { mutableStateOf(demoEvents(today)) }
+    val resources = remember { demoResources() }
     val selection = rememberKalendarSelectionState(
         mode = config.selection.mode,
         initialSelection = setOf(today),
@@ -106,16 +123,17 @@ internal fun Playground(
     }
 
     BoxWithConstraints(modifier = modifier.background(PlaygroundChrome.Background)) {
-        val calendar: @Composable () -> Unit = {
+        val calendar: @Composable (screenModifier: Modifier) -> Unit = { screenModifier ->
             calendarFrame {
                 PlaygroundCalendar(
                     config = config,
                     today = today,
                     events = events,
+                    resources = resources,
                     selection = selection,
                     onEventTimeChange = onEventTimeChange,
                     onEventDrop = onEventDrop,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = screenModifier,
                 )
             }
         }
@@ -125,6 +143,7 @@ internal fun Playground(
                 onConfigChange = { updated -> config = updated },
                 code = code,
                 clipboard = resolvedClipboard,
+                footer = footer,
                 calendar = calendar,
             )
         } else {
@@ -134,55 +153,78 @@ internal fun Playground(
                 code = code,
                 clipboard = resolvedClipboard,
                 header = header,
+                footer = footer,
                 calendar = calendar,
             )
         }
     }
 }
 
+/**
+ * Two panes: the device on the left at a fixed size, everything else scrolling on the right.
+ *
+ * The snippet used to sit under both panes in a box of its own, which cost the calendar the height
+ * it needed to be phone-shaped — the frame came out 250dp wide, narrow enough that the library's own
+ * header ran out of room and ellipsized "August 2026" to "A…". Moving the snippet into the right
+ * column gives the whole pane height back to the device and leaves the page with one scrollbar.
+ */
 @Composable
 private fun WidePlayground(
     config: PlaygroundConfig,
     onConfigChange: (PlaygroundConfig) -> Unit,
     code: String,
     clipboard: PlaygroundClipboard,
-    calendar: @Composable () -> Unit,
+    footer: @Composable () -> Unit,
+    calendar: @Composable (screenModifier: Modifier) -> Unit,
 ) {
-    Column(
+    Row(
         modifier = Modifier.fillMaxSize().padding(PaneSpacing),
-        verticalArrangement = Arrangement.spacedBy(PaneSpacing),
+        horizontalArrangement = Arrangement.spacedBy(PaneSpacing),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(PaneSpacing),
+        Box(
+            modifier = Modifier.width(CalendarPaneWidth).fillMaxHeight(),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(
-                modifier = Modifier.width(CalendarPaneWidth).fillMaxHeight(),
-                contentAlignment = Alignment.Center,
-            ) {
-                calendar()
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                PlaygroundControls(
-                    config = config,
-                    onConfigChange = onConfigChange,
-                    modifier = Modifier.widthIn(max = ControlsMaxWidth),
-                )
-            }
+            // Fills the device screen whatever the view: the calendar's own themed background is
+            // painted on this node, so a view that only claimed its natural height would leave the
+            // bottom of the phone showing bezel instead of the app.
+            calendar(Modifier.fillMaxSize())
         }
-        PlaygroundCodePane(
-            code = code,
-            clipboard = clipboard,
-            modifier = Modifier.fillMaxWidth().height(CodePaneHeight),
-        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(ColumnSpacing),
+            // Centred rather than start-aligned: the cards are capped at a readable measure, and on
+            // a wide monitor that cap otherwise left the column hugging the phone with a third of
+            // the window empty beside it.
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            PlaygroundControls(
+                config = config,
+                onConfigChange = onConfigChange,
+                modifier = Modifier.widthIn(max = ControlsMaxWidth),
+            )
+            PlaygroundCodePane(
+                code = code,
+                clipboard = clipboard,
+                modifier = Modifier.widthIn(max = ControlsMaxWidth).padding(horizontal = ControlsInset),
+            )
+            footer()
+        }
     }
 }
 
+/**
+ * One column, and one scroll.
+ *
+ * The calendar is capped rather than fixed. `heightIn(max = …)` is what makes both kinds of view
+ * behave: the maximum is a real number, so the lazy grid inside every view has something finite to
+ * measure against instead of the scrolling column's infinity, while the minimum stays zero, so
+ * Month, Week and the date picker come in at the height their width implies rather than sitting in
+ * a box two hundred points taller than they are.
+ */
 @Composable
 private fun NarrowPlayground(
     config: PlaygroundConfig,
@@ -190,30 +232,31 @@ private fun NarrowPlayground(
     code: String,
     clipboard: PlaygroundClipboard,
     header: @Composable () -> Unit,
-    calendar: @Composable () -> Unit,
+    footer: @Composable () -> Unit,
+    calendar: @Composable (screenModifier: Modifier) -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(PaneSpacing),
+        verticalArrangement = Arrangement.spacedBy(ColumnSpacing),
     ) {
         header()
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(NarrowCalendarHeight)
-                .padding(horizontal = PaneSpacing),
+                .heightIn(max = NarrowCalendarHeight)
+                .padding(horizontal = ControlsInset),
         ) {
-            calendar()
+            calendar(
+                if (config.view.scrollsInternally) Modifier.fillMaxSize() else Modifier.fillMaxWidth(),
+            )
         }
         PlaygroundControls(config = config, onConfigChange = onConfigChange)
         PlaygroundCodePane(
             code = code,
             clipboard = clipboard,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(CodePaneHeight)
-                .padding(horizontal = PaneSpacing),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = ControlsInset),
         )
+        footer()
         Spacer(modifier = Modifier.height(PaneSpacing))
     }
 }
@@ -222,12 +265,23 @@ private fun NarrowPlayground(
 private fun DefaultCalendarFrame(content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .border(width = 1.dp, color = PlaygroundChrome.Border, shape = RoundedCornerShape(20.dp)),
     ) {
         content()
     }
+}
+
+/** The line closing the playground's scrolling column, wide or narrow. */
+@Composable
+internal fun PlaygroundFootnote(text: String) {
+    Text(
+        text = text,
+        color = PlaygroundChrome.DimText,
+        style = PlaygroundType.Footnote,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = ControlsInset, vertical = 8.dp),
+    )
 }
 
 private fun BasicKalendarEvent.movedTo(newDate: LocalDate): BasicKalendarEvent {

@@ -1,11 +1,15 @@
 # Views
 
-Kalendar's seven views are **standalone composables**. You call `KalendarMonth(...)` directly — there
+Kalendar's nine views are **standalone composables**. You call `KalendarMonth(...)` directly — there
 is no `Kalendar(type = ...)` dispatcher any more (see [Migration from 1.x](../migration.md)).
 
-They all live in `com.himanshoe.kalendar.view`, share the same
+They all live in `com.himanshoe.kalendar`, share the same
 [`KalendarViewConfig`](../configuration.md), resolve their visuals through the same
 [`KalendarTheme`](../theming.md), and take the same [`KalendarEvents`](../events.md) list.
+
+Underneath, every one of them is built on the public
+[headless engine](../engine.md) — the same `KalendarPager`, `monthGridDates` and `scheduleBlocks` you
+would use to build a calendar we did not design.
 
 ## What they look like
 
@@ -44,26 +48,38 @@ light/dark switch in the top bar.
 </figure>
 </div>
 
+The gallery covers the seven views with generated screenshots. Two more ship in 2.0.0 and are not
+pictured here — see the [API reference](../reference/kalendar-views.md) for both:
+
+- **`KalendarResourceView`** — one day, one column per resource. A room board, a chair schedule, a
+  vehicle roster. Events reach their lane through a `resourceIdOf` accessor, and a drag moves an
+  event in time *and* between lanes.
+- **`KalendarDatePicker`** — a compact single-month picker, the calendar that drops out of a form
+  field. A month and year control you can jump decades with, and a Clear/Today action rail.
+
 ## Choosing one
 
 | View | Shape | Paging unit | State factory |
 |---|---|---|---|
 | [`KalendarWeek`](week.md) | One week row | Week | `rememberKalendarWeekState` |
 | [`KalendarMonth`](month.md) | Month grid | Month | `rememberKalendarMonthState` |
-| [`KalendarYear`](year.md) | 12 month grids in a scrolling column | Year | `rememberKalendarYearState` |
+| [`KalendarYear`](year.md) | 12 month grids in a lazy scrolling column | Year | `rememberKalendarYearState` |
 | [`KalendarTimeline`](timeline.md) | Continuous month list | none — free scroll | `rememberKalendarTimelineState` |
 | [`KalendarSchedule`](schedule.md) | Hourly grid for one day | Day | `rememberKalendarScheduleState` |
 | [`KalendarScheduleWeek`](schedule-week.md) | Hourly grid, 7 day columns | Week | `rememberKalendarWeekState` |
+| [`KalendarResourceView`](../reference/kalendar-views.md) | Hourly grid, one lane per resource | Day | `rememberKalendarScheduleState` |
 | [`KalendarAgenda`](agenda.md) | Event list grouped by date | none — free scroll | `rememberLazyListState` |
+| [`KalendarDatePicker`](../reference/kalendar-views.md) | Compact single-month picker | Month | `rememberKalendarMonthState` |
 
 ## What they have in common
 
 **Date-grid views** — `KalendarWeek`, `KalendarMonth`, `KalendarYear`, `KalendarTimeline` — render
 day cells, take `selectedDates` / `onDateClick`, and show events as indicator dots.
 
-**Schedule views** — `KalendarSchedule` and `KalendarScheduleWeek` — render an hourly time grid,
-take `onEventClick` / `onEventTimeChange`, and lay events out as duration-sized blocks. They have no
-concept of date selection.
+**Hour-grid views** — `KalendarSchedule`, `KalendarScheduleWeek` and `KalendarResourceView` — render
+an hourly time grid, take `onEventClick` plus a change callback, and lay events out as duration-sized
+blocks packed side by side where they overlap. They have no concept of date selection. All three
+honour `KalendarViewConfig.scheduleVisibleHours`, so a business-hours calendar is one config value.
 
 **The agenda** — `KalendarAgenda` — has no grid and no pager at all: it lists the events themselves,
 grouped by date, and skips every date that has none. It takes `onEventClick` and, like the Schedule
@@ -71,22 +87,26 @@ views, has no concept of date selection.
 
 ### Feature matrix
 
-| Feature | Week | Month | Year | Timeline | Schedule | ScheduleWeek | Agenda |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| Arrow + swipe navigation | yes | yes | yes | no | yes | yes | no |
-| Today button | yes | yes | yes | yes | yes | yes | no |
-| Month/year jump picker | yes | yes | yes | no | yes | yes | no |
-| `selectedDates` / `onDateClick` | yes | yes | yes | yes | no | no | no |
-| Sliding selection indicator | yes | yes | no | no | no | no | no |
-| Drag-to-select a range | yes | yes | no | no | no | no | no |
-| Drag events to a new date | no | yes | no | no | no | no | no |
-| Drag / resize event blocks | no | no | no | no | yes | yes | no |
-| Event indicator dots and `+N` | yes | yes | yes | yes | no | no | no |
-| `dayContent` slot | yes | yes | yes | yes | no | no | no |
-| `header` slot | yes | yes | yes | yes | no | no | no |
-| `dayOfWeekLabel` slot | yes | yes | yes | yes | no | no | no |
-| Event / hour / now-indicator slots | no | no | no | no | yes | yes | no |
-| `dateHeader` / `eventContent` / `emptyState` slots | no | no | no | no | no | no | yes |
+| Feature | Week | Month | Year | Timeline | Schedule | ScheduleWeek | Resource | Agenda | DatePicker |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| Arrow + swipe navigation | yes | yes | yes | no | yes | yes | arrows only | no | arrows only |
+| Today button | yes | yes | yes | yes | yes | yes | yes | no | action rail |
+| Month/year jump picker | yes | yes | yes | no | yes | yes | yes | no | its own header |
+| `selectedDates` / `onDateClick` | yes | yes | yes | yes | no | no | no | no | yes |
+| Sliding selection indicator | yes | yes | no | no | no | no | no | no | no |
+| Drag-to-select a range | yes | yes | no | no | no | no | no | no | no |
+| Drag events to a new date | no | yes | no | no | no | no | no | no | no |
+| Drag / resize event blocks | no | no | no | no | yes | yes | yes | no | no |
+| Drag an event between columns | no | no | no | no | no | days | lanes | no | no |
+| Sweep out a new event | no | no | no | no | yes | yes | no | no | no |
+| Event indicator dots and `+N` | yes | yes | yes | yes | no | no | no | no | no |
+| `visibleDaysOfWeek` work weeks | yes | yes | yes | yes | no | yes | no | no | yes |
+| `scheduleVisibleHours` business hours | no | no | no | no | yes | yes | yes | no | no |
+| `dayContent` slot | yes | yes | yes | yes | no | no | no | no | yes |
+| `header` slot | yes | yes | yes | yes | no | no | no | no | yes |
+| `dayOfWeekLabel` slot | yes | yes | yes | yes | no | no | no | no | yes |
+| Event / hour / now-indicator slots | no | no | no | no | yes | yes | yes | no | no |
+| `dateHeader` / `eventContent` / `emptyState` slots | no | no | no | no | no | no | partly | yes | no |
 
 `KalendarTimeline` scrolls continuously, so it has no pages and no arrow buttons — its `header` slot
 receives a scope whose page vocabulary is mapped onto months, and
@@ -128,6 +148,7 @@ and `rememberKalendarScheduleState`.
 | `minDate` / `maxDate` | `LocalDate?` | The bounds this state was created with. |
 | `canScrollBackward` | `Boolean` | Whether stepping one page back stays within `minDate`. |
 | `canScrollForward` | `Boolean` | Whether stepping one page forward stays within `maxDate`. |
+| `timeSource` | `KalendarTimeSource` | Where this state reads "today" from. Mutable, so a hoisted state can follow a changing clock. |
 | `suspend animateScrollTo(date)` | `Unit` | Animates to the page containing `date`, clamped to the bounds. |
 | `suspend animateScrollToToday()` | `Unit` | Animates to the page containing today, clamped. |
 | `suspend animateToPreviousPage()` | `Unit` | One page back. A no-op past `minDate`. |
@@ -153,3 +174,7 @@ Returned by `rememberKalendarTimelineState`.
 
 `KalendarAgenda` has neither: it takes a plain `LazyListState`, because a list of events has nothing
 to page through and nothing to bound.
+
+Both state classes are thin wrappers over the engine's [`KalendarPager`](../reference/foundation-paging.md)
+and a Compose scroll state. Every member above is documented signature-by-signature in the
+[state reference](../reference/kalendar-state.md).

@@ -119,7 +119,7 @@ private fun renderTopBar(
     <nav class="topbar-links" aria-label="Site">
       <a href="$root$entryUrl">Docs</a>
       <a href="$root$PLAYGROUND_URL">Playground</a>
-      <a href="${root}api/kalendar/index.html">API</a>
+      <a href="$root$KDOC_CALENDAR_URL">KDoc</a>
       <a href="$REPO_URL" rel="noopener">GitHub</a>
     </nav>
     <button class="theme-toggle" type="button" aria-label="Switch between light and dark theme">$THEME_ICONS</button>
@@ -157,6 +157,10 @@ private fun renderShell(
  *
  * `aria-current="page"` rather than a class alone: the highlight is the only thing telling a reader
  * where they are, and a colour is not information a screen reader can read out.
+ *
+ * The two generated references are named for the artifact they document rather than both being
+ * called "API reference". The docs now contain a written reference of their own, and two links a
+ * reader has to click to tell apart are two links they will click the wrong one of.
  */
 fun renderNavigation(
     sections: List<NavSection>,
@@ -169,7 +173,8 @@ fun renderNavigation(
     html.append("""<div class="nav-quick">""")
     html.append(navLink(href = "${root}index.html", label = "Overview", active = currentUrl == "index.html"))
     html.append(navLink(href = "$root$PLAYGROUND_URL", label = "Playground", active = false))
-    html.append(navLink(href = "${root}api/kalendar/index.html", label = "API reference", active = false))
+    html.append(navLink(href = "$root$KDOC_CALENDAR_URL", label = "Calendar KDoc", active = false))
+    html.append(navLink(href = "$root$KDOC_ENGINE_URL", label = "Engine KDoc", active = false))
     html.append("</div>")
     sections.forEach { section ->
         html.append("""<div class="nav-section"><h2 class="nav-heading">${escapeText(section.title)}</h2><ul>""")
@@ -264,7 +269,8 @@ private fun renderFooter(
     <nav class="footer-links" aria-label="Footer">
       <a href="$root$entryUrl">Getting started</a>
       <a href="$root$PLAYGROUND_URL">Playground</a>
-      <a href="${root}api/kalendar/index.html">API reference</a>
+      <a href="$root$KDOC_CALENDAR_URL">Calendar KDoc</a>
+      <a href="$root$KDOC_ENGINE_URL">Engine KDoc</a>
       <a href="$REPO_URL" rel="noopener">GitHub</a>
       <a href="$SPONSORS_URL" rel="noopener">Sponsor</a>
       <a href="$COFFEE_URL" rel="noopener">Buy me a coffee</a>

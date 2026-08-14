@@ -8,18 +8,141 @@ This page mirrors `CHANGELOG.md` at the repository root, which is the canonical 
 
 ---
 
-## [Unreleased]
+## [2.0.0]
+
+**2.0.0 is a ground-up redesign. There is no compatibility guarantee with 1.x, and none with any
+2.0.0 release candidate.** Every public type has moved, most have been rewritten, and the 1.x entry
+point no longer exists. This is not a version you upgrade into by bumping a number — read the
+migration table below, then [Migration from 1.x](https://hi-manshu.github.io/Kalendar/migration.html).
+
+Two things define the release:
+
+1. **`kalendar-foundation` is a public, documented headless calendar engine.** The date arithmetic,
+   paging arithmetic, grid layout, overlap packing, drag maths and selection reduction that were
+   sealed inside one flat internal package are now a supported API — enough to build a calendar
+   Kalendar did not design, without depending on Kalendar's UI. Its public surface went from 42 lines
+   of API dump to 334. See [The headless engine](https://hi-manshu.github.io/Kalendar/engine.html).
+2. **The package `com.himanshoe.kalendar.view` no longer exists.** "View" is a Swing-and-Android-View
+   word in a library whose entire selling point is Compose, and one flat 27-file package gave an IDE
+   user nothing to navigate. The nine calendar composables sit at the package root, with `state`,
+   `theme`, `slot` and `component` beside them.
+
+Artifact coordinates at the time of writing: `com.himanshoe:kalendar:2.0.0-RC3`,
+`com.himanshoe:kalendar-foundation:2.0.0`, `com.himanshoe:kalendar-sync:1.0.0`.
+
+### Migration: every public symbol, old name to new
+
+Derived from the two modules' binary-compatibility dumps — `kalendar/api/*/kalendar.api` and
+`kalendar-foundation/api/*/kalendar-foundation.api` — before and after the move, so nothing public is
+missing from it. **Fifty-one** top-level entities moved. Not one was renamed and not one was removed:
+every row below is a package change, so in most codebases the migration is a find-and-replace on
+import lines.
+
+Members did not move independently of their owners — `KalendarViewState.visibleDate` is still
+`visibleDate` — so the table lists top-level entities only. Every member of every one of them is
+documented in the [API reference](https://hi-manshu.github.io/Kalendar/reference/index.html).
+
+**Calendar composables, their config, and their `*Defaults` — now at the package root**, the way `material3` puts `Button` at its root.
+
+| 1.x / RC | 2.0.0 |
+|---|---|
+| `com.himanshoe.kalendar.view.KalendarWeek` | `com.himanshoe.kalendar.KalendarWeek` |
+| `com.himanshoe.kalendar.view.KalendarMonth` | `com.himanshoe.kalendar.KalendarMonth` |
+| `com.himanshoe.kalendar.view.KalendarYear` | `com.himanshoe.kalendar.KalendarYear` |
+| `com.himanshoe.kalendar.view.KalendarTimeline` | `com.himanshoe.kalendar.KalendarTimeline` |
+| `com.himanshoe.kalendar.view.KalendarSchedule` | `com.himanshoe.kalendar.KalendarSchedule` |
+| `com.himanshoe.kalendar.view.KalendarScheduleWeek` | `com.himanshoe.kalendar.KalendarScheduleWeek` |
+| `com.himanshoe.kalendar.view.KalendarResourceView` | `com.himanshoe.kalendar.KalendarResourceView` |
+| `com.himanshoe.kalendar.view.KalendarAgenda` | `com.himanshoe.kalendar.KalendarAgenda` |
+| `com.himanshoe.kalendar.view.KalendarDatePicker` | `com.himanshoe.kalendar.KalendarDatePicker` |
+| `com.himanshoe.kalendar.view.KalendarViewConfig` | `com.himanshoe.kalendar.KalendarViewConfig` |
+| `com.himanshoe.kalendar.view.KalendarAgendaDefaults` | `com.himanshoe.kalendar.KalendarAgendaDefaults` |
+| `com.himanshoe.kalendar.view.KalendarScheduleDefaults` | `com.himanshoe.kalendar.KalendarScheduleDefaults` |
+| `com.himanshoe.kalendar.view.KalendarResourceDefaults` | `com.himanshoe.kalendar.KalendarResourceDefaults` |
+| `com.himanshoe.kalendar.view.KalendarDatePickerDefaults` | `com.himanshoe.kalendar.KalendarDatePickerDefaults` |
+| `com.himanshoe.kalendar.view.KalendarDatePickerDayScope` | `com.himanshoe.kalendar.KalendarDatePickerDayScope` |
+| `com.himanshoe.kalendar.view.KalendarDatePickerActionScope` | `com.himanshoe.kalendar.KalendarDatePickerActionScope` |
+
+**Navigation, selection and clock state → `com.himanshoe.kalendar.state`.**
+
+| 1.x / RC | 2.0.0 |
+|---|---|
+| `com.himanshoe.kalendar.view.KalendarViewState` | `com.himanshoe.kalendar.state.KalendarViewState` |
+| `com.himanshoe.kalendar.view.KalendarTimelineState` | `com.himanshoe.kalendar.state.KalendarTimelineState` |
+| `com.himanshoe.kalendar.view.KalendarSelectionState` | `com.himanshoe.kalendar.state.KalendarSelectionState` |
+| `com.himanshoe.kalendar.view.rememberKalendarWeekState` | `com.himanshoe.kalendar.state.rememberKalendarWeekState` |
+| `com.himanshoe.kalendar.view.rememberKalendarMonthState` | `com.himanshoe.kalendar.state.rememberKalendarMonthState` |
+| `com.himanshoe.kalendar.view.rememberKalendarYearState` | `com.himanshoe.kalendar.state.rememberKalendarYearState` |
+| `com.himanshoe.kalendar.view.rememberKalendarScheduleState` | `com.himanshoe.kalendar.state.rememberKalendarScheduleState` |
+| `com.himanshoe.kalendar.view.rememberKalendarTimelineState` | `com.himanshoe.kalendar.state.rememberKalendarTimelineState` |
+| `com.himanshoe.kalendar.view.rememberKalendarSelectionState` | `com.himanshoe.kalendar.state.rememberKalendarSelectionState` |
+| `com.himanshoe.kalendar.view.ProvideKalendarTimeSource` | `com.himanshoe.kalendar.state.ProvideKalendarTimeSource` |
+| `com.himanshoe.kalendar.view.rememberKalendarTimeSource` | `com.himanshoe.kalendar.state.rememberKalendarTimeSource` |
+| `com.himanshoe.kalendar.view.rememberKalendarToday` | `com.himanshoe.kalendar.state.rememberKalendarToday` |
+| `com.himanshoe.kalendar.view.rememberKalendarNow` | `com.himanshoe.kalendar.state.rememberKalendarNow` |
+
+**The theme and its six token sets → `com.himanshoe.kalendar.theme`.**
+
+| 1.x / RC | 2.0.0 |
+|---|---|
+| `com.himanshoe.kalendar.view.KalendarTheme` | `com.himanshoe.kalendar.theme.KalendarTheme` |
+| `com.himanshoe.kalendar.view.KalendarThemeDefaults` | `com.himanshoe.kalendar.theme.KalendarThemeDefaults` |
+| `com.himanshoe.kalendar.view.KalendarThemeTokens` | `com.himanshoe.kalendar.theme.KalendarThemeTokens` |
+| `com.himanshoe.kalendar.view.KalendarColors` | `com.himanshoe.kalendar.theme.KalendarColors` |
+| `com.himanshoe.kalendar.view.KalendarTypography` | `com.himanshoe.kalendar.theme.KalendarTypography` |
+| `com.himanshoe.kalendar.view.KalendarShapes` | `com.himanshoe.kalendar.theme.KalendarShapes` |
+| `com.himanshoe.kalendar.view.KalendarDimensions` | `com.himanshoe.kalendar.theme.KalendarDimensions` |
+| `com.himanshoe.kalendar.view.KalendarAnimations` | `com.himanshoe.kalendar.theme.KalendarAnimations` |
+| `com.himanshoe.kalendar.view.KalendarStrings` | `com.himanshoe.kalendar.theme.KalendarStrings` |
+
+**Content-slot scope types → `com.himanshoe.kalendar.slot`.**
+
+| 1.x / RC | 2.0.0 |
+|---|---|
+| `com.himanshoe.kalendar.view.KalendarDayScope` | `com.himanshoe.kalendar.slot.KalendarDayScope` |
+| `com.himanshoe.kalendar.view.KalendarDayOverflowScope` | `com.himanshoe.kalendar.slot.KalendarDayOverflowScope` |
+| `com.himanshoe.kalendar.view.KalendarHeaderScope` | `com.himanshoe.kalendar.slot.KalendarHeaderScope` |
+| `com.himanshoe.kalendar.view.KalendarScheduleEventScope` | `com.himanshoe.kalendar.slot.KalendarScheduleEventScope` |
+| `com.himanshoe.kalendar.view.KalendarResourceEventScope` | `com.himanshoe.kalendar.slot.KalendarResourceEventScope` |
+
+**Default renderings and the day-cell modifier → `com.himanshoe.kalendar.component`.**
+
+| 1.x / RC | 2.0.0 |
+|---|---|
+| `com.himanshoe.kalendar.view.KalendarDayCellDefaults` | `com.himanshoe.kalendar.component.KalendarDayCellDefaults` |
+| `com.himanshoe.kalendar.view.KalendarHeaderDefaults` | `com.himanshoe.kalendar.component.KalendarHeaderDefaults` |
+| `com.himanshoe.kalendar.view.kalendarDaySemantics` | `com.himanshoe.kalendar.component.kalendarDaySemantics` |
+
+**Types that turned out to be pure logic → `kalendar-foundation`.** These moved *module*, not just package. `kalendar` re-exports the engine as an `api` dependency, so a single-dependency consumer needs no build change.
+
+| 1.x / RC | 2.0.0 |
+|---|---|
+| `com.himanshoe.kalendar.view.KalendarTimeSource` | `com.himanshoe.kalendar.foundation.datetime.KalendarTimeSource` |
+| `com.himanshoe.kalendar.view.datesUntil` | `com.himanshoe.kalendar.foundation.datetime.datesUntil` |
+| `com.himanshoe.kalendar.view.KalendarSelectionMode` | `com.himanshoe.kalendar.foundation.selection.KalendarSelectionMode` |
+| `com.himanshoe.kalendar.view.KalendarHourWindow` | `com.himanshoe.kalendar.foundation.schedule.KalendarHourWindow` |
+| `com.himanshoe.kalendar.view.KalendarResource` | `com.himanshoe.kalendar.foundation.schedule.KalendarResource` |
+
+**Newly public, with no 1.x equivalent:** the whole of `com.himanshoe.kalendar.foundation.datetime`
+(period starts, whole-period differences), `.grid` (`weekDates`, `monthGridDates`, `monthDates`,
+`visibleDateOnOrAfter`, `visibleDateStep`, `daysOfWeekStartingAt`, `ALL_DAYS_OF_WEEK`), `.paging`
+(`KalendarPager`, `KalendarPageUnit`), `.format` (`KalendarFormatters`, `monthTitle`), `.selection`
+(`KalendarSelection`), most of `.schedule` (`KalendarScheduleBlock`, `scheduleBlocks`,
+`KalendarBlockPlacement`, `blockPlacement`, the drag and create maths, the resource-lane functions,
+and the four minute/hour constants), and `byDateExpandingSpans` on `.event`. None of these are
+migrations — they were internal, and are now supported.
+
 
 ### Breaking changes
 - **`Kalendar(type = ...)` and `KalendarType` are gone.** The last remaining type, `Agenda`, is now
-  the top-level `com.himanshoe.kalendar.view.KalendarAgenda` composable, so every view in the
+  the top-level `com.himanshoe.kalendar.KalendarAgenda` composable, so every view in the
   library is called directly. There is no dispatch entry point left; replace
   `Kalendar(type = KalendarType.Agenda, events = events, config = KalendarConfig(...))` with
   `KalendarAgenda(events = events, config = KalendarViewConfig(...))`.
 - **`KalendarAgenda` rewritten as a first-class modern view.** It is public, lives in
-  `com.himanshoe.kalendar.view`, takes `KalendarViewConfig`, and draws entirely with Compose
+  `com.himanshoe.kalendar`, takes `KalendarViewConfig`, and draws entirely with Compose
   Foundation — no Material widgets, no hardcoded colours, shapes or text sizes. Every visual comes
-  from `KalendarTheme`, so it restyles with the other six views. New slots `dateHeader`,
+  from `KalendarTheme`, so it restyles with the other views. New slots `dateHeader`,
   `eventContent` and `emptyState` default to `KalendarAgendaDefaults.DateHeader` / `.EventRow` /
   `.EmptyState`. Its date headers now go through `KalendarViewConfig.monthNameFormatter` (they used
   the raw English `Month` enum name and could not be localized), and its empty-state text comes
@@ -35,7 +158,7 @@ This page mirrors `CHANGELOG.md` at the repository root, which is the canonical 
   `KalendarViewConfig` and style them with `KalendarTheme`.
 - Removed `KalendarType.Oceanic`, `Firey`, `Solaris`, `Aerial`, and `Yearly` (and the
   `kalendar-foundation` internals they depended on) entirely. Replace them with the standalone
-  `com.himanshoe.kalendar.view` composables below — there is no `KalendarType`-based drop-in
+  `com.himanshoe.kalendar` composables below — there is no `KalendarType`-based drop-in
   replacement; call `KalendarWeek`/`KalendarMonth`/`KalendarYear`/`KalendarTimeline` directly.
 - `KalendarColors`, `KalendarTypography` and `KalendarShapes` each gained a required constructor
   parameter (`agendaCard`; `agendaEventTitle`/`agendaEventSubtitle`; `agendaCard`). Code that

@@ -15,8 +15,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.himanshoe.kalendar.view.KalendarMonth
-import com.himanshoe.kalendar.view.rememberKalendarMonthState
+import com.himanshoe.kalendar.KalendarMonth
+import com.himanshoe.kalendar.state.rememberKalendarMonthState
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
@@ -46,6 +46,7 @@ fun MonthGrid() {
 | `events` | `KalendarEvents` | `emptyList()` | Shown as indicator dots on day cells. |
 | `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | The highlighted dates. Hoist your own set for multi-select or range. |
 | `onDateClick` | `(date: LocalDate, events: List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped, with that date's events. |
+| `onDayEventClick` | `((event: KalendarEvent) -> Unit)?` | `null` | Called when an individual event is tapped inside a day cell's `+N` overflow popover. |
 | `onDateRangeSelect` | `((start: LocalDate, current: LocalDate) -> Unit)?` | `null` | When non-null, press-and-hold then drag selects a range live. |
 | `onDateRangeSelectEnd` | `(() -> Unit)?` | `null` | Called once when a drag started by `onDateRangeSelect` ends. |
 | `onEventDrop` | `((events: List<KalendarEvent>, newDate: LocalDate) -> Unit)?` | `null` | When non-null, press-and-hold a date **that has events** and drag to another date to reschedule. See [Drag to reschedule](#drag-to-reschedule). |
@@ -109,7 +110,7 @@ For a hand-rolled range, `LocalDate.datesUntil(other)` returns every date betwee
 in either order:
 
 ```kotlin
-import com.himanshoe.kalendar.view.datesUntil
+import com.himanshoe.kalendar.foundation.datetime.datesUntil
 
 var rangeStart by remember { mutableStateOf<LocalDate?>(null) }
 var rangeEnd by remember { mutableStateOf<LocalDate?>(null) }

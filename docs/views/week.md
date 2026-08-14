@@ -15,8 +15,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.himanshoe.kalendar.view.KalendarWeek
-import com.himanshoe.kalendar.view.rememberKalendarWeekState
+import com.himanshoe.kalendar.KalendarWeek
+import com.himanshoe.kalendar.state.rememberKalendarWeekState
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
@@ -46,6 +46,7 @@ fun WeekStrip() {
 | `events` | `KalendarEvents` | `emptyList()` | Shown as indicator dots on day cells. |
 | `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | The highlighted dates. Hoist your own set for multi-select or range. |
 | `onDateClick` | `(date: LocalDate, events: List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped, with that date's events. |
+| `onDayEventClick` | `((event: KalendarEvent) -> Unit)?` | `null` | Called when an individual event is tapped inside a day cell's `+N` overflow popover. |
 | `onDateRangeSelect` | `((start: LocalDate, current: LocalDate) -> Unit)?` | `null` | When non-null, press-and-hold then drag selects a range live. Called continuously with the pressed date and the date under the pointer. |
 | `onDateRangeSelectEnd` | `(() -> Unit)?` | `null` | Called once when a drag started by `onDateRangeSelect` ends. |
 | `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Shared visual and behavioural settings. See [Configuration](../configuration.md). |

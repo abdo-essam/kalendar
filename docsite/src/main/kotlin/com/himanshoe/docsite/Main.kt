@@ -94,7 +94,7 @@ private fun writeHome(
     entryUrl: String
 ) {
     val groups =
-        sections.filter { it.title in HOME_TILE_SECTIONS }.map { section ->
+        sections.filter { section -> section.key in HOME_TILE_SECTIONS }.map { section ->
             HomeGroup(
                 title = section.title,
                 tiles =
