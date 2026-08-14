@@ -28,6 +28,7 @@ import com.himanshoe.kalendar.state.rememberKalendarScheduleState
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import org.jetbrains.skia.EncodedImageFormat
+import org.junit.experimental.categories.Category
 import java.io.File
 import javax.imageio.ImageIO
 import kotlin.test.Test
@@ -39,7 +40,8 @@ import kotlin.test.fail
  * Each test renders a view into a fixed-size, density-1 [ImageComposeScene] and compares the
  * PNG against a checked-in golden, tolerating up to [MAX_DIFFERING_PIXEL_RATIO] differing pixels
  * for antialiasing noise. Goldens are generated on macOS; other OSes may rasterise text
- * differently, so treat cross-OS failures as environmental until inspected.
+ * differently, so treat cross-OS failures as environmental until inspected — which is what the
+ * [GoldenImageTests] category is for, and why it is on this class and nowhere else.
  *
  * Regenerate after an intentional visual change with:
  * `./gradlew :kalendar:desktopTest -PupdateGoldens=true`
@@ -48,6 +50,7 @@ import kotlin.test.fail
  * March 2026 fixtures are used throughout so the system date (and its "today" styling) never
  * appears in the rendered month.
  */
+@Category(GoldenImageTests::class)
 class KalendarGoldenTest {
 
     @Test
@@ -171,7 +174,26 @@ class KalendarGoldenTest {
     }
 
     private companion object {
-        const val MAX_DIFFERING_PIXEL_RATIO = 0.01
+        /**
+         * How much of an image may differ before a golden is considered broken.
+         *
+         * It was 1%, and that number let a real defect live its whole life: day numbers sitting at
+         * three different heights within one week, visibly sliding as event dots faded in, moved
+         * **0.376%** of pixels. Every golden passed throughout.
+         *
+         * 1% was never argued for, so here is the argument for this one. Rendering is deterministic
+         * on a given machine, so the honest expectation for an unchanged layout is a diff of zero;
+         * the tolerance exists only to absorb text-rasterisation noise between environments, which
+         * moves a handful of pixels — well under 0.05% at these image sizes. A layout shift confined
+         * to a few cells lands between 0.3% and 0.5%. 0.1% sits above the noise and below the
+         * smallest defect worth catching.
+         *
+         * This is still a backstop rather than a guarantee. A shift confined to one cell of a year
+         * view would slip under any threshold that tolerates rasterisation noise at all, which is
+         * why the layout invariants — baselines, centring, block bounds — are asserted directly
+         * rather than left to whole-image comparison.
+         */
+        const val MAX_DIFFERING_PIXEL_RATIO = 0.001
         const val CHANNEL_TOLERANCE = 8
         const val CHANNEL_MASK = 0xFF
         const val SETTLE_FRAME_NANOS = 1_000_000_000L

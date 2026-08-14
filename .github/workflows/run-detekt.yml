@@ -31,9 +31,13 @@ jobs:
       - name: Check binary compatibility
         run: ./gradlew :kalendar-foundation:apiCheck :kalendar:apiCheck :kalendar-sync:apiCheck
 
-      # :kalendar:desktopTest is intentionally excluded here: it contains Compose UI golden
-      # tests whose reference images were generated on macOS and do not match Linux rendering.
-      # :kalendar:testDebugUnitTest runs the same commonTest suites on the Android unit-test
-      # target instead.
       - name: Run tests
         run: ./gradlew :kalendar-foundation:desktopTest :kalendar-sync:desktopTest :kalendar:testDebugUnitTest
+
+      # :kalendar:desktopTest is where every Compose UI test in the library lives — drag, keyboard
+      # navigation, accessibility, span bars, header centring. It used to be skipped entirely
+      # because three of its tests compare against macOS-rasterised golden images; that hid the
+      # other ~209. Those three carry the GoldenImageTests category and the build drops them off
+      # macOS, so this runs everything else.
+      - name: Run desktop UI tests
+        run: ./gradlew :kalendar:desktopTest

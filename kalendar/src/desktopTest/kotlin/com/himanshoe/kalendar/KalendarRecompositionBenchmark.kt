@@ -43,6 +43,7 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.dp
+import com.himanshoe.kalendar.component.KalendarDayCellDefaults
 import com.himanshoe.kalendar.foundation.datetime.KalendarTimeSource
 import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
@@ -87,6 +88,9 @@ private class Tally {
 private val CELLS = Tally()
 private val HEADERS = Tally()
 private val BLOCKS = Tally()
+
+/** Runs of [KalendarDayCellDefaults.Cell]'s own body — see [CellBodyTallyingEvents]. */
+private val CELL_BODIES = Tally()
 
 /**
  * Walks of the event list handed to a view — one walk is one `byDateExpandingSpans()` build.
@@ -167,6 +171,31 @@ private class WalkTallyingEvents(private val events: KalendarEvents) : KalendarE
 
     override fun equals(other: Any?): Boolean =
         this === other || (other is WalkTallyingEvents && events == other.events)
+
+    override fun hashCode(): Int = events.hashCode()
+}
+
+/**
+ * A day's event list that tallies how often the day cell runs its own body into [CELL_BODIES].
+ *
+ * The built-in cell is the composable *under* test rather than a container, so unlike every other
+ * measurement here there is no slot to hang a probe on. The count is taken instead from the one
+ * question the cell's body asks its event list exactly once per run — `events.isNotEmpty()`, read
+ * while building the accessibility description — which makes one tally one composition of the cell.
+ *
+ * `equals` short-circuits on identity for the same reason [WalkTallyingEvents]'s does: Compose
+ * compares this list against its own slot value, and a walk there would be counted as work the cell
+ * did not do.
+ */
+private class CellBodyTallyingEvents(private val events: KalendarEvents) : KalendarEvents by events {
+
+    override fun isEmpty(): Boolean {
+        CELL_BODIES.count++
+        return events.isEmpty()
+    }
+
+    override fun equals(other: Any?): Boolean =
+        this === other || (other is CellBodyTallyingEvents && events == other.events)
 
     override fun hashCode(): Int = events.hashCode()
 }
@@ -253,6 +282,37 @@ private const val WEEK_PAGE_DAYS = 7
  * the `Layout` content lambda, which invalidates every block in the column.
  */
 private const val DRAG_SLOT_BUDGET = BLOCK_COUNT
+
+/**
+ * Compositions allowed for a whole press of a day cell: one when it goes down, one when it comes up.
+ *
+ * The press-scale animation is a spring, so it produces frames for as long as it takes to settle —
+ * around a dozen at 16ms each. Read with `by` in the cell's body every one of those recomposed the
+ * whole cell; read inside a `graphicsLayer` block only the layer is invalidated.
+ */
+private const val PRESS_COMPOSITION_BUDGET = 2
+
+/**
+ * Compositions allowed when a day cell becomes selected: the one its changed parameters earn it.
+ *
+ * The selection fill animates from a spring too. It belongs to the draw phase, and the cell has no
+ * reason to run again for any frame of it.
+ */
+private const val SELECTION_COMPOSITION_BUDGET = 1
+
+/** A realistic day cell, big enough that a touch at its centre is unambiguously inside it. */
+private val DAY_CELL_SIZE = 64.dp
+private const val DAY_CELL_TAG = "day-cell"
+
+/**
+ * One event, so the cell's indicator row is drawn and the probe below has something to count.
+ *
+ * Hoisted rather than rebuilt per scope: the probe is the list, and a fresh one per composition
+ * would tally its own allocation instead of the cell's work.
+ */
+private val DAY_CELL_EVENTS = CellBodyTallyingEvents(
+    listOf(BasicKalendarEvent(date = LocalDate(FIXTURE_YEAR, FIXTURE_MONTH, FIXTURE_DAY), eventName = "Standup")),
+)
 
 private val FIXTURE_DATE = LocalDate(FIXTURE_YEAR, FIXTURE_MONTH, FIXTURE_DAY)
 
@@ -849,6 +909,112 @@ class KalendarRecompositionBenchmark {
             MaterialTheme(colorScheme = STABLE_SCHEME) {
                 KalendarTheme(animations = STILL_ANIMATIONS) {
                     view(tick)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Recomposition budgets for [KalendarDayCellDefaults.Cell] itself.
+ *
+ * A separate class from [KalendarRecompositionBenchmark] because it measures a different thing.
+ * Every budget there is on a *view*, counted through a probe handed to one of its slots; these two
+ * compose the built-in day cell directly and count runs of its own body, which needs the probe to be
+ * the cell's event list rather than a slot — see [CellBodyTallyingEvents]. Same harness, same
+ * reasons, one level down.
+ */
+class KalendarDayCellRecompositionBenchmark {
+
+    @get:Rule
+    val rule = createComposeRule()
+
+    /**
+     * Pressing a day cell must not recompose it once per frame of the press-scale animation.
+     *
+     * `animateFloatAsState` hands back a [androidx.compose.runtime.State]. Unwrapped with `by` in
+     * the cell's body, the read is a composition-phase subscription and every frame the spring
+     * produces re-runs the whole cell — modifiers, lambdas, indicator row and all — for a value only
+     * the graphics layer needed. Read inside the layer block instead, the animation never leaves the
+     * phase it belongs to.
+     */
+    @Test
+    fun pressingADayCellRecomposesItOncePerPressRatherThanPerFrame() {
+        CELL_BODIES.count = 0
+        val scope = dayCellScope(isSelected = false)
+        rule.setContent { DayCellHarness { KalendarDayCellDefaults.Cell(scope = scope, onClick = {}) } }
+        rule.waitForIdle()
+
+        val firstFrame = CELL_BODIES.count
+        rule.onNodeWithTag(DAY_CELL_TAG, useUnmergedTree = true).performTouchInput { down(center) }
+        rule.waitForIdle()
+        val onPress = CELL_BODIES.count - firstFrame
+        rule.onNodeWithTag(DAY_CELL_TAG, useUnmergedTree = true).performTouchInput { up() }
+        rule.waitForIdle()
+        val onRelease = CELL_BODIES.count - firstFrame - onPress
+
+        println("BENCH day cell press: firstFrame=$firstFrame press=$onPress release=$onRelease")
+        // Vacuity guard: unless the touch actually landed on the cell it never changed the pressed
+        // state, and the budget below would be a zero that keeps passing after a real regression.
+        assertTrue(onPress > 0, "the press never reached the cell, so this measurement proves nothing")
+        assertTrue(
+            onPress + onRelease <= PRESS_COMPOSITION_BUDGET,
+            "a press recomposed the day cell ${onPress + onRelease} times; the press-scale animation " +
+                "is being read in the cell's body instead of in a graphicsLayer block " +
+                "(budget <= $PRESS_COMPOSITION_BUDGET)",
+        )
+    }
+
+    /** [pressingADayCellRecomposesItOncePerPressRatherThanPerFrame] for the selection fill. */
+    @Test
+    fun selectingADayCellRecomposesItOnceRatherThanPerFrame() {
+        CELL_BODIES.count = 0
+        val selected = mutableStateOf(false)
+        rule.setContent {
+            DayCellHarness {
+                KalendarDayCellDefaults.Cell(scope = dayCellScope(isSelected = selected.value), onClick = {})
+            }
+        }
+        rule.waitForIdle()
+
+        val firstFrame = CELL_BODIES.count
+        rule.runOnIdle { selected.value = true }
+        rule.waitForIdle()
+        val onSelect = CELL_BODIES.count - firstFrame
+
+        println("BENCH day cell selection: firstFrame=$firstFrame select=$onSelect")
+        // Vacuity guard, as above: a selection the cell never saw is not a measurement.
+        assertTrue(onSelect > 0, "the selection never reached the cell, so this measurement proves nothing")
+        assertTrue(
+            onSelect <= SELECTION_COMPOSITION_BUDGET,
+            "selecting a day recomposed its cell $onSelect times; the selection colour is being read " +
+                "in the cell's body instead of in a draw lambda (budget <= $SELECTION_COMPOSITION_BUDGET)",
+        )
+    }
+
+    /**
+     * One day's scope over a [CellBodyTallyingEvents] list, rebuilt per call so a selection change
+     * genuinely re-offers the cell a different value.
+     */
+    private fun dayCellScope(isSelected: Boolean): KalendarDayScope = KalendarDayScope(
+        date = FIXTURE_DATE,
+        isSelected = isSelected,
+        isToday = false,
+        isDisabled = false,
+        events = DAY_CELL_EVENTS,
+    )
+
+    /**
+     * The day cell under a theme whose animations are *on* — the opposite of the harness the
+     * view budgets use, and the
+     * whole point: these two measurements are of what the animations cost.
+     */
+    @Composable
+    private fun DayCellHarness(content: @Composable () -> Unit) {
+        MaterialTheme(colorScheme = STABLE_SCHEME) {
+            KalendarTheme {
+                Box(modifier = Modifier.size(DAY_CELL_SIZE).testTag(DAY_CELL_TAG)) {
+                    content()
                 }
             }
         }

@@ -1,7 +1,8 @@
 # Events
 
 Every view takes the same `events: KalendarEvents` list and renders it in the way that suits its
-shape: indicator dots on the date grids, duration-sized blocks on the
+shape: indicator dots on the date grids, a continuous bar for anything
+[spanning more than one day](#multi-day-events), duration-sized blocks on the
 [Schedule views](views/schedule.md).
 
 `KalendarEvents` is a plain `typealias` for `List<KalendarEvent>`, so you build one with ordinary
@@ -20,7 +21,7 @@ everything else defaults, so existing implementations stay source-compatible as 
 | `eventDescription` | `String?` | — | Optional longer description. |
 | `startTime` | `LocalDateTime?` | `null` | When the event begins. Drives within-day ordering and Schedule layout. |
 | `endTime` | `LocalDateTime?` | `null` | When the event ends. Shown wherever duration matters. |
-| `eventColor` | `Color?` | `null` | Tints the event's indicator dot and block. Falls back to `KalendarColors.eventIndicator`. |
+| `eventColor` | `Color?` | `null` | Tints the event's indicator dot, span bar, and block. Falls back to `KalendarColors.eventIndicator`. |
 | `calendarId` | `String?` | `null` | Optional source-calendar identifier (`"work"`, `"personal"`), carried as metadata. The built-in views do not read it. |
 | `id` | `String?` | `null` | Optional stable identifier, unique across the list. Views that keep per-item state use it as their list key — see [Stable identifiers](#stable-identifiers). |
 
@@ -117,19 +118,80 @@ BasicKalendarEvent(
 )
 ```
 
-The indicator dot appears on the 12th, 13th, and 14th. On the date grids, tapping any of those days
-delivers the event in `onDateClick`'s events list.
+The event occupies the 12th, 13th, and 14th. On the date grids, tapping any of those days delivers
+the event in `onDateClick`'s events list.
 
 This works on [`KalendarWeek`](views/week.md), [`KalendarMonth`](views/month.md),
 [`KalendarYear`](views/year.md), and [`KalendarTimeline`](views/timeline.md).
 
 > **Warning:** expansion is capped at **366 days**. An `endDate` far in the future is silently
 > truncated rather than looping unbounded — so a runaway span degrades instead of hanging the UI. An
-> `endDate` earlier than `date` is ignored and the event stays single-day.
+> `endDate` equal to or earlier than `date` is not a span at all: the event stays single-day and
+> draws the ordinary dot.
+
+### How a span is drawn
+
+A multi-day event draws as a **continuous bar**, not as one dot per day. The bar runs edge to edge
+across every cell the event covers, so the cells either side of it join into one unbroken strip —
+which is what tells a three-day conference apart from three unrelated single-day events.
+
+The bar breaks at the **week boundary**, because a grid row is a week and there is nothing between
+Saturday and the following Sunday to run across. A Thursday-to-Tuesday event is therefore two bars,
+one per row. The two ends are drawn differently on purpose:
+
+| End of a bar | Drawn as | Reads as |
+|---|---|---|
+| The event's real first or last day | Inset by `spanBarEndInset` and rounded by `spanBarCornerRadius` | The event starts/finishes here |
+| Cut by the end of a row, or continuing into tomorrow | Square, flush to the cell's edge | Continues past this cell |
+
+Both insets are start/end relative rather than left/right, so the reading survives a right-to-left
+calendar. The bar keeps `eventColor` even on the **selected** day, where the dots switch to the
+selection's content colour — a bar that changed colour mid-run would read as two events.
+
+### Lanes, and the cap
+
+Overlapping spans are packed into **lanes** — horizontal rows within the strip under the day number
+— rather than stacking arbitrarily. A lane belongs to the event for its whole run, so a bar sits at
+one height across all of its days instead of climbing a staircase. Lanes are assigned once from the
+whole event list, which is why every cell in a grid reserves the same number of them and every day
+number keeps its shared baseline.
+
+The number of lanes is capped by **`spanBarMaxLanes`, which defaults to 2**. Two lanes is what a day
+cell has room for at the size a phone-width month grid produces; a third fits only on a tablet, and
+would be reserved on every calendar whether or not anything ever overlapped to use it.
+
+**A span past the last lane is not hidden.** It falls back to the indicator dot it would have drawn
+anyway, so it stays visible on each of its days and still counts towards the `+N` overflow and the
+popover behind it. What it loses is the visual continuity, not the event. Nothing is ever silently
+dropped: whatever a cell cannot show as a bar or a dot is still listed in the overflow popover.
+
+Two smaller cases worth knowing:
+
+- A cell **too short** for the whole strip drops lanes one at a time, and a very short cell (a
+  `KalendarYear` month, say) abandons the strip entirely and gives the height back to the day
+  number. A lane dropped this way is a layout decision the `+N` label — computed during composition
+  — does not know about, so the count can under-report on such a cell. The popover still lists
+  everything.
+- A `KalendarDayCellDefaults.Cell` composed **outside** any grid has no lane assignment to read, and
+  renders its multi-day events as dots.
+
+Raise the cap, or turn bars off altogether, through the [dimension tokens](theming.md):
+
+```kotlin
+KalendarTheme(dimensions = KalendarTheme.dimensions.copy(spanBarMaxLanes = 3)) {
+    KalendarMonth(selectedDate = today, events = events)
+}
+```
+
+`spanBarMaxLanes = 0` disables span bars, and every multi-day event goes back to being a dot on each
+of its days. The value must be at least `0`; `KalendarDimensions` throws on construction otherwise.
+Bar thickness, spacing, corner radius, and end inset are the `spanBarHeight`, `spanBarSpacing`,
+`spanBarCornerRadius`, and `spanBarEndInset` tokens.
 
 ## Indicator dots and the `+N` overflow
 
-On the date grids, each day cell draws one dot per event below the day number:
+On the date grids, each day cell draws one dot below the day number per event **not already drawn as
+a [span bar](#lanes-and-the-cap)**:
 
 - Dot colour comes from `eventColor`, falling back to `KalendarColors.eventIndicator`.
 - On a **selected** cell the dots switch to the day number's colour, so they stay legible against
@@ -138,6 +200,9 @@ On the date grids, each day cell draws one dot per event below the day number:
   compact `+N` label — with four events you get three dots and `+1`. Tapping that label opens a
   popover listing the day's **whole** event list; wire `onDayEventClick` to react to a tap inside it,
   and replace the popover through `KalendarDayCellDefaults.Cell`'s `overflowPopup` slot.
+
+The cap counts only the events drawn as dots. A multi-day event that got a bar lane has been shown,
+not withheld, so it is not one of them and does not push another event into the `+N`.
 
 Tune the cap per calendar:
 
@@ -154,7 +219,8 @@ The cap must be at least `1`; `KalendarViewConfig` throws on construction otherw
 Dot size, spacing, and the gap above them are [dimension tokens](theming.md)
 (`eventIndicatorSize`, `eventIndicatorSpacing`, `eventIndicatorBottomPadding`, and
 `eventIndicatorStripHeight`, which reserves the strip's height so a cell with events and one without
-put the day number on the same baseline); the `+N` text style is
+put the day number on the same baseline — the span-bar lanes are reserved above it on the same
+principle); the `+N` text style is
 `KalendarTypography.eventOverflowLabel`; the dot shape is `KalendarShapes.eventIndicator`. The label
 text itself comes from [`KalendarStrings.eventOverflowLabel`](localization.md).
 

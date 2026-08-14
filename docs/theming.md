@@ -299,6 +299,11 @@ from scratch as a one-liner.
 | `eventIndicatorSpacing` | `2.dp` | Gap between adjacent event dots. |
 | `eventIndicatorBottomPadding` | `2.dp` | Gap below the event-dot row, between it and the cell's bottom edge. |
 | `eventIndicatorStripHeight` | `14.dp` | Height reserved for the dot/overflow strip. Fixed, so a cell with events and one without put the day number on the same baseline. |
+| `spanBarHeight` | `4.dp` | Thickness of one multi-day event's [span bar](events.md#multi-day-events). |
+| `spanBarSpacing` | `2.dp` | Gap below each span bar. One lane of the stack is therefore `spanBarHeight + spanBarSpacing` tall. |
+| `spanBarCornerRadius` | `2.dp` | Corner radius on a bar's **real** ends only — the day the event starts and the day it ends. A bar cut by the end of a week stays square. |
+| `spanBarEndInset` | `3.dp` | How far a bar is pulled back from the cell edge at a real end. `0.dp` relies on the corner radius alone. |
+| `spanBarMaxLanes` | `2` | How many span bars may stack in one day cell. `0` disables span bars; must be at least `0` or the constructor throws. |
 | `headerPadding` | `PaddingValues(horizontal = 4.dp, vertical = 8.dp)` | Padding around the navigation header's contents. |
 | `headerIconSlotWidth` | `48.dp` | Width reserved on each side of the header title for icons. The title's available width is computed from it. |
 | `headerContentSpacing` | `8.dp` | Gap between the header's title and the controls beside it. |

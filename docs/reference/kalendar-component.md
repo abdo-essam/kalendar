@@ -9,8 +9,8 @@ that gives a custom cell its accessibility and click handling back.
 import com.himanshoe.kalendar.component.KalendarDayCellDefaults
 ```
 
-Everything else in this package — `KalendarGrid`, `KalendarHourGrid`, `KalendarBlockLayout`,
-`KalendarResourceGrid`, `KalendarNavigationHeader`, the keyboard-navigation plumbing — is
+Everything else in this package — `KalendarGrid` and `KalendarStaticGrid`, `KalendarBlockLayout`,
+`KalendarNavigationHeader`, the hour-grid and lane-grid parts, the keyboard-navigation plumbing — is
 `internal`. It is where measurement, positioning, paging and gestures live, and it is deliberately
 not part of the compatible API: those are the parts a view *keeps* so a slot never has to reimplement
 them.
@@ -119,7 +119,7 @@ public fun Cell(
 | `modifier` | `Modifier` | `Modifier` | Applied to the cell. |
 | `showSelectionBackground` | `Boolean` | `true` | Whether this cell draws its own selection fill. The views pass `false` when the sliding indicator is already drawing it. |
 | `monthNameFormatter` | `(Month) -> String` | English month names | Used for the accessibility description. |
-| `maxEventIndicators` | `Int` | `3` | Dots drawn before the remainder collapses into `+N`. The views pass `KalendarViewConfig.eventIndicatorCap`. |
+| `maxEventIndicators` | `Int` | `3` | Dots drawn before the remainder collapses into `+N`. Counts only the events drawn as dots — a multi-day event that got a [span bar](../events.md#multi-day-events) lane is not one of them. The views pass `KalendarViewConfig.eventIndicatorCap`. |
 | `onEventClick` | `(KalendarEvent) -> Unit` | `{}` | Called when an event is tapped inside the overflow popover. |
 | `showOverflowPopup` | `Boolean` | `true` | Whether the `+N` label opens a popover at all. `false` leaves it as a plain count. |
 | `overflowPopup` | `@Composable (KalendarDayOverflowScope) -> Unit` | `OverflowPopup` | Replaces the popover. **Last**, so trailing-lambda syntax lands on it. |
@@ -135,6 +135,11 @@ KalendarMonth(
     },
 )
 ```
+
+> **Note:** span-bar lanes are assigned by the surrounding grid from the whole event list, because a
+> lane cannot be decided from one day's events alone. A `Cell` composed **outside** any grid
+> therefore has no lane assignment to read and draws its multi-day events as dots. Inside a
+> `dayContent` slot — as above — it is still inside the grid, so the bars are drawn normally.
 
 ### `OverflowPopup`
 

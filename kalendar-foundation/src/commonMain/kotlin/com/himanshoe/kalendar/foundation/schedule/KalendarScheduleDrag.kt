@@ -178,14 +178,22 @@ public fun adjustedScheduleBlockForDrag(
  * day-column width and clamped to one grid width in either direction.
  *
  * ```kotlin
- * val shift = dayShiftForDrag(rawDeltaXPx = dragX, dayColumnWidthPx = columnWidth, columnCount = 5)
- * val landedOn = visibleDateStep(from = block.date, step = shift, visibleDaysOfWeek = workWeek)
+ * val columns = weekDates(anchor, startDayOfWeek, workWeek) // the dates the grid draws, in order
+ * val column = columns.indexOf(block.date)
+ * val shift = dayShiftForDrag(rawDeltaXPx = dragX, dayColumnWidthPx = columnWidth, columnCount = columns.size)
+ * val landedOn = columns[(column + shift).coerceIn(0, columns.lastIndex)]
  * ```
  *
  * [columnCount] is the number of day columns actually drawn, which is not always seven — a Mon–Fri
  * week has five, and clamping to six would let a drag land the block a column past the grid's edge.
- * The result counts *columns*, so a caller on a filtered week converts it to a date by stepping
- * visible days rather than by adding days.
+ *
+ * The result counts *columns*, and the clamp here is symmetric about zero rather than about the
+ * block's own column, so it bounds the shift's magnitude and nothing else: from a midweek column a
+ * full-width shift still points past the grid's edge. Resolve it by **indexing into the dates the
+ * grid draws** and clamping that index, as above — a relative walk from the block's date, whether by
+ * adding days or by stepping visible ones with
+ * [visibleDateStep][com.himanshoe.kalendar.foundation.grid.visibleDateStep], lands a flung drag in a
+ * neighbouring week instead of stopping at the edge.
  */
 public fun dayShiftForDrag(
     rawDeltaXPx: Float,

@@ -128,8 +128,9 @@ val events = listOf(
 KalendarMonth(selectedDate = today, events = events)
 ```
 
-On a grid view each event becomes an indicator dot under the day number, tinted by `eventColor`. The
-`Conference` event has an `endDate`, so its dot appears on the 14th, 15th, and 16th. On the
+On a grid view each single-day event becomes an indicator dot under the day number, tinted by
+`eventColor`. The `Conference` event has an `endDate`, so it draws instead as one continuous bar
+running across the 14th, 15th, and 16th — breaking only where a week does. On the
 [Schedule views](views/schedule.md) the same list renders as duration-sized blocks instead.
 
 Full details on the event model, multi-day spans, the `+N` overflow, and drag-to-reschedule are on

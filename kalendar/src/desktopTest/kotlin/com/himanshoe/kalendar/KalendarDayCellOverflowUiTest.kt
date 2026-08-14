@@ -17,6 +17,8 @@
 package com.himanshoe.kalendar
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -30,6 +32,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.unit.dp
 import com.himanshoe.kalendar.component.KalendarDayCellDefaults
 import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
@@ -37,7 +40,9 @@ import com.himanshoe.kalendar.slot.KalendarDayOverflowScope
 import com.himanshoe.kalendar.slot.KalendarDayScope
 import com.himanshoe.kalendar.theme.KalendarAnimations
 import com.himanshoe.kalendar.theme.KalendarTheme
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.plus
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -258,6 +263,34 @@ class KalendarDayCellOverflowUiTest {
         assertEquals("Charlie", clicked?.eventName)
     }
 
+    /**
+     * The other half of the day cell's lane-budget bug: an event the cell had no room to draw as a
+     * span bar was not counted into `+N` either, so a cell could hold four events, show three, and
+     * admit to none of them.
+     *
+     * [NO_LANE_MONTH_WIDTH] leaves a square cell tall enough for the dot strip and too short for
+     * even one span lane above it, so the conference falls back to a dot — a fourth dot on a day
+     * whose budget is three. The event count is the same one
+     * [KalendarSpanBarUiTest.aBarDoesNotSpendADotSlot] renders at full width, where the bar *is*
+     * drawn and there is deliberately no label; the two together say the label follows what the cell
+     * actually drew rather than what the grid hoped it would.
+     */
+    @Test
+    fun monthView_aSpanTheCellCannotBar_isCountedInTheOverflowLabel() {
+        val events = listOf(
+            BasicKalendarEvent(date = date, endDate = date.plus(SPAN_DAYS, DateTimeUnit.DAY), eventName = "Conference"),
+        ) + fourEvents.take(DEFAULT_DOT_BUDGET)
+        rule.setContent {
+            KalendarTheme(animations = KalendarAnimations(enabled = false)) {
+                Box(modifier = Modifier.width(NO_LANE_MONTH_WIDTH)) {
+                    KalendarMonth(selectedDate = date.plus(SELECTED_DAY_OFFSET, DateTimeUnit.DAY), events = events)
+                }
+            }
+        }
+
+        rule.onNodeWithText(ONE_HIDDEN_LABEL).assertIsDisplayed()
+    }
+
     @Test
     fun monthView_overflowLabel_opensPopupOverTheGrid() {
         rule.setContent {
@@ -276,5 +309,22 @@ class KalendarDayCellOverflowUiTest {
 
         /** The day cell's own announcement — the date plus [KalendarStrings.hasEventsSuffix]. */
         const val DAY_DESCRIPTION = "March 12, 2026, has events"
+
+        const val ONE_HIDDEN_LABEL = "+1"
+
+        /** [com.himanshoe.kalendar.component.KalendarDayCellDefaults.Cell]'s default dot budget. */
+        const val DEFAULT_DOT_BUDGET = 3
+
+        /**
+         * Seven columns of a cell too short for a span lane: the strip fits, one 6dp lane above it
+         * does not. A cell is square, so its height is this over seven less the day-cell padding.
+         */
+        val NO_LANE_MONTH_WIDTH = 280.dp
+
+        /** Long enough to be a span, short enough to stay inside one week of the fixture month. */
+        const val SPAN_DAYS = 2
+
+        /** Selects a day well clear of the span, so no cell under test draws in selection colours. */
+        const val SELECTED_DAY_OFFSET = 12
     }
 }

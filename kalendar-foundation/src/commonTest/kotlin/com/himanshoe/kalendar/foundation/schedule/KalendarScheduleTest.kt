@@ -19,6 +19,7 @@ package com.himanshoe.kalendar.foundation.schedule
 import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.LocalTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -33,6 +34,14 @@ class KalendarScheduleTest {
             eventName = name,
             startTime = LocalDateTime(day.year, day.monthNumber, day.dayOfMonth, startHour, startMinute),
             endTime = endHour?.let { LocalDateTime(day.year, day.monthNumber, day.dayOfMonth, it, 0) },
+        )
+
+    private fun timedOn(date: LocalDate, name: String, startHour: Int, endHour: Int): BasicKalendarEvent =
+        BasicKalendarEvent(
+            date = date,
+            eventName = name,
+            startTime = LocalDateTime(date, LocalTime(hour = startHour, minute = 0)),
+            endTime = LocalDateTime(date, LocalTime(hour = endHour, minute = 0)),
         )
 
     @Test
@@ -195,6 +204,41 @@ class KalendarScheduleTest {
             4,
             dayShiftForDrag(rawDeltaXPx = 1_000f, dayColumnWidthPx = 10, columnCount = 5),
             "a five-column week allows at most four columns of travel",
+        )
+    }
+
+    @Test
+    fun scheduleBlocks_previousDayEvent_isLaidOutRatherThanFiltered() {
+        val yesterday = timedOn(date = LocalDate(2026, 8, 11), name = "Yesterday", startHour = 9, endHour = 10)
+        val today = timed(name = "Today", startHour = 9, endHour = 10)
+
+        val blocks = scheduleBlocks(events = listOf(yesterday, today), date = day)
+
+        assertEquals(
+            listOf("Yesterday", "Today"),
+            blocks.map { it.event.eventName },
+            "date positions and clamps events, it does not select them — narrowing is the caller's",
+        )
+        val stray = blocks.first()
+        assertEquals(0, stray.startMinutes, "the cross-midnight clamp opens an unnarrowed event at midnight")
+        assertEquals(10 * 60, stray.endMinutes)
+        assertTrue(
+            blocks.all { it.columns == 2 },
+            "an unnarrowed event does not merely appear, it takes half of the real event's width",
+        )
+    }
+
+    @Test
+    fun scheduleBlocks_nextDayEvent_isLaidOutRatherThanFiltered() {
+        val tomorrow = timedOn(date = LocalDate(2026, 8, 13), name = "Tomorrow", startHour = 9, endHour = 10)
+
+        val block = scheduleBlocks(events = listOf(tomorrow), date = day).single()
+
+        assertEquals(9 * 60, block.startMinutes)
+        assertEquals(
+            MINUTES_PER_DAY,
+            block.endMinutes,
+            "an event ending after date is clamped to midnight, however far after it ends",
         )
     }
 

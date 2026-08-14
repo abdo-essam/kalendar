@@ -1,39 +1,3 @@
-public final class com/himanshoe/kalendar/ComposableSingletons$KalendarAgendaKt {
-	public static final field INSTANCE Lcom/himanshoe/kalendar/ComposableSingletons$KalendarAgendaKt;
-	public fun <init> ()V
-	public final fun getLambda$-1207596249$kalendar ()Lkotlin/jvm/functions/Function3;
-	public final fun getLambda$1173471440$kalendar ()Lkotlin/jvm/functions/Function2;
-}
-
-public final class com/himanshoe/kalendar/ComposableSingletons$KalendarDatePickerKt {
-	public static final field INSTANCE Lcom/himanshoe/kalendar/ComposableSingletons$KalendarDatePickerKt;
-	public fun <init> ()V
-	public final fun getLambda$-1928699493$kalendar ()Lkotlin/jvm/functions/Function3;
-	public final fun getLambda$1430128617$kalendar ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$1667994861$kalendar ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$69888015$kalendar ()Lkotlin/jvm/functions/Function2;
-}
-
-public final class com/himanshoe/kalendar/ComposableSingletons$KalendarResourceViewKt {
-	public static final field INSTANCE Lcom/himanshoe/kalendar/ComposableSingletons$KalendarResourceViewKt;
-	public fun <init> ()V
-	public final fun getLambda$-1177536993$kalendar ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$-1969614294$kalendar ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$-405098812$kalendar ()Lkotlin/jvm/functions/Function3;
-	public final fun getLambda$-795919546$kalendar ()Lkotlin/jvm/functions/Function3;
-}
-
-public final class com/himanshoe/kalendar/ComposableSingletons$KalendarScheduleKt {
-	public static final field INSTANCE Lcom/himanshoe/kalendar/ComposableSingletons$KalendarScheduleKt;
-	public fun <init> ()V
-	public final fun getLambda$-1018700947$kalendar ()Lkotlin/jvm/functions/Function3;
-	public final fun getLambda$-113986344$kalendar ()Lkotlin/jvm/functions/Function3;
-	public final fun getLambda$-1811737798$kalendar ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$-1942301945$kalendar ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$-1948040134$kalendar ()Lkotlin/jvm/functions/Function3;
-	public final fun getLambda$1159254539$kalendar ()Lkotlin/jvm/functions/Function3;
-}
-
 public final class com/himanshoe/kalendar/KalendarAgendaDefaults {
 	public static final field $stable I
 	public static final field INSTANCE Lcom/himanshoe/kalendar/KalendarAgendaDefaults;
@@ -158,31 +122,6 @@ public final class com/himanshoe/kalendar/KalendarYearKt {
 	public static final fun KalendarYear (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lcom/himanshoe/kalendar/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
 }
 
-public final class com/himanshoe/kalendar/component/ComposableSingletons$KalendarDayCellKt {
-	public static final field INSTANCE Lcom/himanshoe/kalendar/component/ComposableSingletons$KalendarDayCellKt;
-	public fun <init> ()V
-	public final fun getLambda$-1711256978$kalendar ()Lkotlin/jvm/functions/Function3;
-}
-
-public final class com/himanshoe/kalendar/component/ComposableSingletons$KalendarGridKt {
-	public static final field INSTANCE Lcom/himanshoe/kalendar/component/ComposableSingletons$KalendarGridKt;
-	public fun <init> ()V
-	public final fun getLambda$1915976932$kalendar ()Lkotlin/jvm/functions/Function3;
-	public final fun getLambda$683911016$kalendar ()Lkotlin/jvm/functions/Function3;
-}
-
-public final class com/himanshoe/kalendar/component/ComposableSingletons$KalendarNavigationHeaderKt {
-	public static final field INSTANCE Lcom/himanshoe/kalendar/component/ComposableSingletons$KalendarNavigationHeaderKt;
-	public fun <init> ()V
-	public final fun getLambda$-1095848474$kalendar ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$-1335279466$kalendar ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$-644301726$kalendar ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$1150706534$kalendar ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$1185447087$kalendar ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$1662120481$kalendar ()Lkotlin/jvm/functions/Function3;
-	public final fun getLambda$351984420$kalendar ()Lkotlin/jvm/functions/Function2;
-}
-
 public final class com/himanshoe/kalendar/component/KalendarDayCellDefaults {
 	public static final field $stable I
 	public static final field INSTANCE Lcom/himanshoe/kalendar/component/KalendarDayCellDefaults;
@@ -279,7 +218,6 @@ public final class com/himanshoe/kalendar/state/KalendarTimelineState {
 	public final fun getStartDayOfWeek ()Lkotlinx/datetime/DayOfWeek;
 	public final fun getTimeSource ()Lcom/himanshoe/kalendar/foundation/datetime/KalendarTimeSource;
 	public final fun getVisibleDate ()Lkotlinx/datetime/LocalDate;
-	public final fun setTimeSource (Lcom/himanshoe/kalendar/foundation/datetime/KalendarTimeSource;)V
 }
 
 public final class com/himanshoe/kalendar/state/KalendarTimelineStateKt {
@@ -299,7 +237,6 @@ public final class com/himanshoe/kalendar/state/KalendarViewState {
 	public final fun getStartDayOfWeek ()Lkotlinx/datetime/DayOfWeek;
 	public final fun getTimeSource ()Lcom/himanshoe/kalendar/foundation/datetime/KalendarTimeSource;
 	public final fun getVisibleDate ()Lkotlinx/datetime/LocalDate;
-	public final fun setTimeSource (Lcom/himanshoe/kalendar/foundation/datetime/KalendarTimeSource;)V
 }
 
 public final class com/himanshoe/kalendar/state/KalendarViewStateKt {

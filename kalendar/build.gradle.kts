@@ -115,13 +115,68 @@ compose.resources {
     generateResClass = auto
 }
 
+// The Compose compiler hoists every capture-free composable lambda into a ComposableSingletons$*
+// holder, whose accessors are named getLambda$<hash of the lambda's source position>. They are
+// public only because the compiler has nowhere private to put them: no consumer can name one, and
+// none of it is a compatibility promise. Left in, seven such classes and 26 accessors sat in each
+// dump and re-hashed whenever an unrelated edit moved a lambda — noise a real ABI change already
+// hid inside once.
+//
+// The names must be spelled out: this validator matches ignoredClasses exactly, not by prefix or
+// glob. A new file with a capture-free composable lambda therefore adds a holder that belongs here,
+// and KalendarApiInvariantsTest fails until it is added rather than letting the noise creep back.
+apiValidation {
+    ignoredClasses.addAll(
+        listOf(
+            "com.himanshoe.kalendar.ComposableSingletons\$KalendarAgendaKt",
+            "com.himanshoe.kalendar.ComposableSingletons\$KalendarDatePickerKt",
+            "com.himanshoe.kalendar.ComposableSingletons\$KalendarResourceViewKt",
+            "com.himanshoe.kalendar.ComposableSingletons\$KalendarScheduleKt",
+            "com.himanshoe.kalendar.component.ComposableSingletons\$KalendarDayCellKt",
+            "com.himanshoe.kalendar.component.ComposableSingletons\$KalendarGridKt",
+            "com.himanshoe.kalendar.component.ComposableSingletons\$KalendarNavigationHeaderKt",
+        ),
+    )
+}
+
 tasks.withType<Test>().configureEach {
     systemProperty(
         "goldenDir",
         layout.projectDirectory.dir("src/desktopTest/resources/goldens").asFile.absolutePath,
     )
     systemProperty("updateGoldens", providers.gradleProperty("updateGoldens").getOrElse("false"))
+    // The checked-in ABI dumps, so a test can hold the API invariants this project relies on.
+    systemProperty("apiDumpDir", layout.projectDirectory.dir("api").asFile.absolutePath)
+    systemProperty(
+        "foundationApiDumpDir",
+        rootProject.layout.projectDirectory.dir("kalendar-foundation/api").asFile.absolutePath,
+    )
+    systemProperty(
+        "syncApiDumpDir",
+        rootProject.layout.projectDirectory.dir("kalendar-sync/api").asFile.absolutePath,
+    )
 }
+// Everything in :kalendar:desktopTest except the three image comparisons is portable, so the task
+// runs everywhere and only the comparisons are conditional. CI used to skip the whole task for
+// their sake, which meant ~209 tests — every drag, keyboard-navigation, accessibility and layout
+// assertion in the library — ran nowhere at all.
+//
+// Goldens are rasterised on macOS and text rasterises differently elsewhere, so off macOS they
+// would fail on font metrics rather than on the library. Override in either direction with
+// -PkalendarGoldenTests=true|false.
+val runGoldenImageTests = providers.gradleProperty("kalendarGoldenTests")
+    .map(String::toBoolean)
+    .orElse(providers.systemProperty("os.name").map { it.startsWith("Mac") })
+    .get()
+
+tasks.named<Test>("desktopTest") {
+    useJUnit {
+        if (!runGoldenImageTests) {
+            excludeCategories("com.himanshoe.kalendar.GoldenImageTests")
+        }
+    }
+}
+
 extensions.configure<LibraryExtension> {
     namespace = "com.himanshoe.kalendar"
     compileSdk = 36

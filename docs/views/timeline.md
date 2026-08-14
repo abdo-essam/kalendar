@@ -44,7 +44,7 @@ fun Timeline() {
 | `selectedDate` | `LocalDate` | — | Default single-selection highlight, and the month initially at the top of the list when `state` is left at its default. Superseded by `selectedDates` when that is passed. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost container. |
 | `state` | `KalendarTimelineState` | `rememberKalendarTimelineState(selectedDate)` | Scroll state. Hoist it to read `visibleDate` or scroll from your own UI. |
-| `events` | `KalendarEvents` | `emptyList()` | Shown as indicator dots on day cells. |
+| `events` | `KalendarEvents` | `emptyList()` | Shown as indicator dots on day cells, and as span bars for multi-day events. |
 | `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | The highlighted dates. Hoist your own set for multi-select or range. |
 | `onDateClick` | `(date: LocalDate, events: List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped, with that date's events. |
 | `onDayEventClick` | `((event: KalendarEvent) -> Unit)?` | `null` | Called when an individual event is tapped inside a day cell's `+N` overflow popover. |

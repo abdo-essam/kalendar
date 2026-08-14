@@ -197,6 +197,47 @@ class KalendarSpanBarUiTest {
         )
     }
 
+    /**
+     * The invariant the whole feature rests on: **every event on a day is drawn as exactly one of a
+     * bar or a dot, at every cell size** — never as neither.
+     *
+     * The lane budget is a function of the cell's *height*, and a cell is as tall as it is wide, so
+     * the sweep is over widths: [LANE_BUDGET_SWEEP] runs from a cell that affords both lanes, through
+     * one that affords a single lane, to one that affords none, down to one with no room for the
+     * strip at all. A cell that drew a bar for the first span and nothing whatsoever for the second
+     * is what this forbids, and it is what a month grid at phone width used to produce.
+     *
+     * [DOT_INK]'s single-day event is the vacuity guard. The smallest cell here drops the strip
+     * whole and draws no indicator of any kind, and asserting that the spans are missing from a
+     * frame like that would prove nothing — so a frame with no dot ink in it is not asserted on, and
+     * [assertTrue] at the end insists that some frame did carry it.
+     */
+    @Test
+    fun atEveryCellSize_aSpanTheCellCannotBar_isDrawnAsADotInstead() {
+        val solo = BasicKalendarEvent(
+            date = march(WEDNESDAY_DAY),
+            eventName = "Solo",
+            eventColor = DOT_INK,
+        )
+        var asserted = 0
+        LANE_BUDGET_SWEEP.forEach { width ->
+            val frame = renderMonth(listOf(conference, workshop, solo), width = width)
+            if (frame.bandsOf(DOT_INK).isEmpty()) {
+                return@forEach
+            }
+            asserted++
+            assertTrue(
+                frame.bandsOf(LANE_ONE_INK).isNotEmpty(),
+                "at width $width the first span was drawn as neither a bar nor a dot",
+            )
+            assertTrue(
+                frame.bandsOf(LANE_TWO_INK).isNotEmpty(),
+                "at width $width the second span was drawn as neither a bar nor a dot",
+            )
+        }
+        assertTrue(asserted > 1, "only $asserted of the swept widths drew any indicator at all")
+    }
+
     /** Bars and the single-day dots the cell has always drawn share the strip, bars above. */
     @Test
     fun spanBarsAndSingleDayDots_coexistInOneCell() {
@@ -536,6 +577,21 @@ class KalendarSpanBarUiTest {
 
         /** Narrow enough that the indicator strip is more than half a cell and has to be dropped. */
         const val CRAMPED_WIDTH = 210
+
+        /** Wide enough for the dot strip, too short by 2px for even one span lane above it. */
+        const val NO_LANE_WIDTH = 280
+
+        /** Room for the dot strip and exactly one of the two lanes the fixtures ask for. */
+        const val ONE_LANE_WIDTH = 350
+
+        /**
+         * The four cell sizes the lane budget behaves differently at, widest first: two lanes, one
+         * lane, none, and no strip at all. A cell is square, so a width fixes a height — at density
+         * 1 a column of [WIDTH]/[COLUMNS] leaves that minus
+         * [com.himanshoe.kalendar.theme.KalendarDimensions.dayCellPadding] twice for the strip to
+         * fit in.
+         */
+        val LANE_BUDGET_SWEEP = intArrayOf(WIDTH, ONE_LANE_WIDTH, NO_LANE_WIDTH, CRAMPED_WIDTH)
 
         /** Column indices within a Monday-first week. */
         const val MONDAY = 0

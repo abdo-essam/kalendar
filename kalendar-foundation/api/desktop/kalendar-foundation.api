@@ -31,7 +31,6 @@ public final class com/himanshoe/kalendar/foundation/datetime/KalendarTimeSource
 
 public final class com/himanshoe/kalendar/foundation/event/BasicKalendarEvent : com/himanshoe/kalendar/foundation/event/KalendarEvent {
 	public static final field $stable I
-	public static final field HASH_FACTOR I
 	public synthetic fun <init> (Lkotlinx/datetime/LocalDate;Ljava/lang/String;Ljava/lang/String;Lkotlinx/datetime/LocalDateTime;Lkotlinx/datetime/LocalDateTime;Landroidx/compose/ui/graphics/Color;Ljava/lang/String;Lkotlinx/datetime/LocalDate;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Lkotlinx/datetime/LocalDate;Ljava/lang/String;Ljava/lang/String;Lkotlinx/datetime/LocalDateTime;Lkotlinx/datetime/LocalDateTime;Landroidx/compose/ui/graphics/Color;Ljava/lang/String;Lkotlinx/datetime/LocalDate;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun copy-FV1VA1c (Lkotlinx/datetime/LocalDate;Ljava/lang/String;Ljava/lang/String;Lkotlinx/datetime/LocalDateTime;Lkotlinx/datetime/LocalDateTime;Landroidx/compose/ui/graphics/Color;Ljava/lang/String;Lkotlinx/datetime/LocalDate;Ljava/lang/String;)Lcom/himanshoe/kalendar/foundation/event/BasicKalendarEvent;

@@ -43,7 +43,7 @@ fun MonthGrid() {
 | `selectedDate` | `LocalDate` | — | Default single-selection highlight, and the initially visible month when `state` is left at its default. Superseded by `selectedDates` when that is passed. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost container. |
 | `state` | `KalendarViewState` | `rememberKalendarMonthState(selectedDate)` | Navigation state. Hoist it to read `visibleDate` or navigate from your own UI. |
-| `events` | `KalendarEvents` | `emptyList()` | Shown as indicator dots on day cells. |
+| `events` | `KalendarEvents` | `emptyList()` | Shown as indicator dots on day cells, and as span bars for multi-day events. |
 | `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | The highlighted dates. Hoist your own set for multi-select or range. |
 | `onDateClick` | `(date: LocalDate, events: List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped, with that date's events. |
 | `onDayEventClick` | `((event: KalendarEvent) -> Unit)?` | `null` | Called when an individual event is tapped inside a day cell's `+N` overflow popover. |
@@ -190,9 +190,19 @@ and drag-to-select can both be enabled at once.
 
 ## Events on the grid
 
-Each day cell draws one dot per event, coloured by `KalendarEvent.eventColor` and falling back to
-`KalendarColors.eventIndicator`. Past `KalendarViewConfig.eventIndicatorCap` (3 by default) the
-remainder collapses into a compact `+N` label.
+Each day cell draws one dot per single-day event, coloured by `KalendarEvent.eventColor` and falling
+back to `KalendarColors.eventIndicator`. Past `KalendarViewConfig.eventIndicatorCap` (3 by default)
+the remainder collapses into a compact `+N` label.
 
-Multi-day events (`KalendarEvent.endDate`) appear on every date they span. See
-[Events](../events.md).
+A multi-day event (`KalendarEvent.endDate`) draws as a **continuous bar** across the days it covers,
+not as a dot on each of them. The bar runs edge to edge so adjacent cells join, and it breaks at the
+week boundary — a Thursday-to-Tuesday event is two bars, one per grid row. Its real start and end
+are inset and rounded; an end that is only the row running out stays square and flush, which is what
+distinguishes an event that finished on Saturday from one that continues into Sunday.
+
+Overlapping spans pack into lanes, capped at `KalendarDimensions.spanBarMaxLanes` (**2** by
+default). A span that does not fit the cap is not hidden — it falls back to the indicator dot and
+still reaches the `+N` overflow. Bar height, spacing, corner radius, end inset, and the lane cap are
+all [dimension tokens](../theming.md); `spanBarMaxLanes = 0` turns bars off entirely.
+
+See [Events](../events.md#multi-day-events) for the full rules.

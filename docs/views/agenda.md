@@ -63,7 +63,10 @@ from `KalendarEvent.eventColor`, the event name, its `eventDescription` when it 
 `startTime` — simply has no time line.
 
 Within a day, events are ordered by `startTime` with all-day events last. Multi-day events (those
-with an `endDate`) appear under every date they occupy, exactly as they do on the grid views.
+with an `endDate`) get a card under every date they occupy. The agenda is a list rather than a grid,
+so there is nothing here for the grid views'
+[span bar](../events.md#multi-day-events) to run across — the event simply appears on each of its
+days.
 
 ## Which `KalendarViewConfig` fields matter
 
@@ -93,6 +96,11 @@ BasicKalendarEvent(
 
 Without an `id` the key falls back to the event's position within its date, which is fine for a list
 that never changes and wrong for one that does.
+
+Mixing the two on the same day is safe: the two fallbacks live in separate namespaces, so an event
+carrying the `id` `"1"` cannot collide with an id-less event sitting at index 1. That mix is the
+ordinary case — synced events arrive with ids and locally drafted ones do not — and a `LazyColumn`
+throws on a duplicate key rather than degrading, so the collision used to crash the whole agenda.
 
 ## Replacing what it draws
 

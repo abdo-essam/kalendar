@@ -46,7 +46,7 @@ fun YearOverview() {
 | `selectedDate` | `LocalDate` | — | Default single-selection highlight, and the initially visible year when `state` is left at its default. Superseded by `selectedDates` when that is passed. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost container. |
 | `state` | `KalendarViewState` | `rememberKalendarYearState(selectedDate)` | Navigation state. Hoist it to read `visibleDate` or navigate from your own UI. |
-| `events` | `KalendarEvents` | `emptyList()` | Shown as indicator dots on day cells, across all twelve grids. |
+| `events` | `KalendarEvents` | `emptyList()` | Shown as indicator dots on day cells, and as span bars for multi-day events, across all twelve grids. |
 | `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | The highlighted dates. Hoist your own set for multi-select or range. |
 | `onDateClick` | `(date: LocalDate, events: List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped, with that date's events. |
 | `onDayEventClick` | `((event: KalendarEvent) -> Unit)?` | `null` | Called when an individual event is tapped inside a day cell's `+N` overflow popover. |

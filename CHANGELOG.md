@@ -164,6 +164,38 @@ migrations — they were internal, and are now supported.
   them.
 
 ### Added
+- **Multi-day events draw as one continuous bar, not as loose dots.** A three-day conference used to
+  render as three dots on three days, which is exactly what three unrelated single-day events look
+  like — the month grid had no way to say "this is one thing that lasts". An event with an `endDate`
+  now draws a bar running edge to edge across every day it covers, breaking at the week boundary the
+  way a calendar has to, so a Thursday-to-Tuesday event is two bars. The event's real start and end
+  are inset and rounded; an end that is only the row running out stays square and flush, which is
+  what distinguishes a conference that finished on Saturday from one that continues into Sunday.
+  Overlapping spans pack into lanes by the same greedy interval sweep the schedule grid already uses
+  for overlapping blocks, so a bar holds one height for its whole run instead of climbing a
+  staircase. Five dimension tokens control it: `KalendarDimensions.spanBarHeight` (`4.dp`),
+  `spanBarSpacing` (`2.dp`), `spanBarCornerRadius` (`2.dp`), `spanBarEndInset` (`3.dp`) and
+  `spanBarMaxLanes` (`2`). **A span past the last lane is not hidden** — it falls back to the
+  indicator dot it drew before and still reaches the `+N` overflow, so the cap costs continuity, not
+  the event. `spanBarMaxLanes = 0` turns bars off entirely and restores the old rendering. The
+  property this could not break, and did not: every day number in a grid sits on one baseline
+  whatever its day holds — measured across the week of the 9th at 221, 222, 221, 221, 222, 222.
+- **API invariants are enforced against the checked-in ABI dumps, not against memory.**
+  `KalendarApiInvariantsTest` asserts four rules that were previously obeyed by discipline alone and
+  are exactly the kind quietly broken by a one-line change that looks harmless. (1) **No `data class`
+  reaches the public API** — a `data class` compiles one `componentN` per property plus a `copy`
+  whose name carries a signature hash, so adding a property breaks every consumer at link time;
+  `KalendarEvent` has gained two properties since 1.0, so this is live rather than hypothetical, and
+  it is why eight public types hand-write `copy`/`equals`/`hashCode`/`toString`. (2) **No composable
+  takes a `State<T>` or `MutableState<T>` parameter** — it makes a plain value impossible to pass and
+  leaks a storage decision into a signature, and a `() -> T` buys the same deferral without the
+  coupling. (3) **`kalendar-foundation`'s ABI references nothing from the UI module**, so the
+  engine stays reachable without it. (4) **No compiler-generated `ComposableSingletons$*` lambda
+  holders appear in a dump** — their accessors carry a hash of the lambda's source position and
+  re-hash whenever an unrelated edit moves a lambda, which is how a real ABI change once went through
+  review unnoticed; they are excluded via `ignoredClasses`, and this notices when a new one appears.
+  Because `apiCheck` already guarantees the dumps match the source, asserting against the dumps is
+  the same as asserting against the API, and costs nothing at runtime.
 - **`KalendarEvent.id`** — an optional stable identifier (`null` by default, so existing
   implementations are unaffected). Views that keep per-item state use it as their list key, and it
   gives consumers a way to look an event back up instead of matching on name and date.
@@ -279,6 +311,36 @@ migrations — they were internal, and are now supported.
   (ktlint-based) ruleset to read.
 
 ### Fixed
+- **`KalendarGrid` no longer writes snapshot state from the layout phase.** It tracked where each day
+  cell landed in a `mutableStateMapOf` written from `onGloballyPositioned` and read from its own
+  composable body to position the selection indicator — a cross-phase back-write that cost one whole
+  extra composition of the grid per page composed. The map is a plain `remember { mutableMapOf() }`
+  now, and no reader is in composition: the gesture code reads it from a pointer callback, the
+  overlays from their layout lambdas, and the indicator's target is computed inside a `snapshotFlow`
+  in the effect that drives its animator. The one thing a plain map gives up — telling a reader the
+  cells have moved — comes back as a single `Int` revision bumped **only** on a placement that
+  actually changed; bumping it on every callback would invalidate the placement that produced the
+  callback and the grid would lay itself out forever. Measured on a March 2026 month: snapshot-map
+  writes on a first frame **37 → 0**, grid-body compositions **2 → 1**, grid content recompositions
+  during a six-move drag **7 → 0**. `layingOutAMonthGridWritesNoSnapshotMap` guards it by counting
+  the cause rather than the symptom, since a lazy grid memoizes item content by key and the second
+  composition walked no cells to observe. Two earlier claims about this were wrong and are corrected
+  here: the writes did **not** recur on every layout pass (`SnapshotStateMap.put` of an equal value
+  is a no-op, so the real cost was one extra whole composition per page, not per-frame churn), and
+  there was never a "404 writes for a year" — `KalendarYear` composes through `KalendarStaticGrid`,
+  which never tracked coordinates at all; 404 was the *cell* count of the old eager year column.
+  The naive version of this fix moves the reads to the layout phase and silently stops the indicator
+  animating, because the `LaunchedEffect` key is itself a composition read — the first-paint-flash
+  and post-offset test-tag tests are what keep that honest.
+- **`KalendarAgenda` no longer collides an event `id` with an item index.** Items were keyed
+  `"event-$day-${event.id ?: index}"`, which put the id space and the index space in one space: an
+  event carrying the `id` `"1"` beside an id-less event sitting at index 1 produced identical keys,
+  and a `LazyColumn` throws on a duplicate rather than degrading, so the whole agenda crashed. The
+  mix that triggers it is ordinary rather than exotic — events synced from a device arrive with ids
+  and locally drafted ones do not, so any consumer doing both on one day hit it. The two fallbacks
+  are namespaced apart now (`id-$id` against `at-$index`), which is sufficient because neither prefix
+  can be produced by the other. Found by an adversarial review probe rather than by any existing
+  test; the probe is kept as a regression test, with a second case one step along.
 - **`KalendarAgenda` no longer crashes on duplicate events.** Its list keyed items on
   `"${date}_${eventName}_${startTime}"`, so two all-day events with the same name on one date
   produced identical keys and `SaveableStateHolder` threw `IllegalArgumentException` — reliably,

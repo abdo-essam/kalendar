@@ -52,8 +52,17 @@ public class KalendarTimelineState internal constructor(
     internal val pager: KalendarPager,
     timeSource: KalendarTimeSource,
 ) {
-    /** Where this state reads "today" from. See [KalendarViewState.timeSource]. */
-    public var timeSource: KalendarTimeSource by mutableStateOf(timeSource)
+    private var currentTimeSource: KalendarTimeSource by mutableStateOf(timeSource)
+
+    /** Where this state reads "today" from. Read-only for the reason [KalendarViewState.timeSource] is. */
+    public val timeSource: KalendarTimeSource get() = currentTimeSource
+
+    /** The factory's write-back, guarded exactly as [KalendarViewState.updateTimeSource] is. */
+    internal fun updateTimeSource(timeSource: KalendarTimeSource) {
+        if (currentTimeSource != timeSource) {
+            currentTimeSource = timeSource
+        }
+    }
 
     /** The first day of each week column, as passed to [rememberKalendarTimelineState]. */
     public val startDayOfWeek: DayOfWeek get() = pager.startDayOfWeek
@@ -121,11 +130,6 @@ public fun rememberKalendarTimelineState(
             timeSource = timeSource,
         )
     }
-    // Guarded exactly as KalendarViewState's writeback is, and for the same reason.
-    SideEffect {
-        if (state.timeSource != timeSource) {
-            state.timeSource = timeSource
-        }
-    }
+    SideEffect { state.updateTimeSource(timeSource) }
     return state
 }

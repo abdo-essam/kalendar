@@ -51,9 +51,13 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # :kalendar:desktopTest carries the library's Compose UI tests. Its three golden-image
+      # comparisons are categorised GoldenImageTests and dropped off macOS, so they do not fail
+      # a release on Linux font metrics — see kalendar/build.gradle.kts.
       - name: Run checks (tests, detekt, apiCheck)
         run: |
-          ./gradlew :kalendar-foundation:desktopTest :kalendar-sync:desktopTest :kalendar:testDebugUnitTest \
+          ./gradlew :kalendar-foundation:desktopTest :kalendar-sync:desktopTest \
+            :kalendar:testDebugUnitTest :kalendar:desktopTest \
             :kalendar-foundation:detekt :kalendar:detekt :kalendar-sync:detekt \
             :kalendar-foundation:apiCheck :kalendar:apiCheck :kalendar-sync:apiCheck
 

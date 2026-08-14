@@ -58,7 +58,7 @@ drag-to-reschedule.
 | `selectedDate` | `LocalDate` | — | Default single-selection highlight, and the initially visible month when `state` is left at its default. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost container. |
 | `state` | `KalendarViewState` | `rememberKalendarMonthState(selectedDate)` | Navigation state. |
-| `events` | `KalendarEvents` | `emptyList()` | Rendered as indicator dots on day cells. |
+| `events` | `KalendarEvents` | `emptyList()` | Rendered as indicator dots on day cells, and as span bars for multi-day events. |
 | `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | The highlighted dates. Hoist your own for multi-select or range. |
 | `onDateClick` | `(LocalDate, List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped, with that date's events. |
 | `onDayEventClick` | `((KalendarEvent) -> Unit)?` | `null` | Called when an individual event is tapped inside the cell's `+N` overflow popup. |

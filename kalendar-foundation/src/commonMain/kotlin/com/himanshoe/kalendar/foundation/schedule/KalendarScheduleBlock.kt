@@ -95,10 +95,20 @@ public class KalendarScheduleBlock(
 }
 
 /**
- * Lays out the timed events (those with a non-null [KalendarEvent.startTime]) of [date] as
- * schedule blocks: minute ranges clamped to the day (events spanning midnight are truncated at
- * the day's edges), a missing [KalendarEvent.endTime] defaulting to one hour, and overlapping
- * events packed greedily into side-by-side columns per overlap cluster.
+ * Lays out [events] — already narrowed to the day being drawn — as schedule blocks: minute ranges
+ * clamped to [date] (events spanning midnight are truncated at the day's edges), a missing
+ * [KalendarEvent.endTime] defaulting to one hour, and overlapping events packed greedily into
+ * side-by-side columns per overlap cluster. Only events carrying a [KalendarEvent.startTime] are
+ * laid out — an untimed one is all-day, and has no position on an hour grid.
+ *
+ * [date] positions and clamps [events]; it does not select them. Hand this a whole month and every
+ * event in it is drawn on that one day, each dividing the others' width into overlap columns, so
+ * narrow first — with
+ * [byDateExpandingSpans][com.himanshoe.kalendar.foundation.event.byDateExpandingSpans] or an index
+ * of your own. Narrowing stays the caller's because the rule is the caller's: which days a
+ * multi-day event occupies is a question about [KalendarEvent.date] and [KalendarEvent.endDate],
+ * not about the minute geometry computed here, and a second answer to it living in this function
+ * could only disagree with the first. [resourceBlocks] states the same precondition.
  *
  * This is the whole of a day view's layout. Everything after it is arithmetic on the result:
  *
@@ -120,6 +130,12 @@ public class KalendarScheduleBlock(
  * a drawing concern ([blockPlacement]), and truncating here would make a drag report the clipped
  * time rather than the event's own. Events that do not intersect [window] at all are dropped, so the
  * result is exactly what the grid draws and every block the caller is handed has a hit target.
+ *
+ * @param events The day's events, timed and untimed; only the timed ones become blocks.
+ * @param date The day being drawn, used to clamp events that begin before it or end after it — never
+ *   to decide which of [events] belong on it.
+ * @param window The visible slice of the day; events lying entirely outside it are dropped, so
+ *   overlap clusters are packed from what is actually on screen.
  */
 public fun scheduleBlocks(
     events: List<KalendarEvent>,

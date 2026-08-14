@@ -36,6 +36,13 @@ class KalendarScheduleWeekUiTest {
     @Suppress("MagicNumber")
     private val tuesday = LocalDate(2026, 3, 10)
 
+    /**
+     * Third column of the Mon–Sun week the [tuesday] fixture opens on: two from the left edge, four
+     * from the right, so a shift clamped only to one grid width — six columns — overshoots both.
+     */
+    @Suppress("MagicNumber")
+    private val wednesday = LocalDate(2026, 3, 11)
+
     private fun timedEvent(name: String, date: LocalDate, startHour: Int, endHour: Int): BasicKalendarEvent =
         BasicKalendarEvent(
             date = date,
@@ -90,6 +97,64 @@ class KalendarScheduleWeekUiTest {
         assertEquals(LocalDateTime(2026, 3, 11, 10, 0), reportedEnd, "duration must be preserved")
     }
 
+    /**
+     * A drag that overshoots must stop at the grid's edge, and the edge is measured from the block.
+     *
+     * The day shift is clamped to one grid width — six columns — but it is applied relative to the
+     * block's own day, so from Wednesday six columns landed on the *next* week's Tuesday: a day with
+     * no column in this grid, reported to the caller as if the user had dropped the event there.
+     */
+    @Test
+    fun weekGrid_dragPastTheEndFromAMidweekDay_stopsAtTheLastVisibleColumn() {
+        var reportedStart: LocalDateTime? = null
+        rule.setContent {
+            KalendarScheduleWeek(
+                state = rememberKalendarWeekState(initialDate = tuesday),
+                events = listOf(timedEvent(name = "Sync", date = wednesday, startHour = 9, endHour = 10)),
+                onEventTimeChange = { _, newStart, _ -> reportedStart = newStart },
+            )
+        }
+        rule.onNodeWithText("Sync").performTouchInput {
+            down(center)
+            advanceEventTime(LONG_PRESS_MS)
+            moveBy(Offset(width * OVERSHOOT_DRAG_FACTOR, 0f))
+            up()
+        }
+        rule.waitForIdle()
+
+        assertEquals(
+            LocalDateTime(2026, 3, 15, 9, 0),
+            reportedStart,
+            "Wednesday dragged right past the edge lands on Sunday, the last column of this week",
+        )
+    }
+
+    /** The mirror of [weekGrid_dragPastTheEndFromAMidweekDay_stopsAtTheLastVisibleColumn]. */
+    @Test
+    fun weekGrid_dragPastTheStartFromAMidweekDay_stopsAtTheFirstVisibleColumn() {
+        var reportedStart: LocalDateTime? = null
+        rule.setContent {
+            KalendarScheduleWeek(
+                state = rememberKalendarWeekState(initialDate = tuesday),
+                events = listOf(timedEvent(name = "Sync", date = wednesday, startHour = 9, endHour = 10)),
+                onEventTimeChange = { _, newStart, _ -> reportedStart = newStart },
+            )
+        }
+        rule.onNodeWithText("Sync").performTouchInput {
+            down(center)
+            advanceEventTime(LONG_PRESS_MS)
+            moveBy(Offset(-width * OVERSHOOT_DRAG_FACTOR, 0f))
+            up()
+        }
+        rule.waitForIdle()
+
+        assertEquals(
+            LocalDateTime(2026, 3, 9, 9, 0),
+            reportedStart,
+            "Wednesday dragged left past the edge lands on Monday, the first column of this week",
+        )
+    }
+
     @Test
     fun weekGrid_overlappingEvents_bothRenderSideBySide() {
         rule.setContent {
@@ -108,5 +173,8 @@ class KalendarScheduleWeekUiTest {
     private companion object {
         const val LONG_PRESS_MS = 1_000L
         const val ONE_COLUMN_DRAG_FACTOR = 1.1f
+
+        /** Far enough past the grid that the shift is clamped whatever the measured column width is. */
+        const val OVERSHOOT_DRAG_FACTOR = 20f
     }
 }

@@ -69,7 +69,6 @@ import com.himanshoe.kalendar.component.KalendarNowLine
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.event.byDateExpandingSpans
-import com.himanshoe.kalendar.foundation.grid.visibleDateStep
 import com.himanshoe.kalendar.foundation.grid.weekDates
 import com.himanshoe.kalendar.foundation.schedule.KalendarHourWindow
 import com.himanshoe.kalendar.foundation.schedule.KalendarScheduleBlock
@@ -654,7 +653,7 @@ private fun ScheduleWeekPage(
                         onEventClick = onEventClick,
                         date = day,
                         window = window,
-                        dayColumns = config.visibleDaysOfWeek,
+                        columnDates = days,
                         snapMinutes = config.scheduleDragSnapMinutes,
                         onEventTimeChange = onEventTimeChange,
                         eventContent = eventContent,
@@ -799,9 +798,9 @@ private fun AllDayRow(
  *
  * @param window The visible slice of the day. Positions are measured from its top edge and every
  *   drag clamps to it, so a block can never be dragged out of reach.
- * @param dayColumns The days that have a column, when a horizontal drag may move a block to another
- *   of them — [KalendarScheduleWeek]. `null`, which [KalendarSchedule] passes, means the view shows
- *   one day and a horizontal drag changes nothing.
+ * @param columnDates The dates the grid draws as columns, left to right, when a horizontal drag may
+ *   move a block to another of them — [KalendarScheduleWeek]. `null`, which [KalendarSchedule]
+ *   passes, means the view shows one day and a horizontal drag changes nothing.
  */
 @Composable
 private fun ScheduleBlockLayout(
@@ -810,7 +809,7 @@ private fun ScheduleBlockLayout(
     onEventClick: (KalendarEvent) -> Unit,
     date: LocalDate,
     window: KalendarHourWindow,
-    dayColumns: Set<DayOfWeek>? = null,
+    columnDates: List<LocalDate>? = null,
     snapMinutes: Int = DEFAULT_SCHEDULE_SNAP_MINUTES,
     onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
     eventContent: @Composable (KalendarScheduleEventScope) -> Unit,
@@ -820,7 +819,7 @@ private fun ScheduleBlockLayout(
         hourHeight = hourHeight,
         window = window,
         snapMinutes = snapMinutes,
-        horizontalShift = ScheduleDayAxis(date = date, dayColumns = dayColumns),
+        horizontalShift = ScheduleDayAxis(date = date, columnDates = columnDates),
         onEventClick = onEventClick,
         onRelease = onEventTimeChange?.let(::scheduleReleaseHandler),
         eventContent = { block, isDragging, targetDate ->
@@ -846,30 +845,35 @@ private fun scheduleReleaseHandler(
 /**
  * A sideways drag on a day column moves the block to a neighbouring day.
  *
- * The neighbours are the *visible* days: on a Mon–Fri week the column right of Friday is Monday, so
- * the shift is counted in columns and turned into a date by [visibleDateStep] rather than by adding
- * days. [dayColumns] is `null` on [KalendarSchedule], which shows one day and cannot move a block
- * sideways at all.
+ * The landing day is picked by *index into [columnDates]*, so a drag can only ever reach a day the
+ * grid is actually drawing: skipped days are not columns and so cannot be landed on, and neither can
+ * the week either side. The second half of that needs the block's own column, not just a bounded
+ * shift — [dayShiftForDrag] clamps symmetrically to one grid width, which from a midweek column
+ * still points past the grid's edge — so the index is clamped again here. Its clamp is still
+ * load-bearing underneath: it is what keeps a flung drag's shift small enough that adding it to a
+ * column index cannot overflow. [columnDates] is `null` on [KalendarSchedule], which shows one day
+ * and cannot move a block sideways at all.
  *
  * The block itself never slides. A day column is one of several the grid lays out in a `Row`, so a
  * block placed past its own column's edge would be drawn over pixels a neighbour owns.
  */
 private data class ScheduleDayAxis(
     val date: LocalDate,
-    val dayColumns: Set<DayOfWeek>?,
+    val columnDates: List<LocalDate>?,
 ) : KalendarBlockDragAxis<LocalDate> {
 
     override fun targetOf(rawDeltaXPx: Float, columnWidthPx: Int): LocalDate {
-        val columns = dayColumns ?: return date
-        return visibleDateStep(
-            from = date,
-            step = dayShiftForDrag(
-                rawDeltaXPx = rawDeltaXPx,
-                dayColumnWidthPx = columnWidthPx,
-                columnCount = columns.size,
-            ),
-            visibleDaysOfWeek = columns,
+        val columns = columnDates ?: return date
+        val column = columns.indexOf(date)
+        if (column < 0) {
+            return date
+        }
+        val shift = dayShiftForDrag(
+            rawDeltaXPx = rawDeltaXPx,
+            dayColumnWidthPx = columnWidthPx,
+            columnCount = columns.size,
         )
+        return columns[(column + shift).coerceIn(0, columns.lastIndex)]
     }
 
     override fun placementShift(rawDeltaXPx: Float, columnWidthPx: Int): Int = 0

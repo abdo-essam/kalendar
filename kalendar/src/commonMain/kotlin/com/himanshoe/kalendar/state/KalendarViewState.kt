@@ -58,12 +58,32 @@ public class KalendarViewState internal constructor(
     internal val pager: KalendarPager,
     timeSource: KalendarTimeSource,
 ) {
+    private var currentTimeSource: KalendarTimeSource by mutableStateOf(timeSource)
+
     /**
      * Where this state reads "today" from. Snapshot-backed, so the `remember*State` factory that
      * owns this instance can keep it in step with the ambient [KalendarTimeSource] without
      * recreating the state (and losing the pager's scroll position).
+     *
+     * Read-only because that write-back happens on every composition pass: a value assigned here
+     * from outside would be overwritten on the next one, silently and with nothing to point at.
+     * Choose the source by passing it to [rememberKalendarWeekState] and friends.
      */
-    public var timeSource: KalendarTimeSource by mutableStateOf(timeSource)
+    public val timeSource: KalendarTimeSource get() = currentTimeSource
+
+    /**
+     * The factory's write-back for [timeSource], internal so the choice stays the factory's.
+     *
+     * The equality guard is load-bearing rather than an optimisation: a caller passing a time source
+     * built inline — an object-expression [kotlin.time.Clock], say, which has identity equality —
+     * would otherwise write a new value into a snapshot state on every pass and recompose forever.
+     * It also means a time source must be *remembered* to be honoured at all; see [KalendarTimeSource].
+     */
+    internal fun updateTimeSource(timeSource: KalendarTimeSource) {
+        if (currentTimeSource != timeSource) {
+            currentTimeSource = timeSource
+        }
+    }
 
     /** The first day of each week column, as passed to the factory that built this state. */
     public val startDayOfWeek: DayOfWeek get() = pager.startDayOfWeek
@@ -261,24 +281,8 @@ private fun rememberKalendarPagedState(
     val state = remember(pagerState, pager) {
         KalendarViewState(pagerState = pagerState, pager = pager, timeSource = timeSource)
     }
-    state.syncTimeSource(timeSource)
+    // Applied after composition succeeds, so a pass that is thrown away cannot leave the state
+    // pointing at a clock the caller never committed to.
+    SideEffect { state.updateTimeSource(timeSource) }
     return state
-}
-
-/**
- * Keeps [KalendarViewState.timeSource] in step with the value the factory was handed, without
- * recreating the state.
- *
- * The equality guard is load-bearing rather than an optimisation: a caller passing a time source
- * built inline — an object-expression [kotlin.time.Clock], say, which has identity equality — would
- * otherwise write a new value into a snapshot state on every pass and recompose forever. It also
- * means a time source must be *remembered* to be honoured at all; see [KalendarTimeSource].
- */
-@Composable
-private fun KalendarViewState.syncTimeSource(timeSource: KalendarTimeSource) {
-    SideEffect {
-        if (this.timeSource != timeSource) {
-            this.timeSource = timeSource
-        }
-    }
 }

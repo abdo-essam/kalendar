@@ -31,7 +31,7 @@ dates. Returned by `rememberKalendarWeekState`, `rememberKalendarMonthState`,
 | `maxDate` | `LocalDate?` | The upper bound. |
 | `canScrollBackward` | `Boolean` | Whether stepping one page back stays within `minDate`. |
 | `canScrollForward` | `Boolean` | Whether stepping one page forward stays within `maxDate`. |
-| `timeSource` | `KalendarTimeSource` | Where this state reads "today" from. **Mutable**, so a hoisted state can follow a changing clock. |
+| `timeSource` | `KalendarTimeSource` | Where this state reads "today" from. **Read-only**, but snapshot-backed: the `remember*State` factory keeps it in step with the ambient source without recreating the state and losing the scroll position. Choose the source by passing it to the factory. |
 | `suspend animateScrollTo(date)` | `Unit` | Animates to the page containing `date`, clamped to the bounds. |
 | `suspend animateScrollToToday()` | `Unit` | Animates to the page containing today, clamped. |
 | `suspend animateToPreviousPage()` | `Unit` | One page back. A no-op past `minDate`. |
@@ -70,7 +70,7 @@ per-page animation.
 | `startDayOfWeek` | `DayOfWeek` | The week's first column. |
 | `minDate` | `LocalDate?` | The lower bound. |
 | `maxDate` | `LocalDate?` | The upper bound. |
-| `timeSource` | `KalendarTimeSource` | Where this state reads "today" from. Mutable. |
+| `timeSource` | `KalendarTimeSource` | Where this state reads "today" from. Read-only, for the same reason as `KalendarViewState.timeSource`. |
 | `suspend animateScrollTo(date)` | `Unit` | Animates so the month containing `date` reaches the top. |
 | `suspend animateScrollToToday()` | `Unit` | Animates back to today's month. |
 

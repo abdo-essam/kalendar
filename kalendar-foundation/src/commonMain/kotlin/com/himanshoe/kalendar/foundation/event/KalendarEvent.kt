@@ -22,6 +22,8 @@ import androidx.compose.ui.graphics.Color
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 
+private const val HASH_FACTOR = 31
+
 /**
  * Represents a calendar event tied to a specific date.
  *
@@ -35,7 +37,7 @@ public interface KalendarEvent {
     /**
      * A stable identifier for this event, unique across the whole event list handed to a calendar.
      *
-     * Views that keep per-item state — [KalendarAgenda][com.himanshoe.kalendar.view.KalendarAgenda]'s
+     * Views that keep per-item state — `com.himanshoe.kalendar.KalendarAgenda`'s
      * list, for one — use it as their item key, so supplying it keeps that state attached to the
      * right event across reorders and edits. Consumers can also use it to look an event back up
      * when a click callback hands them one. `null`, the default, makes such views fall back to the
@@ -187,10 +189,6 @@ public class BasicKalendarEvent(
         "endDate=$endDate, " +
         "id=$id" +
         ")"
-
-    private companion object {
-        const val HASH_FACTOR = 31
-    }
 }
 
 /**

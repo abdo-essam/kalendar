@@ -10,7 +10,9 @@ reasoning rather than measurement, it says so.
 The library is in good shape. All **nine** public views are `restartable skippable`, every class the
 compiler sees is stable, and a recomposition above a calendar costs zero day cells. `KalendarYear`,
 which used to eagerly compose 400-odd day cells on its first frame, is now viewport-bounded and
-measures **235** with this benchmark's deliberately tiny probe cell.
+measures **235** with this benchmark's deliberately tiny probe cell. `KalendarGrid`, which used to
+write its cell coordinates into snapshot state from the layout phase and so compose itself twice per
+page, now writes none and composes once.
 
 ## Regenerating the compiler reports
 
@@ -143,10 +145,12 @@ Measured baseline:
 | One whole drag gesture, 8 blocks on screen | 4 block slots |
 | Inserting an earlier event, 8 blocks on screen | 1 block slot |
 | A now-indicator tick, 8 blocks on screen | 0 block slots |
+| Laying out a month grid | **0 snapshot-map writes** — see below |
 
-The last four are the ones that catch real regressions. Keyed slots are why inserting an event at the
+The last five are the ones that catch real regressions. Keyed slots are why inserting an event at the
 top of a day recomposes one block rather than all nine; reading the clock in the **placement** phase
-is why a minute passing recomposes nothing at all and simply re-places the line.
+is why a minute passing recomposes nothing at all and simply re-places the line; and keeping the
+cell-coordinate map out of snapshot state is why laying the grid out no longer recomposes it.
 
 ### Three traps this benchmark had to survive
 
@@ -191,26 +195,49 @@ It was never a *recomposition* problem: once composed, a caller recomposition co
 paging between years reuses the pager's own slot management. It was a first-frame and
 memory-footprint problem, worst on a cold page in the `HorizontalPager`.
 
-### `KalendarGrid`'s `mutableStateMapOf` written from `onGloballyPositioned`
+### `KalendarGrid`'s cell coordinates — fixed. The map is a plain one
 
-`KalendarGrid.kt` holds a `mutableStateMapOf<LocalDate, LayoutCoordinates>`, written from
-`onGloballyPositioned` (layout phase) and read during composition. That is a textbook cross-phase
-back-write, and it is the one thing here I would still call a latent hazard.
+**This was a real cost and it is now gone.** `KalendarGrid.kt` used to track where each day cell
+landed in a `mutableStateMapOf<LocalDate, LayoutCoordinates>`, written from `onGloballyPositioned`
+— the layout phase — and read from the grid's own composable body to work out where to put the
+selection indicator. That is a textbook cross-phase back-write, and it cost a whole extra
+composition of the grid on every page composed.
 
-In practice the cost is bounded: the writes only change when layout changes, so they cost one extra
-composition pass after the first layout and nothing per frame. Measured indirectly — the
-"caller recomposes" cases settle at zero cells, which they could not if the map were churning.
+It now holds a plain `remember { mutableMapOf() }`, and no reader is in composition: the gesture
+code reads it from a pointer callback, the overlays from their layout lambdas, and the selection
+indicator's target is computed inside a `snapshotFlow` collected in a `LaunchedEffect`. The one
+thing a plain map gives up — the ability to tell a reader the cells have moved — is handed back as
+a single `Int` revision counter, bumped **only** when a cell reports a placement it did not have
+before. Writing it on every callback would invalidate the placement that produced the callback and
+the grid would lay itself out forever; writing it only on a change settles after one extra pass.
 
-It is correct today for a reason worth preserving: the value read during composition
-(`targetPosition`) is only used to key a `LaunchedEffect` and as a first-frame fallback, while the
-actual positioning happens in `Modifier.offset { }` — the placement phase. So the frame-rate path
-never reads snapshot state during composition. The comment above `targetPosition` shows this was
-thought about.
+Measured on a March 2026 month:
 
-I did not change it. A safe improvement, if someone wants it, is to move the coordinate lookup used
-by `dateAtOffset` off the snapshot map entirely (it is only read from pointer callbacks, never
-composition), leaving composition reading a single `selectedDate` entry. That is a real
-simplification, not a measured win.
+| | Before | After |
+|---|---|---|
+| Snapshot-map writes on a month's first frame | 37 | **0** |
+| Grid-body compositions on a first frame | 2 | **1** |
+| Grid content recompositions during a six-move drag | 7 | **0** |
+
+`layingOutAMonthGridWritesNoSnapshotMap` is the guard on the first row. It counts the *cause* rather
+than the symptom, because the symptom is out of reach: the scope that recomposed is inside the grid,
+and a lazy grid memoizes its item content by key, so the second composition walked no day cells and
+the `CELLS` probe could not see it. The test registers a global snapshot write observer, asserts it
+fired for a deliberate canary write (without that guard the zero is vacuous), and then asserts zero
+`SnapshotStateMap` writes for the whole of laying a month out.
+
+Two things this page said before that were wrong, both now measured:
+
+- **The writes did not recur on every layout pass.** `SnapshotStateMap.put` of an equal value is a
+  no-op, so a re-layout that placed the cells where they already were wrote nothing and invalidated
+  nothing. The real cost was one extra *whole composition* of `KalendarGrid` per page composed — not
+  a per-frame churn. That makes it a first-frame cost, which is exactly where a paging calendar can
+  least afford one, but it was never the frame-rate hazard it was described as.
+- **There was never a "404 writes for a year".** `KalendarYear` composes its months through
+  `KalendarStaticGrid`, which never tracked cell coordinates at all — it has no sliding indicator to
+  position and no drag to hit-test. 404 is the *cell* count of the old eager year column, measured in
+  `yearComposesOnlyTheMonthsOnScreen` and recorded as `YEAR_EAGER_CELL_FLOOR`; it was never a count
+  of snapshot writes, and the two numbers were conflated.
 
 ### `byDateExpandingSpans()` and `scheduleBlocks()`
 
@@ -269,6 +296,6 @@ The same assertion exists for `KalendarResourceView`, whose lanes have the same 
 
 `KalendarRecompositionBenchmark` fails if a view loses `restartable skippable`, if a token class's
 `equals` becomes identity-based, if `KalendarYear`'s month column stops being lazy, if event slots
-lose their keys, if a now-indicator tick starts recomposing blocks, or if arrow-key focus movement
-starts recomposing cells. It does not catch draw-phase or layout-phase regressions; there is no
-coverage for those yet.
+lose their keys, if a now-indicator tick starts recomposing blocks, if arrow-key focus movement
+starts recomposing cells, or if `KalendarGrid` puts its cell coordinates back into snapshot state.
+It does not catch draw-phase or layout-phase regressions; there is no coverage for those yet.
