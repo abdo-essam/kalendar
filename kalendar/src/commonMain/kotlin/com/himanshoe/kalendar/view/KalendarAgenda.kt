@@ -178,7 +178,7 @@ public object KalendarAgendaDefaults {
     ) {
         val colors = kalendarColors()
         BasicText(
-            text = "${date.dayOfMonth} ${monthNameFormatter(date.month)} ${date.year}",
+            text = "${date.day} ${monthNameFormatter(date.month)} ${date.year}",
             style = kalendarTypography().headerTitle.copy(color = colors.headerContent),
             modifier = modifier.fillMaxWidth().padding(kalendarDimensions().sectionPadding),
         )

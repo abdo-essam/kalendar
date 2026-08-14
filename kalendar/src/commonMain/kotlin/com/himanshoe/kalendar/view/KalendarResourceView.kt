@@ -418,7 +418,6 @@ private fun ResourceGrid(
     val horizontalScrollState = rememberScrollState()
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     val window = config.scheduleVisibleHours
-    val nowState = rememberDeferredNow(now)
     val blocksByResource = remember(eventsByDate, lanes, resourceIdOf, day, window) {
         resourceBlocks(
             events = eventsByDate[day] ?: emptyList(),
@@ -485,7 +484,7 @@ private fun ResourceGrid(
                             )
                             KalendarNowLine(
                                 isToday = isToday,
-                                now = nowState,
+                                now = now,
                                 hourHeight = hourHeight,
                                 window = window,
                                 content = nowIndicator,
@@ -622,5 +621,5 @@ private fun resourceDayTitle(
 ): String {
     val weekday = dayOfWeekNameFormatter(day.dayOfWeek)
     val month = shortMonthNameFormatter(day.month)
-    return "$weekday, $month ${day.dayOfMonth}, ${day.year}"
+    return "$weekday, $month ${day.day}, ${day.year}"
 }

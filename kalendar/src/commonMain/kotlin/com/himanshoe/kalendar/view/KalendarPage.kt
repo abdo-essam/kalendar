@@ -81,7 +81,8 @@ internal fun weeksBetween(from: LocalDate, to: LocalDate, startDayOfWeek: DayOfW
 internal fun monthsBetween(from: LocalDate, to: LocalDate): Int {
     val fromMonthStart = from.startOfMonth()
     val toMonthStart = to.startOfMonth()
-    return (toMonthStart.year - fromMonthStart.year) * 12 + (toMonthStart.monthNumber - fromMonthStart.monthNumber)
+    return (toMonthStart.year - fromMonthStart.year) * MONTHS_PER_YEAR +
+        (toMonthStart.month.ordinal - fromMonthStart.month.ordinal)
 }
 
 internal fun yearsBetween(from: LocalDate, to: LocalDate): Int = to.year - from.year
@@ -91,6 +92,7 @@ internal fun monthTitle(
     monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
 ): String = "${monthNameFormatter(monthStart.month)} ${monthStart.year}"
 
+internal const val MONTHS_PER_YEAR = 12
 internal const val MINUTES_PER_HOUR = 60
 internal const val HOURS_PER_DAY = 24
 internal const val MINUTES_PER_DAY = MINUTES_PER_HOUR * HOURS_PER_DAY

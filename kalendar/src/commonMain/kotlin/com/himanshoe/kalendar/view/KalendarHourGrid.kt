@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -118,7 +117,7 @@ internal fun KalendarHourColumnDivider(modifier: Modifier = Modifier) {
 @Composable
 internal fun KalendarNowLine(
     isToday: Boolean,
-    now: State<LocalDateTime>,
+    now: () -> LocalDateTime,
     hourHeight: Dp,
     window: KalendarHourWindow,
     content: @Composable () -> Unit,
@@ -127,14 +126,14 @@ internal fun KalendarNowLine(
         return
     }
     val isWithinWindow by remember(now, window) {
-        derivedStateOf { now.value.minutesFromMidnight() in window }
+        derivedStateOf { now().minutesFromMidnight() in window }
     }
     if (!isWithinWindow) {
         return
     }
     Box(
         modifier = Modifier.fillMaxWidth().offset {
-            val minutes = now.value.minutesFromMidnight() - window.startMinutes
+            val minutes = now().minutesFromMidnight() - window.startMinutes
             IntOffset(x = 0, y = (hourHeight.toPx() * minutes / MINUTES_PER_HOUR).roundToInt())
         },
     ) {

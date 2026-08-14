@@ -37,7 +37,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -499,7 +498,7 @@ public object KalendarScheduleDefaults {
                 style = typography.dayOfWeekLabel.copy(color = colors.dayLabelContent),
             )
             BasicText(
-                text = date.dayOfMonth.toString(),
+                text = date.day.toString(),
                 style = typography.weekDayNumber.copy(
                     color = if (isToday) colors.todayContent else colors.dayContent,
                 ),
@@ -560,7 +559,6 @@ private fun ScheduleWeekPage(
     val density = LocalDensity.current
     val dimensions = kalendarDimensions()
     val window = config.scheduleVisibleHours
-    val nowState = rememberDeferredNow(now)
 
     LaunchedEffect(weekStart, window, config.scheduleInitialScrollHour) {
         val hours = initialScrollHourOffset(
@@ -621,7 +619,7 @@ private fun ScheduleWeekPage(
                     )
                     KalendarNowLine(
                         isToday = day == today,
-                        now = nowState,
+                        now = now,
                         hourHeight = hourHeight,
                         window = window,
                         content = nowIndicator,
@@ -645,7 +643,7 @@ private fun WeekAllDayRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         entries.fastForEach { (day, event) ->
-            CompositionLocalProvider(LocalScheduleAllDayPrefix provides day.dayOfMonth.toString()) {
+            CompositionLocalProvider(LocalScheduleAllDayPrefix provides day.day.toString()) {
                 Box(modifier = Modifier.clickable(role = Role.Button) { onEventClick(event) }) {
                     chipContent(event)
                 }
@@ -679,7 +677,6 @@ private fun SchedulePage(
     }
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
-    val nowState = rememberDeferredNow(now)
 
     LaunchedEffect(day, window, config.scheduleInitialScrollHour) {
         val hours = initialScrollHourOffset(
@@ -722,7 +719,7 @@ private fun SchedulePage(
                 )
                 KalendarNowLine(
                     isToday = isToday,
-                    now = nowState,
+                    now = now,
                     hourHeight = hourHeight,
                     window = window,
                     content = nowIndicator,
@@ -731,18 +728,6 @@ private fun SchedulePage(
         }
     }
 }
-
-/**
- * A deferred [now] reading as the [State] [KalendarNowLine] still takes.
- *
- * The lambda is the shape the rest of the library uses — a composable takes a value or a lambda,
- * never a [State] — and wrapping it in a [derivedStateOf] rather than reading it here is what keeps
- * the deferral: the minute tick reaches only the line's own offset lambda, in the layout phase.
- * Delete this once `KalendarNowLine` takes the lambda directly.
- */
-@Composable
-internal fun rememberDeferredNow(now: () -> LocalDateTime): State<LocalDateTime> =
-    remember(now) { derivedStateOf(now) }
 
 @Composable
 private fun AllDayRow(
@@ -1113,5 +1098,5 @@ private fun dayTitle(
 ): String {
     val weekday = dayOfWeekNameFormatter(day.dayOfWeek)
     val month = shortMonthNameFormatter(day.month)
-    return "$weekday, $month ${day.dayOfMonth}, ${day.year}"
+    return "$weekday, $month ${day.day}, ${day.year}"
 }
