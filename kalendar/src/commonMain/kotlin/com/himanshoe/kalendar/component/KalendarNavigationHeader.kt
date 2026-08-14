@@ -48,6 +48,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -95,6 +96,15 @@ import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 
 private const val JUMP_PICKER_MONTH_COLUMNS = 4
+
+/**
+ * [JumpPicker]'s twelve months, already split into rows.
+ *
+ * The split is of a compile-time-constant list into a compile-time-constant number of columns, so
+ * it has exactly one answer for the life of the process — computing it in the picker's body
+ * allocated four lists every time the popup recomposed, to arrive at the same four lists.
+ */
+private val JUMP_PICKER_MONTH_ROWS: List<List<Month>> = Month.entries.chunked(JUMP_PICKER_MONTH_COLUMNS)
 private val JUMP_PICKER_PADDING = 8.dp
 private val JUMP_PICKER_LABEL_PADDING = 2.dp
 private val JUMP_PICKER_MONTH_WIDTH = 72.dp
@@ -531,12 +541,6 @@ internal fun KalendarNavigationHeader(
 }
 
 /**
- * The header title's crossfade, shared by [KalendarHeaderDefaults.Header] and
- * [KalendarHeaderDefaults.TimelineHeader]: a fade lasting
- * [KalendarAnimations.titleTransitionMillis], or an instant swap when [KalendarAnimations.enabled]
- * is `false`.
- */
-/**
  * Lays a header out as leading actions, a centered title, and trailing actions.
  *
  * The title is centered on the **header**, not on the gap between the two action clusters. Both of
@@ -628,6 +632,18 @@ internal fun KalendarHeaderLayout(
     }
 }
 
+/**
+ * The header title's fade, shared by [KalendarHeaderDefaults.Header] and
+ * [KalendarHeaderDefaults.TimelineHeader]: the old title out over half of
+ * [KalendarAnimations.titleTransitionMillis] and the new one back in over the other half, or an
+ * instant swap when [KalendarAnimations.enabled] is `false`.
+ *
+ * The two halves are eased in opposite directions —
+ * [KalendarAnimations.titleFadeOutEasing] accelerating away,
+ * [KalendarAnimations.titleFadeInEasing] decelerating in. A single symmetric ease-in-out on each
+ * half, which is what `tween()` gives you if you do not say, spends time at both ends of both
+ * halves and makes a fast fade read as a stutter rather than a swap.
+ */
 @Composable
 private fun AnimatedHeaderTitle(
     title: String,
@@ -648,11 +664,24 @@ private fun AnimatedHeaderTitle(
     var shown by remember { mutableStateOf(title) }
     val alpha = remember { Animatable(1f) }
     val halfDuration = animations.titleTransitionMillis / 2
+    val fadeOut = remember(halfDuration, animations.titleFadeOutEasing) {
+        tween<Float>(durationMillis = halfDuration, easing = animations.titleFadeOutEasing)
+    }
+    val fadeIn = remember(halfDuration, animations.titleFadeInEasing) {
+        tween<Float>(durationMillis = halfDuration, easing = animations.titleFadeInEasing)
+    }
     LaunchedEffect(title) {
-        if (shown == title) return@LaunchedEffect
-        alpha.animateTo(0f, tween(halfDuration))
+        if (shown == title) {
+            // Either the first composition, where this is a no-op, or a title that changed and
+            // changed straight back while the fade-out was still running. In the second case there
+            // is nothing left to swap, but the cancelled fade left the alpha part way down and
+            // nothing else would ever bring it back — the header kept a permanently dimmed title.
+            alpha.animateTo(1f, fadeIn)
+            return@LaunchedEffect
+        }
+        alpha.animateTo(0f, fadeOut)
         shown = title
-        alpha.animateTo(1f, tween(halfDuration))
+        alpha.animateTo(1f, fadeIn)
     }
     Box(modifier = Modifier.graphicsLayer { this.alpha = alpha.value }) {
         content(shown)
@@ -710,7 +739,7 @@ private fun JumpPicker(
                     content = { KalendarChevronIcon(forward = true) },
                 )
             }
-            Month.entries.chunked(JUMP_PICKER_MONTH_COLUMNS).forEach { rowMonths ->
+            JUMP_PICKER_MONTH_ROWS.forEach { rowMonths ->
                 Row {
                     rowMonths.forEach { month ->
                         Box(
@@ -825,48 +854,58 @@ private fun KalendarChevronIcon(forward: Boolean) {
  * The built-in today glyph, drawn in [KalendarColors.headerContent] as a calendar page — an
  * outlined rounded rectangle, a filled header bar across its top, and a dot marking a date — so the
  * library needs no icon dependency. It is direction-neutral and therefore never mirrored.
+ *
+ * [Modifier.drawWithCache] rather than [Canvas], because the header bar is a [Path] and the outline
+ * a [Stroke]: written as a plain draw, each of those, plus the [RoundRect] the path is built from,
+ * was allocated afresh on every frame the header drew — and the header redraws on every page turn,
+ * behind a title that is fading. Nothing they are built from changes except the icon's size and its
+ * tint, which is exactly what the cache block is keyed on.
  */
 @Composable
 private fun KalendarTodayIcon() {
     val tint = LocalKalendarHeaderIconTint.current ?: kalendarColors().headerContent
-    Canvas(modifier = Modifier.size(ICON_SIZE)) {
-        val left = size.width * TODAY_LEFT_FRACTION
-        val right = size.width * TODAY_RIGHT_FRACTION
-        val top = size.height * TODAY_TOP_FRACTION
-        val bottom = size.height * TODAY_BOTTOM_FRACTION
-        val corner = CornerRadius(size.width * TODAY_CORNER_FRACTION)
-        val strokeWidth = ICON_STROKE_WIDTH.toPx()
-        drawRoundRect(
-            color = tint,
-            topLeft = Offset(x = left, y = top),
-            size = Size(width = right - left, height = bottom - top),
-            cornerRadius = corner,
-            style = Stroke(width = strokeWidth),
-        )
-        drawPath(
-            path = Path().apply {
-                addRoundRect(
-                    RoundRect(
-                        left = left,
-                        top = top,
-                        right = right,
-                        bottom = size.height * TODAY_BAR_BOTTOM_FRACTION,
-                        topLeftCornerRadius = corner,
-                        topRightCornerRadius = corner,
-                        bottomLeftCornerRadius = CornerRadius.Zero,
-                        bottomRightCornerRadius = CornerRadius.Zero,
-                    ),
+    Box(
+        modifier = Modifier
+            .size(ICON_SIZE)
+            .drawWithCache {
+                val left = size.width * TODAY_LEFT_FRACTION
+                val right = size.width * TODAY_RIGHT_FRACTION
+                val top = size.height * TODAY_TOP_FRACTION
+                val bottom = size.height * TODAY_BOTTOM_FRACTION
+                val corner = CornerRadius(size.width * TODAY_CORNER_FRACTION)
+                val outlineStroke = Stroke(width = ICON_STROKE_WIDTH.toPx())
+                val pageTopLeft = Offset(x = left, y = top)
+                val pageSize = Size(width = right - left, height = bottom - top)
+                val headerBar = Path().apply {
+                    addRoundRect(
+                        RoundRect(
+                            left = left,
+                            top = top,
+                            right = right,
+                            bottom = size.height * TODAY_BAR_BOTTOM_FRACTION,
+                            topLeftCornerRadius = corner,
+                            topRightCornerRadius = corner,
+                            bottomLeftCornerRadius = CornerRadius.Zero,
+                            bottomRightCornerRadius = CornerRadius.Zero,
+                        ),
+                    )
+                }
+                val dotCenter = Offset(
+                    x = size.width * TODAY_DOT_CENTER_X_FRACTION,
+                    y = size.height * TODAY_DOT_CENTER_Y_FRACTION,
                 )
+                val dotRadius = size.width * TODAY_DOT_RADIUS_FRACTION
+                onDrawBehind {
+                    drawRoundRect(
+                        color = tint,
+                        topLeft = pageTopLeft,
+                        size = pageSize,
+                        cornerRadius = corner,
+                        style = outlineStroke,
+                    )
+                    drawPath(path = headerBar, color = tint)
+                    drawCircle(color = tint, radius = dotRadius, center = dotCenter)
+                }
             },
-            color = tint,
-        )
-        drawCircle(
-            color = tint,
-            radius = size.width * TODAY_DOT_RADIUS_FRACTION,
-            center = Offset(
-                x = size.width * TODAY_DOT_CENTER_X_FRACTION,
-                y = size.height * TODAY_DOT_CENTER_Y_FRACTION,
-            ),
-        )
-    }
+    )
 }

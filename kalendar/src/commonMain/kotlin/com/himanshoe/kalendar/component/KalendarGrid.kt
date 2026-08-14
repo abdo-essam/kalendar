@@ -39,11 +39,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +57,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CollectionInfo
 import androidx.compose.ui.semantics.CollectionItemInfo
@@ -65,6 +67,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.toSize
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.grid.ALL_DAYS_OF_WEEK
@@ -73,6 +76,7 @@ import com.himanshoe.kalendar.theme.kalendarAnimations
 import com.himanshoe.kalendar.theme.kalendarColors
 import com.himanshoe.kalendar.theme.kalendarDimensions
 import com.himanshoe.kalendar.theme.kalendarShapes
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
@@ -268,27 +272,63 @@ internal fun KalendarGrid(
     }
     val columns = labelDays.size
     var containerCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    val cellCoordinates = remember { mutableStateMapOf<LocalDate, LayoutCoordinates>() }
 
-    val container = containerCoordinates
-    val targetCoordinates = selectedDate?.let { cellCoordinates[it] }
-    val targetPosition = if (container != null && targetCoordinates != null && targetCoordinates.isAttached) {
-        container.localPositionOf(targetCoordinates, Offset.Zero)
-    } else {
-        null
+    /**
+     * Where each day cell sits, written from [Modifier.onGloballyPositioned] — the layout phase.
+     *
+     * A plain map rather than a `mutableStateMapOf`, because nothing in composition reads it and
+     * nothing may: the gesture code reads it from a pointer callback, the three overlays below read
+     * it from their layout lambdas, and the indicator's position flow reads it from a coroutine. As
+     * snapshot state, every write invalidated whichever composable scope had read it — so the pass
+     * that first placed the cells, one write per cell and up to 42 of them in a month grid, always
+     * recomposed the grid on top of the layout that had caused it. Measured on a March 2026 month
+     * that was 37 writes and one whole extra composition of this function per page composed.
+     */
+    val cellCoordinates = remember { mutableMapOf<LocalDate, KalendarCellPlacement>() }
+
+    /**
+     * Bumped whenever a cell reports a placement it did not have before.
+     *
+     * This is the one thing [cellCoordinates] gives up by being a plain map — the ability to tell a
+     * reader that the cells have moved — handed back as a single [Int]. Reading it inside a layout
+     * lambda re-runs that lambda when they do; reading it inside a [snapshotFlow] re-evaluates the
+     * flow. Writing it only on a *change* is what makes that safe: a write on every callback would
+     * invalidate the placement that produced the callback, and the grid would lay itself out
+     * forever. On a real change it settles after one extra pass, because the pass that write
+     * triggers reports the same placements straight back.
+     */
+    var cellLayoutRevision by remember { mutableIntStateOf(0) }
+
+    /**
+     * Where [date]'s cell sits in this grid's own coordinate space, or `null` when there is no such
+     * cell to point at yet.
+     *
+     * **Never call this from composition.** Everything it reads is written during layout, so a
+     * composable body that called it would be invalidated by every layout pass — which is exactly
+     * the recomposition-per-layout this grid used to pay for its selection indicator. Layout lambdas
+     * and coroutines only.
+     */
+    fun cellBounds(date: LocalDate?): Rect? {
+        // Read first and unconditionally: this is the subscription that makes a layout lambda, or the
+        // flow below, re-run once cells are positioned — and a revision of zero genuinely does mean
+        // that no cell has ever reported a position.
+        if (cellLayoutRevision == 0) return null
+        val root = containerCoordinates ?: return null
+        val cell = date?.let(cellCoordinates::get)?.coordinates?.takeIf { it.isAttached } ?: return null
+        return Rect(offset = root.localPositionOf(cell, Offset.Zero), size = cell.size.toSize())
     }
-    val targetSize = targetCoordinates?.size ?: IntSize.Zero
 
     val indicatorOffset = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
 
     /**
      * Whether [indicatorOffset] has been given a real cell position yet.
      *
-     * Until it has, the indicator is drawn straight at `targetPosition` rather than at the
-     * animator's value, which still reads [Offset.Zero] on that first frame — drawing the
-     * animator's value flashed the indicator in the top-left corner. Gating the whole indicator
-     * on this flag instead would be worse: the flag is set from a `LaunchedEffect`, so a
-     * single-pass render would omit the indicator altogether.
+     * Until it has, the indicator is drawn straight at the cell `cellBounds` reports rather than at
+     * the animator's value, which still reads [Offset.Zero] until the flow below snaps it — drawing
+     * the animator's value flashed the indicator in the top-left corner. Gating the whole indicator
+     * on this flag instead would be worse: the flag is set from a coroutine, so a single-pass render
+     * would omit the indicator altogether. Everything the indicator needs in order to *appear* is
+     * therefore resolved in the layout phase, and the coroutine decides only how it travels.
      */
     var hasSnappedIndicator by remember { mutableStateOf(false) }
     val indicatorSpec: AnimationSpec<Offset> = remember(animations) {
@@ -299,14 +339,31 @@ internal fun KalendarGrid(
         }
     }
 
-    LaunchedEffect(targetPosition) {
-        val position = targetPosition ?: return@LaunchedEffect
-        if (hasSnappedIndicator) {
-            indicatorOffset.animateTo(position, indicatorSpec)
-        } else {
-            indicatorOffset.snapTo(position)
-            hasSnappedIndicator = true
-        }
+    /**
+     * [selectedDate] is a parameter, not snapshot state, so the flow below cannot observe it
+     * directly: a flow lambda is captured once and would hold the first composition's date forever,
+     * stranding the indicator on whichever day was selected when the grid appeared.
+     */
+    val latestSelectedDate = rememberUpdatedState(selectedDate)
+
+    // collectLatest, not collect: a plain collector stays suspended for the whole of animateTo, so a
+    // second date tapped mid-slide would queue behind the first and the indicator would finish
+    // travelling to a cell nobody is looking at any more. Cancelling the previous animation instead
+    // hands its position and velocity to the next one, which is what makes the slide redirect under
+    // a fast tapper rather than restart.
+    LaunchedEffect(indicatorSpec) {
+        snapshotFlow { cellBounds(latestSelectedDate.value)?.topLeft }
+            .collectLatest { position ->
+                if (position == null) {
+                    return@collectLatest
+                }
+                if (hasSnappedIndicator) {
+                    indicatorOffset.animateTo(position, indicatorSpec)
+                } else {
+                    indicatorOffset.snapTo(position)
+                    hasSnappedIndicator = true
+                }
+            }
     }
 
     var eventDragTarget by remember { mutableStateOf<LocalDate?>(null) }
@@ -374,17 +431,15 @@ internal fun KalendarGrid(
         ),
     ) {
         Box(modifier = modifier.onGloballyPositioned { containerCoordinates = it }.then(dragModifier)) {
-            if (targetPosition != null) {
+            if (selectedDate != null) {
                 Box(
                     modifier = Modifier
-                        .offset {
-                            val drawn = if (hasSnappedIndicator) indicatorOffset.value else targetPosition
-                            IntOffset(drawn.x.toInt(), drawn.y.toInt())
-                        }
-                        .layout { measurable, _ ->
-                            val placeable = measurable.measure(Constraints.fixed(targetSize.width, targetSize.height))
-                            layout(placeable.width, placeable.height) { placeable.place(0, 0) }
-                        }
+                        .overlayCell(
+                            bounds = { cellBounds(selectedDate) },
+                            drawnAt = { cell ->
+                                if (hasSnappedIndicator) indicatorOffset.value else cell.topLeft
+                            },
+                        )
                         // After the offset, so the tagged node reports where the indicator actually
                         // lands rather than where it would sit unoffset.
                         .testTag(SELECTION_INDICATOR_TAG)
@@ -394,18 +449,10 @@ internal fun KalendarGrid(
                 )
             }
 
-            val ghostCoordinates = eventDragTarget?.let { cellCoordinates[it] }
-            if (container != null && ghostCoordinates != null && ghostCoordinates.isAttached) {
-                val ghostPosition = container.localPositionOf(ghostCoordinates, Offset.Zero)
+            if (onEventDrop != null) {
                 Box(
                     modifier = Modifier
-                        .offset { IntOffset(ghostPosition.x.toInt(), ghostPosition.y.toInt()) }
-                        .layout { measurable, _ ->
-                            val placeable = measurable.measure(
-                                Constraints.fixed(ghostCoordinates.size.width, ghostCoordinates.size.height)
-                            )
-                            layout(placeable.width, placeable.height) { placeable.place(0, 0) }
-                        }
+                        .overlayCell(bounds = { cellBounds(eventDragTarget) })
                         .padding(dimensions.dayCellPadding)
                         .clip(shapes.dayCell)
                         .background(colors.dragGhostBackground.copy(alpha = colors.dragGhostAlpha)),
@@ -413,11 +460,7 @@ internal fun KalendarGrid(
             }
 
             if (keyboard != null) {
-                KeyboardFocusRing(
-                    keyboard = keyboard,
-                    container = { containerCoordinates },
-                    cellCoordinates = cellCoordinates,
-                )
+                KeyboardFocusRing(keyboard = keyboard, cellBounds = ::cellBounds)
             }
 
             val rowCount = (dates.size + columns - 1) / columns
@@ -437,7 +480,13 @@ internal fun KalendarGrid(
                 itemsIndexed(items = dates, key = { _, date -> date.toEpochDays() }) { index, date ->
                     Box(
                         modifier = Modifier
-                            .onGloballyPositioned { cellCoordinates[date] = it }
+                            .onGloballyPositioned { coordinates ->
+                                val known = cellCoordinates[date]
+                                if (known == null || !known.stillDescribes(coordinates)) {
+                                    cellCoordinates[date] = KalendarCellPlacement(coordinates)
+                                    cellLayoutRevision++
+                                }
+                            }
                             // Deactivates the cell's own focusability — and that of anything it
                             // draws, such as the `+N` trigger — so the grid is one tab stop, not
                             // 42. It has to sit on a node with no focus target of its own in its
@@ -476,48 +525,94 @@ private fun rememberKalendarSpanLanes(events: KalendarEvents, maxLanes: Int): Ka
     remember(events, maxLanes) { KalendarSpanLanes.of(events = events, maxLanes = maxLanes) }
 
 /**
+ * Sizes and positions one of the grid's three overlays — the selection indicator, the drag ghost,
+ * the keyboard focus ring — over whichever cell [bounds] names, or measures it away to nothing when
+ * [bounds] names none.
+ *
+ * Both reads happen inside the `offset` and `layout` lambdas, which run in the layout phase. An
+ * arrow press, a pointer crossing into the next day, or the first frame's cells being positioned
+ * therefore re-lay-out one overlay node and recompose nothing — reading a cell's coordinates in a
+ * composable body instead invalidates the whole grid on every layout pass, which is what the
+ * recomposition benchmark exists to catch.
+ *
+ * Measuring an absent overlay to zero rather than leaving it out of the composition is deliberate:
+ * whether an overlay is *shown* is then a layout-phase decision like everything else about it, and
+ * a zero-sized node draws nothing at all. It is also what lets the selection indicator exist from
+ * the first composition, before any coroutine has run — see `hasSnappedIndicator`.
+ *
+ * @param bounds The cell to cover, in the grid's coordinate space.
+ * @param drawnAt Where to actually place the overlay, given that cell. Defaults to the cell's own
+ *   top-left; the selection indicator overrides it to follow its animator instead.
+ */
+private fun Modifier.overlayCell(
+    bounds: () -> Rect?,
+    drawnAt: (Rect) -> Offset = { it.topLeft },
+): Modifier = this
+    .offset {
+        val cell = bounds() ?: return@offset IntOffset.Zero
+        val position = drawnAt(cell)
+        IntOffset(position.x.toInt(), position.y.toInt())
+    }
+    .layout { measurable, _ ->
+        val size = bounds()?.size ?: Size.Zero
+        val placeable = measurable.measure(Constraints.fixed(size.width.toInt(), size.height.toInt()))
+        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+    }
+
+/**
  * The roving keyboard focus ring: a [KalendarColors.focusIndicator] outline around whichever cell
  * [keyboard] currently points at, in [KalendarShapes.dayCell] and at the day cell's own
  * [FOCUS_RING_WIDTH], so it is indistinguishable from the ring a cell draws for itself.
  *
- * Both state reads — the focused date and the grid's focus — happen inside the `offset`/`layout`
- * lambdas, which run in the layout phase. An arrow press therefore re-lays-out one overlay node and
- * recomposes nothing; reading either value in a composable body instead would recompose every cell
- * in the grid on every arrow press, which is exactly what the recomposition benchmark exists to
- * catch. [container] is a getter for the same reason.
+ * Both state reads — the focused date and the grid's focus — happen inside [Modifier.overlayCell]'s
+ * layout lambdas, so an arrow press recomposes nothing at all.
  */
 @Composable
 private fun KeyboardFocusRing(
     keyboard: KalendarGridKeyboardState,
-    container: () -> LayoutCoordinates?,
-    cellCoordinates: Map<LocalDate, LayoutCoordinates>,
+    cellBounds: (LocalDate?) -> Rect?,
 ) {
     val colors = kalendarColors()
     val shapes = kalendarShapes()
     val dimensions = kalendarDimensions()
 
-    fun focusedCoordinates(): LayoutCoordinates? {
-        if (!keyboard.isFocused) return null
-        return keyboard.focusedDate?.let { cellCoordinates[it] }?.takeIf { it.isAttached }
-    }
-
     Box(
         modifier = Modifier
-            .offset {
-                val coordinates = focusedCoordinates() ?: return@offset IntOffset.Zero
-                val root = container() ?: return@offset IntOffset.Zero
-                val position = root.localPositionOf(coordinates, Offset.Zero)
-                IntOffset(position.x.toInt(), position.y.toInt())
-            }
-            .layout { measurable, _ ->
-                val size = focusedCoordinates()?.size?.takeIf { container() != null } ?: IntSize.Zero
-                val placeable = measurable.measure(Constraints.fixed(size.width, size.height))
-                layout(placeable.width, placeable.height) { placeable.place(0, 0) }
-            }
+            .overlayCell(
+                bounds = { if (keyboard.isFocused) cellBounds(keyboard.focusedDate) else null },
+            )
             .testTag(KEYBOARD_FOCUS_RING_TAG)
             .padding(dimensions.dayCellPadding)
             .border(width = FOCUS_RING_WIDTH, color = colors.focusIndicator, shape = shapes.dayCell),
     )
+}
+
+/**
+ * One day cell as its last [Modifier.onGloballyPositioned] callback described it.
+ *
+ * [coordinates] is what every reader actually uses; the other two are only ever compared, and they
+ * are what tells the grid that a layout pass *moved* a cell rather than merely re-reporting one it
+ * already knew about. The coordinates object cannot answer that itself — it is the same instance
+ * from one pass to the next, and a live view rather than a snapshot, so putting it back into the map
+ * is a no-op even when the cell has moved half the screen. Resizing the window, switching to a work
+ * week and changing the first day of the week all land here, and all three used to leave the
+ * selection indicator behind on the cell the selected date used to occupy.
+ *
+ * The placement compared is the one inside the cell's own parent, deliberately not its position in
+ * the root: a pager translating a whole month across the screen moves every cell in the root's terms
+ * on every frame of the swipe, and re-measuring the overlays sixty times a second to tell them what
+ * they already know is exactly the cost this file exists to avoid.
+ */
+private class KalendarCellPlacement(val coordinates: LayoutCoordinates) {
+
+    private val positionInParent: Offset = coordinates.positionInParent()
+    private val size: IntSize = coordinates.size
+
+    /** Whether [candidate] is the same node, still exactly where this placement recorded it. */
+    fun stillDescribes(candidate: LayoutCoordinates): Boolean =
+        candidate === coordinates &&
+            candidate.size == size &&
+            candidate.positionInParent() == positionInParent
 }
 
 /**
@@ -527,10 +622,11 @@ private fun KeyboardFocusRing(
 private fun dateAtOffset(
     offset: Offset,
     container: LayoutCoordinates?,
-    cells: Map<LocalDate, LayoutCoordinates>,
+    cells: Map<LocalDate, KalendarCellPlacement>,
 ): LocalDate? {
     if (container == null) return null
-    for ((date, coordinates) in cells) {
+    for ((date, placement) in cells) {
+        val coordinates = placement.coordinates
         if (!coordinates.isAttached) continue
         val topLeft = container.localPositionOf(coordinates, Offset.Zero)
         val size = Size(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())

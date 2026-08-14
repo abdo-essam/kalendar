@@ -132,7 +132,17 @@ public fun KalendarAgenda(
                     }
                     items(
                         count = dateEvents.size,
-                        key = { index -> "event-$day-${dateEvents[index].id ?: index}" },
+                        // The two fallbacks are namespaced apart because they share a value space.
+                        // Keying a null id on the item's index meant an event carrying id "1" and a
+                        // second, id-less event sitting at index 1 produced the same key, and a
+                        // LazyColumn throws on a duplicate. Mixing identified and unidentified
+                        // events on one day is ordinary — synced events arrive with ids, locally
+                        // drafted ones do not — so this was reachable rather than theoretical.
+                        key = { index ->
+                            val event = dateEvents[index]
+                            val identity = event.id?.let { "id-$it" } ?: "at-$index"
+                            "event-$day-$identity"
+                        },
                         contentType = { AGENDA_EVENT_CONTENT_TYPE },
                     ) { index ->
                         val event = dateEvents[index]

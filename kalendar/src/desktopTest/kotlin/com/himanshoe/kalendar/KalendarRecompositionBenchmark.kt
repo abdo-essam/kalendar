@@ -25,8 +25,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
@@ -314,6 +317,56 @@ class KalendarRecompositionBenchmark {
             CELLS.count - before,
             "an arrow press recomposed ${CELLS.count - before} day cells; the focused date is being " +
                 "read in a composable body instead of in a layout or semantics lambda",
+        )
+    }
+
+    /**
+     * Laying a month grid out must not write snapshot state.
+     *
+     * The grid records where each cell landed from `onGloballyPositioned`, which runs in the layout
+     * phase. Held in a `mutableStateMapOf` and read from the grid's own body — to work out where to
+     * put the selection indicator — those 42 writes invalidated the grid on every layout pass, so
+     * every first frame composed it twice: once to lay it out, and once because laying it out had
+     * written state that composition was reading. The map is a plain one now and every reader is a
+     * layout lambda or a `snapshotFlow`.
+     *
+     * This counts the *cause* rather than the symptom, because the symptom is out of reach: the
+     * scope that recomposed is inside the grid, and the day cells never moved — a lazy grid memoizes
+     * its item content by key, so the second composition of the grid walked no cells and
+     * [CELLS] cannot see it. The cause is anyway the thing worth forbidding.
+     */
+    @Test
+    fun layingOutAMonthGridWritesNoSnapshotMap() {
+        reset()
+        val canary = mutableStateMapOf<Int, Int>()
+        var writes = 0
+        val handle = Snapshot.registerGlobalWriteObserver { written ->
+            if (written is SnapshotStateMap<*, *>) {
+                writes++
+            }
+        }
+        val observed: Int
+        try {
+            canary[0] = 0
+            observed = writes
+            writes = 0
+            rule.setContent {
+                Harness(tick = 0) { KalendarMonth(selectedDate = FIXTURE_DATE, dayContent = DAY_PROBE) }
+            }
+            rule.waitForIdle()
+        } finally {
+            handle.dispose()
+        }
+
+        println("BENCH month layout: snapshotMapWrites=$writes cells=${CELLS.count}")
+        // Vacuity guard: unless the observer saw the deliberate write above it is not watching, and
+        // the zero below would keep passing after a real regression.
+        assertTrue(observed > 0, "the snapshot write observer never fired for a deliberate map write")
+        assertEquals(
+            0,
+            writes,
+            "laying out a month grid wrote $writes snapshot map(s); the grid is tracking its cell " +
+                "coordinates in snapshot state again, which recomposes it after every layout pass",
         )
     }
 

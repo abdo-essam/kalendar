@@ -139,6 +139,15 @@ private val PICKER_POPUP_PADDING = 8.dp
 private val PICKER_POPUP_MAX_HEIGHT = 232.dp
 
 private const val MONTH_PICKER_COLUMNS = 4
+
+/**
+ * The month picker's twelve months, already split into rows.
+ *
+ * A compile-time-constant list split into a compile-time-constant number of columns has one answer
+ * for the life of the process; computing it in the picker's body allocated four lists on every
+ * recomposition to arrive at the same four lists.
+ */
+private val MONTH_PICKER_ROWS: List<List<Month>> = Month.entries.chunked(MONTH_PICKER_COLUMNS)
 private val MONTH_PICKER_CELL_WIDTH = 64.dp
 private val MONTH_PICKER_CELL_HEIGHT = 40.dp
 
@@ -1059,7 +1068,7 @@ private fun MonthGrid(
 ) {
     PickerPopupSurface {
         Column(modifier = Modifier.padding(PICKER_POPUP_PADDING)) {
-            Month.entries.chunked(MONTH_PICKER_COLUMNS).forEach { rowMonths ->
+            MONTH_PICKER_ROWS.forEach { rowMonths ->
                 Row {
                     rowMonths.forEach { month ->
                         PickerPopupCell(

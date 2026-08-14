@@ -21,6 +21,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -340,15 +342,19 @@ public object KalendarDayCellDefaults {
         val shapes = kalendarShapes()
         val dimensions = kalendarDimensions()
         val animations = kalendarAnimations()
-        val selectionSpec: AnimationSpec<Color> = if (animations.enabled) {
-            animations.selectionColorSpec
-        } else {
-            snap()
+        val selectionSpec: AnimationSpec<Color> = remember(animations) {
+            if (animations.enabled) {
+                animations.selectionColorSpec
+            } else {
+                snap()
+            }
         }
-        val scaleSpec: AnimationSpec<Float> = if (animations.enabled) {
-            animations.pressScaleSpec
-        } else {
-            snap()
+        val scaleSpec: AnimationSpec<Float> = remember(animations) {
+            if (animations.enabled) {
+                animations.pressScaleSpec
+            } else {
+                snap()
+            }
         }
         val background by animateColorAsState(
             targetValue = if (scope.isSelected && showSelectionBackground) {
@@ -465,7 +471,16 @@ public object KalendarDayCellDefaults {
                 },
                 indicators = {
                     if (animations.enabled) {
-                        AnimatedVisibility(visible = dottedCount > 0) {
+                        // Fade only, and both directions explicitly. AnimatedVisibility's default
+                        // enter is a fade *plus* an expandIn from the bottom-end corner, which grows
+                        // the row out of nothing and clips it on the way — motion that fights the
+                        // fixed strip KalendarDayCellLayout reserves precisely so that nothing in
+                        // the cell moves when a day gains an event.
+                        AnimatedVisibility(
+                            visible = dottedCount > 0,
+                            enter = fadeIn(animationSpec = animations.eventIndicatorFadeSpec),
+                            exit = fadeOut(animationSpec = animations.eventIndicatorFadeSpec),
+                        ) {
                             EventIndicatorRow(
                                 scope = scope,
                                 spanLanes = spanLanes,

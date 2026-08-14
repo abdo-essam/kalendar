@@ -312,16 +312,19 @@ public final class com/himanshoe/kalendar/state/KalendarViewStateKt {
 public final class com/himanshoe/kalendar/theme/KalendarAnimations {
 	public static final field $stable I
 	public fun <init> ()V
-	public fun <init> (ZLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/AnimationSpec;FLandroidx/compose/animation/core/AnimationSpec;I)V
-	public synthetic fun <init> (ZLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/AnimationSpec;FLandroidx/compose/animation/core/AnimationSpec;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun copy (ZLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/AnimationSpec;FLandroidx/compose/animation/core/AnimationSpec;I)Lcom/himanshoe/kalendar/theme/KalendarAnimations;
-	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/theme/KalendarAnimations;ZLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/AnimationSpec;FLandroidx/compose/animation/core/AnimationSpec;IILjava/lang/Object;)Lcom/himanshoe/kalendar/theme/KalendarAnimations;
+	public fun <init> (ZLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/AnimationSpec;FLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/FiniteAnimationSpec;ILandroidx/compose/animation/core/Easing;Landroidx/compose/animation/core/Easing;)V
+	public synthetic fun <init> (ZLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/AnimationSpec;FLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/FiniteAnimationSpec;ILandroidx/compose/animation/core/Easing;Landroidx/compose/animation/core/Easing;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun copy (ZLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/AnimationSpec;FLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/FiniteAnimationSpec;ILandroidx/compose/animation/core/Easing;Landroidx/compose/animation/core/Easing;)Lcom/himanshoe/kalendar/theme/KalendarAnimations;
+	public static synthetic fun copy$default (Lcom/himanshoe/kalendar/theme/KalendarAnimations;ZLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/AnimationSpec;FLandroidx/compose/animation/core/AnimationSpec;Landroidx/compose/animation/core/FiniteAnimationSpec;ILandroidx/compose/animation/core/Easing;Landroidx/compose/animation/core/Easing;ILjava/lang/Object;)Lcom/himanshoe/kalendar/theme/KalendarAnimations;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getEnabled ()Z
+	public final fun getEventIndicatorFadeSpec ()Landroidx/compose/animation/core/FiniteAnimationSpec;
 	public final fun getPressScale ()F
 	public final fun getPressScaleSpec ()Landroidx/compose/animation/core/AnimationSpec;
 	public final fun getSelectionColorSpec ()Landroidx/compose/animation/core/AnimationSpec;
 	public final fun getSelectionIndicatorSpec ()Landroidx/compose/animation/core/AnimationSpec;
+	public final fun getTitleFadeInEasing ()Landroidx/compose/animation/core/Easing;
+	public final fun getTitleFadeOutEasing ()Landroidx/compose/animation/core/Easing;
 	public final fun getTitleTransitionMillis ()I
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;

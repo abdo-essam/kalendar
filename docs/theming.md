@@ -348,11 +348,21 @@ KalendarTheme(
 | Token | Default | Controls |
 |---|---|---|
 | `enabled` | `true` | Master switch. When `false`, every animation below snaps to its target and `pressScale` is ignored. |
-| `selectionColorSpec` | `spring()` | The day cell's selection fill fading in and out. |
-| `selectionIndicatorSpec` | `spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessHigh)` | The indicator that slides between selected day cells. |
+| `selectionColorSpec` | `spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)` | The day cell's selection fill fading in and out. |
+| `selectionIndicatorSpec` | `spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)` | The indicator that slides between selected day cells. |
 | `pressScale` | `0.92f` | The scale a day cell shrinks to while pressed. `1f` disables the effect. |
-| `pressScaleSpec` | `spring()` | The `pressScale` animation. |
-| `titleTransitionMillis` | `150` | Duration of the header and sticky-title crossfade. |
+| `pressScaleSpec` | `spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium)` | The `pressScale` animation. |
+| `eventIndicatorFadeSpec` | `spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)` | The row of event dots fading in and out as a day gains or loses events. |
+| `titleTransitionMillis` | `200` | Total duration of the header and sticky-title fade, split evenly between out and in. |
+| `titleFadeOutEasing` | `FastOutLinearInEasing` | Easing of the half that takes the old title away. |
+| `titleFadeInEasing` | `LinearOutSlowInEasing` | Easing of the half that brings the new title back. |
+
+Every spec is written out in full rather than left to `spring()`'s defaults, so retuning one is a
+matter of changing a number rather than of first discovering what the default was. Motion under a
+finger is a spring — interruptible, and carrying its velocity into whatever interrupts it — while
+motion that only swaps information is a fixed, short, asymmetric fade: quick to leave, unhurried to
+arrive. `pressScaleSpec` is the one spec that bounces, because a press is the only motion a finger
+is actually resting on.
 
 ### Reduced motion
 

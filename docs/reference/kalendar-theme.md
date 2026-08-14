@@ -337,25 +337,43 @@ KalendarTheme(
 @Immutable
 public class KalendarAnimations(
     public val enabled: Boolean = true,
-    public val selectionColorSpec: AnimationSpec<Color> = spring(),
+    public val selectionColorSpec: AnimationSpec<Color> = spring(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMediumLow,
+    ),
     public val selectionIndicatorSpec: AnimationSpec<Offset> = spring(
         dampingRatio = Spring.DampingRatioNoBouncy,
-        stiffness = Spring.StiffnessHigh,
+        stiffness = Spring.StiffnessMedium,
     ),
     public val pressScale: Float = 0.92f,
-    public val pressScaleSpec: AnimationSpec<Float> = spring(),
-    public val titleTransitionMillis: Int = 150,
+    public val pressScaleSpec: AnimationSpec<Float> = spring(
+        dampingRatio = Spring.DampingRatioLowBouncy,
+        stiffness = Spring.StiffnessMedium,
+    ),
+    public val eventIndicatorFadeSpec: FiniteAnimationSpec<Float> = spring(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMediumLow,
+    ),
+    public val titleTransitionMillis: Int = 200,
+    public val titleFadeOutEasing: Easing = FastOutLinearInEasing,
+    public val titleFadeInEasing: Easing = LinearOutSlowInEasing,
 )
 ```
+
+Every spec is stated in full rather than left to `spring()`'s defaults, so retuning one means
+changing a number here rather than first discovering what the default was.
 
 | Property | Default | Controls |
 |---|---|---|
 | `enabled` | `true` | Master switch. When `false`, every animation snaps to its target and `pressScale` is ignored. |
-| `selectionColorSpec` | `spring()` | The day cell's selection fill fading in and out. |
-| `selectionIndicatorSpec` | a non-bouncy, high-stiffness `spring()` | The indicator sliding between selected day cells. |
+| `selectionColorSpec` | a fully damped, medium-low-stiffness `spring()` | The day cell's selection fill fading in and out. |
+| `selectionIndicatorSpec` | a fully damped, medium-stiffness `spring()` | The indicator sliding between selected day cells. |
 | `pressScale` | `0.92f` | The scale a day cell shrinks to while pressed. `1f` disables the effect. |
-| `pressScaleSpec` | `spring()` | The `pressScale` animation. |
-| `titleTransitionMillis` | `150` | Duration of the header and sticky-title crossfade. |
+| `pressScaleSpec` | a low-bounce, medium-stiffness `spring()` | The `pressScale` animation — the one spec that overshoots. |
+| `eventIndicatorFadeSpec` | a fully damped, medium-low-stiffness `spring()` | The row of event dots fading in and out as a day gains or loses events. |
+| `titleTransitionMillis` | `200` | Total duration of the header and sticky-title fade, split evenly between out and in. |
+| `titleFadeOutEasing` | `FastOutLinearInEasing` | The half that takes the old title away: accelerating, so it leaves promptly. |
+| `titleFadeInEasing` | `LinearOutSlowInEasing` | The half that brings the new title back: decelerating, so it settles. |
 | `copy(…)` | — | A duplicate with only the values passed here replaced. |
 
 `enabled = false` is the correct response to a platform reduced-motion preference, and what

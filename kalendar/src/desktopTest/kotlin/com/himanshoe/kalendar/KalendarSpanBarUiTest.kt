@@ -241,6 +241,50 @@ class KalendarSpanBarUiTest {
     }
 
     /**
+     * The baseline guarantee with the glyphs held still, so the answer is exact rather than within
+     * [BASELINE_TOLERANCE].
+     *
+     * [everyDayNumberInARow_sharesOneBaseline] compares seven *different* digits, and the topmost
+     * lit pixel of a "4" is genuinely not the topmost lit pixel of an "8" — which is why it carries a
+     * 1px tolerance, and why a real 1px layout drift could hide behind it. This renders the same grid
+     * twice and moves only the events: the column measured draws the same digit at the same size in
+     * both frames, and holds five dots and an overflow label in one and nothing in the other. Any
+     * difference at all is then the layout, and the assertion is to the pixel.
+     */
+    @Test
+    fun aDayNumbersHeight_doesNotDependOnWhatItsOwnDayHolds() {
+        val spans = listOf(conference, workshop)
+        fun dotsOn(day: Int) = List(FULL_DOT_ROW) { index ->
+            BasicKalendarEvent(date = march(day), eventName = "Meeting $index", eventColor = DOT_INK)
+        }
+
+        // Wednesday the 11th carries the dots in one frame and Sunday the 15th in the other. Both
+        // days are inside the span rows, so the grid reserves the same two lanes either way.
+        val loadedFrame = renderMonth(spans + dotsOn(WEDNESDAY_DAY))
+        val bareFrame = renderMonth(spans + dotsOn(SUNDAY_DAY))
+        val loaded = loadedFrame.dayNumberTops(row = EVENT_ROW)
+        val bare = bareFrame.dayNumberTops(row = EVENT_ROW)
+
+        // Vacuity guard: unless the dots really did move between the two frames, the two numbers
+        // below are the same number twice and the assertion proves nothing.
+        assertTrue(
+            loadedFrame.dotColumns().contains(WEDNESDAY) && !bareFrame.dotColumns().contains(WEDNESDAY),
+            "the dots did not move off Wednesday: ${loadedFrame.dotColumns()} vs ${bareFrame.dotColumns()}",
+        )
+
+        assertEquals(
+            bare[WEDNESDAY],
+            loaded[WEDNESDAY],
+            "the 11th's number moved when its own day filled up: $bare vs $loaded",
+        )
+        assertEquals(
+            bare[SUNDAY],
+            loaded[SUNDAY],
+            "the 15th's number moved when its own day emptied: $bare vs $loaded",
+        )
+    }
+
+    /**
      * The same guarantee across rows, which is what makes the lane count a property of the grid
      * rather than of the day: the week holding the spans must not sit lower than an empty one.
      */
@@ -409,6 +453,11 @@ class KalendarSpanBarUiTest {
             }
         }
 
+        /** Which columns of the grid have any indicator-dot ink in them at all. */
+        fun dotColumns(): Set<Int> = (0 until height)
+            .flatMap { y -> runsAt(y, DOT_INK) }
+            .mapTo(mutableSetOf()) { run -> run.first / COLUMN_WIDTH }
+
         /** The runs of adjacent [color] pixels along row [y], left to right. */
         fun runsAt(y: Int, color: Color): List<IntRange> {
             val runs = mutableListOf<IntRange>()
@@ -491,8 +540,14 @@ class KalendarSpanBarUiTest {
         /** Column indices within a Monday-first week. */
         const val MONDAY = 0
         const val TUESDAY = 1
+        const val WEDNESDAY = 2
         const val THURSDAY = 3
         const val FRIDAY = 4
+        const val SUNDAY = 6
+
+        /** The days of March 2026 that fall in [WEDNESDAY] and [SUNDAY] of [EVENT_ROW]. */
+        const val WEDNESDAY_DAY = 11
+        const val SUNDAY_DAY = 15
 
         /** The week of March 9th, counting the grid's rows of day numbers from zero. */
         const val EVENT_ROW = 2
