@@ -71,11 +71,13 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(compose.runtime)
+            // This module is the event model and nothing else. It has no UI, so it takes no
+            // Compose UI dependency — only the annotations, which are compile-time markers the
+            // Compose compiler reads and which therefore need not be on a consumer's runtime
+            // classpath. That is what lets an app's data layer implement KalendarEvent without
+            // dragging Compose into it.
+            compileOnly(compose.runtime)
             implementation(compose.ui)
-            implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.materialIconsExtended)
             implementation(libs.kotlinx.datetime)
         }
         commonTest.dependencies {
