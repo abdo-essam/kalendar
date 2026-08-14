@@ -59,8 +59,12 @@ KalendarTheme(
 | `openJumpPicker` | `String` | `"Choose month and year"` | Accessibility label for the header title when tapping it opens the jump picker. |
 | `todaySuffix` | `String` | `", today"` | Appended to a day cell's announcement when the date is today. **Include the leading separator.** |
 | `hasEventsSuffix` | `String` | `", has events"` | Appended when the date has at least one event. **Include the leading separator.** |
+| `agendaEmptyState` | `String` | `"No events"` | Shown in place of the list when `KalendarAgenda` is given no events. |
 | `eventOverflowLabel` | `(hiddenEventCount: Int) -> String` | `{ "+$it" }` | The compact label when a day has more events than `KalendarViewConfig.eventIndicatorCap`. |
 | `dayAccessibilityLabel` | `(date: LocalDate, monthName: String) -> String` | `"$monthName ${date.dayOfMonth}, ${date.year}"` | Builds a day cell's base announcement. `todaySuffix` and `hasEventsSuffix` are appended to whatever this returns. |
+| `dayOfWeekAccessibilityLabel` | `(DayOfWeek) -> String` | `"Monday"` | The full day name announced for a column header. The header *shows* `dayOfWeekLabelFormatter`'s short form — a bare "M" reads as an initial, not a weekday — so this supplies the name behind it. |
+| `eventAccessibilityLabel` | `(event, start: LocalDateTime, end: LocalDateTime) -> String` | `"Design review, 09:30 to 11:00"` | What a screen reader announces for a timed event block. Override for a localized time format. Applied by `KalendarScheduleDefaults.EventBlock` — a replacement `eventContent` slot draws its own semantics. |
+| `allDayEventAccessibilityLabel` | `(event) -> String` | `"Release day, all day"` | The same, for an all-day chip. |
 
 `KalendarStrings` is fully defaulted, so overriding one field is a one-liner — but inside a nested
 theme, copy the accessor so you do not reset the rest:
@@ -121,7 +125,9 @@ formatting rather than fixed text.
 
 | Formatter | Type | Default | Used for |
 |---|---|---|---|
-| `monthNameFormatter` | `(Month) -> String` | `"August"` | Header titles, `KalendarYear`'s month labels, the Timeline's month titles, the jump picker, and each day cell's accessibility description. |
+| `monthNameFormatter` | `(Month) -> String` | `"August"` | Header titles, `KalendarYear`'s month labels, the Timeline's month titles, `KalendarAgenda`'s date headers, the jump picker, and each day cell's accessibility description. |
+| `shortMonthNameFormatter` | `(Month) -> String` | `"Aug"` | Week and day titles (`"Aug 10–16, 2026"`) and the jump picker's fixed-width month buttons. Its own hook rather than a `take(3)` on `monthNameFormatter`, because abbreviating is language-specific: truncating blindly turns Finnish `"toukokuu"` into `"tou"` and can cut a Devanagari name after a virama. |
+| `dayOfWeekNameFormatter` | `(DayOfWeek) -> String` | `"Tue"` | The abbreviated day name in `KalendarSchedule`'s day title (`"Tue, Aug 11, 2026"`). |
 | `dayOfWeekLabelFormatter` | `(DayOfWeek) -> String` | `"M"` | The day-of-week column headers, and `KalendarScheduleWeek`'s day-column labels. |
 | `hourLabelFormatter` | `(Int) -> String` | `"08:00"` | The hour-gutter labels on both Schedule views. |
 
@@ -135,9 +141,25 @@ KalendarMonth(
 )
 ```
 
-> **Note:** the header truncates month names to three characters in some places — the week title and
-> the jump picker's month buttons. Your formatter should return the **full** name; the view shortens
-> it where it needs to.
+> **Note:** nothing truncates your formatter's output. Where a full month name will not fit — the
+> week and day titles, and the jump picker's fixed-width month buttons — the view calls
+> `shortMonthNameFormatter` instead, and `dayOfWeekNameFormatter` for the abbreviated weekday in
+> `KalendarSchedule`'s day title. Abbreviating is language-specific: a blind `take(3)` turns Finnish
+> `"toukokuu"` into `"tou"` and can cut a Devanagari name after a virama, so supply the short forms
+> yourself rather than letting the full ones be cut.
+
+```kotlin
+KalendarViewConfig(
+    monthNameFormatter = ::localizedMonthName,
+    shortMonthNameFormatter = ::localizedShortMonthName,
+    dayOfWeekNameFormatter = ::localizedDayName,
+    dayOfWeekLabelFormatter = ::localizedDayInitial,
+)
+```
+
+Every platform date API has a short form beside its full one — `TextStyle.SHORT` on `java.time`,
+`NSDateFormatter.shortMonthSymbols` on iOS, `{ month: "short" }` on `Intl` — so this is one more line
+per formatter, not a new problem to solve.
 
 ### Per-platform implementations
 
@@ -191,7 +213,6 @@ fun twelveHourLabel(hour: Int): String = when {
 }
 
 KalendarSchedule(
-    selectedDate = today,
     config = KalendarViewConfig(hourLabelFormatter = ::twelveHourLabel),
 )
 ```

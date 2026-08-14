@@ -3,8 +3,8 @@
 Kalendar 2.0 replaces the `Kalendar(type = ...)` dispatcher with **standalone composables**. If you
 were on 1.x, this page is the whole story.
 
-The short version: `KalendarType` is gone except for `Agenda`, and each former type has become a
-composable you call directly.
+The short version: `KalendarType` and the `Kalendar` dispatcher are gone entirely, and every former
+type has become a composable you call directly.
 
 ## What happened to `KalendarType`
 
@@ -19,13 +19,27 @@ sealed type could not express the very different parameter sets each layout actu
 | `KalendarType.Firey` (week row, arrow navigation) | [`KalendarWeek`](views/week.md) |
 | `KalendarType.Aerial` (swipeable week row) | [`KalendarWeek`](views/week.md) |
 | `KalendarType.Yearly` | [`KalendarYear`](views/year.md) |
-| `KalendarType.Agenda` | Unchanged — still `Kalendar(type = KalendarType.Agenda)` |
+| `KalendarType.Agenda` | [`KalendarAgenda`](views/agenda.md) |
 
 > **Note:** the arrow-navigation and swipe variants collapsed into one composable each. In 2.0 the
 > header's arrow buttons and a horizontal swipe drive the same `KalendarViewState`, so both input
 > methods always work and can never desync. There is no longer a choice to make.
 
-There is **no `KalendarType`-based drop-in replacement**. Call the composable directly.
+There is **no `KalendarType`-based drop-in replacement**, and no `Kalendar` composable left to pass
+one to. Call the view directly:
+
+```kotlin
+// 1.x
+Kalendar(type = KalendarType.Agenda, events = events, config = KalendarConfig())
+
+// 2.0
+KalendarAgenda(events = events, config = KalendarViewConfig())
+```
+
+`KalendarAgenda` is not a survivor bolted onto the new package — it was rewritten against it. It
+draws entirely with Compose Foundation, styles through [`KalendarTheme`](theming.md) like every other
+view, takes `KalendarViewConfig`, and has content slots for its date headers, its rows and its empty
+state. See [KalendarAgenda](views/agenda.md).
 
 ## Rewriting a call
 
@@ -66,7 +80,11 @@ KalendarMonth(
 )
 ```
 
-The single 1.x `KalendarConfig` has been split three ways, by what each setting actually governs:
+`KalendarConfig` itself no longer exists — it was deleted from `kalendar-foundation` in 2.0, along
+with `KalendarDayConfig`, `KalendarDayLabelConfig`, `KalendarHeaderConfig`, `OnDaySelectionAction`,
+`LocalDate.onDayClick`, `KalendarSelectedDayRange`, and the `KalendarColor` sealed class with its
+`asSolidColor()` / `asGradientColor()` extensions. Its settings were split three ways, by what each
+one actually governs:
 
 | 1.x `KalendarConfig` field | 2.0 home |
 |---|---|
@@ -74,6 +92,11 @@ The single 1.x `KalendarConfig` has been split three ways, by what each setting 
 | `disabledDates`, `showArrows`, `showDayLabel` | [`KalendarViewConfig`](configuration.md) (`showArrows` is now `showNavigationArrows`) |
 | `initialSelectedDates`, `initialSelectedRange` | `selectedDates` on the view, or [`rememberKalendarSelectionState`](getting-started.md) |
 | `dayConfig`, `dayLabelConfig`, `headerConfig`, `backgroundColor`, `calendarColors` | [`KalendarTheme`](theming.md) tokens |
+| `onVisibleRangeChange`, `showWeekNumbers` | Nothing — neither was ever read |
+
+What is left in `kalendar-foundation` is the event model and nothing else: `KalendarEvent`,
+`BasicKalendarEvent`, `KalendarEvents`. The artifact is **2.0.0**, up from 1.1.0, so a build that
+pins it explicitly needs its version bumped as well as `kalendar`'s.
 
 ## Selection
 
@@ -156,6 +179,8 @@ Things that had no 1.x equivalent at all, worth knowing exist:
 | [`KalendarTimeline`](views/timeline.md) — continuous vertical month scroll | New view |
 | [`KalendarSchedule`](views/schedule.md) — hourly day grid | New view |
 | [`KalendarScheduleWeek`](views/schedule-week.md) — hourly 7-day grid | New view |
+| [`KalendarAgenda`](views/agenda.md) — themed, slot-based event list | Rewritten view |
+| `KalendarEvent.id` — a stable key for list state | [Events](events.md) |
 | Multi-day events via `KalendarEvent.endDate` | [Events](events.md) |
 | Per-event indicator dots with a `+N` overflow | [Events](events.md) |
 | Drag to select a range, drag to reschedule, drag/resize event blocks | [Events](events.md) |

@@ -22,6 +22,7 @@ everything else defaults, so existing implementations stay source-compatible as 
 | `endTime` | `LocalDateTime?` | `null` | When the event ends. Shown wherever duration matters. |
 | `eventColor` | `Color?` | `null` | Tints the event's indicator dot and block. Falls back to `KalendarColors.eventIndicator`. |
 | `calendarId` | `String?` | `null` | Optional source-calendar identifier (`"work"`, `"personal"`), carried as metadata. The built-in views do not read it. |
+| `id` | `String?` | `null` | Optional stable identifier, unique across the list. Views that keep per-item state use it as their list key — see [Stable identifiers](#stable-identifiers). |
 
 > **Note:** `startTime` and `endTime` are `LocalDateTime`, not `LocalTime` — they carry a date as
 > well as a time. Keep their date in sync with `date`; the grid places blocks by `date`, so a
@@ -58,7 +59,26 @@ val events = listOf(
 ```
 
 Its constructor parameter order is `date`, `eventName`, `eventDescription`, `startTime`, `endTime`,
-`eventColor`, `calendarId`, `endDate` — pass them by name and the order stops mattering.
+`eventColor`, `calendarId`, `endDate`, `id` — pass them by name and the order stops mattering.
+
+### Stable identifiers
+
+`id` defaults to `null`, so nothing that already implements `KalendarEvent` has to change. Set it and
+[`KalendarAgenda`](views/agenda.md) keys its list items on it, which is what keeps scroll position
+and per-row state attached to the right event when the list is edited underneath them. Without one
+the key falls back to the event's position within its date — fine for a list that never changes, and
+wrong for one that does.
+
+```kotlin
+BasicKalendarEvent(
+    date = LocalDate(2026, 3, 10),
+    eventName = "Design review",
+    id = "cal-events/8871",
+)
+```
+
+It is also the handle to look an event back up when a click callback hands you one, instead of
+matching on name and date.
 
 ### Using your own event type
 
@@ -66,7 +86,7 @@ Its constructor parameter order is `date`, `eventName`, `eventDescription`, `sta
 
 ```kotlin
 data class Meeting(
-    val id: Long,
+    val meetingId: Long,
     val title: String,
     val on: LocalDate,
     val from: LocalDateTime?,
@@ -77,6 +97,7 @@ data class Meeting(
     override val eventDescription: String? get() = null
     override val startTime: LocalDateTime? get() = from
     override val endTime: LocalDateTime? get() = to
+    override val id: String get() = meetingId.toString()
 }
 ```
 
@@ -167,7 +188,6 @@ The Schedule views report the specific event instead:
 
 ```kotlin
 KalendarSchedule(
-    selectedDate = today,
     events = events,
     onEventClick = { event -> openDetails(event) },
 )
@@ -214,7 +234,6 @@ columns.
 
 ```kotlin
 KalendarSchedule(
-    selectedDate = today,
     events = events,
     onEventTimeChange = { event, newStart, newEnd ->
         events = events.map { existing ->

@@ -5,6 +5,8 @@ the same `KalendarViewState`, so the two input methods can never desync.
 
 Use it as a compact date strip above a day's content — the shape most "week view" screens want.
 
+![A one-week row for 9–15 March 2026. Thursday the 12th is selected and filled with a circle; four of the seven days carry coloured event dots under their number, and Tuesday the 10th shows three dots followed by a "+1" badge for the events beyond the indicator cap.](../images/week-theme.png)
+
 ## Minimal example
 
 ```kotlin

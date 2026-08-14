@@ -7,6 +7,11 @@
 /site/
 .cache/
 
+# Documentation screenshots, drawn from the real library by :docsite:generateDocsImages on every
+# site build. Not committed on purpose: a checked-in picture of a calendar is correct until the
+# next change to the calendar, and nothing tells you when it stops being correct.
+/docs/images/
+
 # Gradle
 .gradle/
 gradle/wrapper/gradle-wrapper.jar

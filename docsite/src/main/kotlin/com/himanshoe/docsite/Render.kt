@@ -33,6 +33,9 @@ private val headingPattern = Regex("""<h([1-6])>(.*?)</h\1>""", RegexOption.DOT_
 private val codeBlockPattern = Regex("""<pre>(<code[^>]*>)([\s\S]*?)</code></pre>""")
 private val linkPattern = Regex("""href="([^"]+)"""")
 private val imagePattern = Regex("""(<img\b[^>]*?)/?>""")
+private val markdownImagePattern = Regex("""!\[([^\[\]]*)]\(\s*([^)\s]+)""")
+private val srcPattern = Regex("""\bsrc="([^"]*)"""")
+private val altPattern = Regex("""\balt="[^"]*"""")
 private val tablePattern = Regex("""<table>([\s\S]*?)</table>""")
 private val paragraphPattern = Regex("""<p>([\s\S]*?)</p>""")
 private val tagPattern = Regex("""<[^>]+>""")
@@ -45,7 +48,8 @@ fun renderMarkdown(markdown: String): RenderedPage {
     val body = markdownToHtml(markdown)
 
     val headings = mutableListOf<Heading>()
-    val withAnchors = addHeadingAnchors(html = body, collected = headings)
+    val withAlt = restoreImageAlt(html = body, markdown = markdown)
+    val withAnchors = addHeadingAnchors(html = withAlt, collected = headings)
     val withLinks = rewriteLinks(withAnchors)
     val withTables = wrapTables(withLinks)
     val withCode = renderCodeBlocks(withTables)
@@ -161,10 +165,69 @@ private fun wrapTables(html: String): String =
         """<div class="table-wrap"><table>${match.groupValues[1]}</table></div>"""
     }
 
-/** Marks images as lazily loaded and keeps them inside the content column. */
+/**
+ * Puts the alt text an author actually wrote back onto each image.
+ *
+ * The markdown renderer builds an image's `alt` by concatenating the text leaves of its label, and
+ * punctuation is not a text leaf: `![The 13th shows a "+1" badge, in bold.](x.png)` reaches the page
+ * as `alt="The 13th shows a 1 badge in bold"`. Nobody notices, because the one audience for alt text
+ * is the one audience that cannot see the picture — which is exactly why this is worth repairing
+ * rather than working around by asking authors to write raw `<img>` tags.
+ *
+ * The source is matched on the image's destination, so an image is repaired wherever it appears and
+ * one written twice on a page with two different descriptions keeps the first. Only inline images
+ * (`![...](...)`) are matched; a reference-style image keeps whatever the renderer gave it.
+ */
+private fun restoreImageAlt(
+    html: String,
+    markdown: String
+): String {
+    val authored = mutableMapOf<String, String>()
+    markdownImagePattern.findAll(markdown).forEach { match ->
+        authored.putIfAbsent(match.groupValues[2], match.groupValues[1])
+    }
+    if (authored.isEmpty()) {
+        return html
+    }
+    return imagePattern.replace(html) { match ->
+        val tag = match.groupValues[1]
+        val source = srcPattern.find(tag)?.groupValues?.get(1)
+        val alt = source?.let { destination -> authored[destination] }
+        if (alt == null) {
+            match.value
+        } else {
+            withAlt(tag = tag, alt = alt) + ">"
+        }
+    }
+}
+
+/** [tag] with its `alt` replaced, or given one if the renderer left it off entirely. */
+private fun withAlt(
+    tag: String,
+    alt: String
+): String {
+    val attribute = """alt="${escapeAttribute(alt)}""""
+    return if (altPattern.containsMatchIn(tag)) {
+        altPattern.replace(tag) { attribute }
+    } else {
+        "$tag $attribute"
+    }
+}
+
+/**
+ * Marks images as lazily loaded and keeps them inside the content column.
+ *
+ * An image that already says how it loads is left alone: [expandThemedImages] writes its own pair of
+ * tags complete with loading hints, and marking them again would leave two `loading` attributes on
+ * one element.
+ */
 fun markImages(html: String): String =
     imagePattern.replace(html) { match ->
-        """${match.groupValues[1]} loading="lazy" decoding="async">"""
+        if (match.value.contains("loading=")) {
+            match.value
+        } else {
+            """${match.groupValues[1]} loading="lazy" decoding="async">"""
+        }
     }
 
 /** Colours the Kotlin in every fenced block and hangs a copy button off it. */

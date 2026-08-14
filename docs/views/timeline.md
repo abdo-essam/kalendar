@@ -6,6 +6,8 @@ current scroll position are ever composed.
 
 This is the Google-Calendar-list shape. There are no arrow buttons; the scroll *is* the navigation.
 
+![A continuous month list scrolled to the join between two months: the end of the March 2026 grid runs straight into the April 2026 title and the start of April's grid, with no page break between them. The sticky month header reads "March 2026" over the top of the list, and event dots mark days in both months.](../images/timeline-theme.png)
+
 ## Minimal example
 
 ```kotlin
@@ -73,6 +75,7 @@ val state = rememberKalendarTimelineState(
 | `startDayOfWeek` | `DayOfWeek` | `MONDAY` | The first column of every month grid. |
 | `minDate` | `LocalDate?` | `null` | The list cannot scroll to a month before this date's month. Unlimited when `null`. |
 | `maxDate` | `LocalDate?` | `null` | The list cannot scroll to a month after this date's month. Unlimited when `null`. |
+| `timeSource` | `KalendarTimeSource` | the ambient one | Where the state reads "today" from. See [The clock](../configuration.md#the-clock). |
 
 Unlike the paged views, these bounds clamp the **scroll itself** — the list is built with a finite
 item count when both are set, so there is nothing past them to reach.
@@ -85,10 +88,10 @@ val scope = rememberCoroutineScope()
 
 KalendarTimeline(selectedDate = today, state = state)
 
-Button(onClick = { scope.launch { state.scrollTo(LocalDate(2026, 12, 25)) } }) {
+Button(onClick = { scope.launch { state.animateScrollTo(LocalDate(2026, 12, 25)) } }) {
     Text("Jump to December")
 }
-Button(onClick = { scope.launch { state.scrollToToday() } }) {
+Button(onClick = { scope.launch { state.animateScrollToToday() } }) {
     Text("Today")
 }
 ```

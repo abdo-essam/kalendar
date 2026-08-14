@@ -27,6 +27,7 @@ fun main(args: Array<String>) {
     order.forEachIndexed { index, source ->
         writeDocPage(
             outputDir = outputDir,
+            docsDir = docsDir,
             source = source,
             page = rendered.getValue(source),
             sections = sections,
@@ -38,6 +39,7 @@ fun main(args: Array<String>) {
     val home = sources.first { source -> source.path == "index.md" }
     writeHome(
         outputDir = outputDir,
+        docsDir = docsDir,
         page = rendered.getValue(home),
         sections = sections,
         rendered = rendered,
@@ -60,6 +62,7 @@ fun main(args: Array<String>) {
 
 private fun writeDocPage(
     outputDir: File,
+    docsDir: File,
     source: DocSource,
     page: RenderedPage,
     sections: List<NavSection>,
@@ -67,6 +70,7 @@ private fun writeDocPage(
     entryUrl: String
 ) {
     val depth = source.url.urlDepth()
+    val body = markImages(expandThemedImages(html = page.html, docsDir = docsDir, pagePath = source.path))
     val html =
         renderPage(
             title = "${page.title} · $SITE_NAME",
@@ -74,7 +78,7 @@ private fun writeDocPage(
             context = PageContext(url = source.url, depth = depth, entryUrl = entryUrl),
             navigation = renderNavigation(sections = sections, currentUrl = source.url, depth = depth),
             contents = renderContents(page.headings),
-            body = markImages(page.html) + renderPagination(previous = neighbours.first, next = neighbours.second, depth = depth)
+            body = body + renderPagination(previous = neighbours.first, next = neighbours.second, depth = depth)
         )
     val target = outputDir.resolve(source.url)
     target.parentFile.mkdirs()
@@ -83,6 +87,7 @@ private fun writeDocPage(
 
 private fun writeHome(
     outputDir: File,
+    docsDir: File,
     page: RenderedPage,
     sections: List<NavSection>,
     rendered: Map<DocSource, RenderedPage>,
@@ -109,7 +114,13 @@ private fun writeHome(
             context = PageContext(url = "index.html", depth = 0, entryUrl = entryUrl),
             navigation = "",
             contents = "",
-            body = markImages(renderHome(page = page, groups = groups)),
+            body = markImages(
+                expandThemedImages(
+                    html = renderHome(page = page, groups = groups),
+                    docsDir = docsDir,
+                    pagePath = "index.md"
+                )
+            ),
             landing = true
         )
     outputDir.resolve("index.html").writeText(html)

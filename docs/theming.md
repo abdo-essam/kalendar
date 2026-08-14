@@ -54,7 +54,7 @@ are fully defaulted, so you can construct them directly:
 
 ```kotlin
 KalendarTheme(dimensions = KalendarDimensions(hourHeight = 96.dp)) {
-    KalendarSchedule(selectedDate = today)
+    KalendarSchedule(state = rememberKalendarScheduleState(initialDate = today))
 }
 ```
 
@@ -64,7 +64,7 @@ KalendarTheme(dimensions = KalendarDimensions(hourHeight = 96.dp)) {
 >
 > ```kotlin
 > KalendarTheme(dimensions = KalendarTheme.dimensions.copy(hourHeight = 96.dp)) {
->     KalendarSchedule(selectedDate = today)
+>     KalendarSchedule(state = rememberKalendarScheduleState(initialDate = today))
 > }
 > ```
 
@@ -119,12 +119,16 @@ All of them are `@Composable` getters, and all fall back to `KalendarThemeDefaul
 | `dayContent` | Ordinary day numbers | `onSurface` | `#1C1B1F` | `#E6E1E5` |
 | `dayLabelContent` | Day-of-week column labels and hour-gutter labels | `onSurfaceVariant` | `#49454F` | `#CAC4D0` |
 | `headerContent` | The navigation header's title and its icons | `onSurface` | `#1C1B1F` | `#E6E1E5` |
+| `headerContentDisabled` | A header arrow whose direction is blocked by `minDate` / `maxDate` | `headerContent` at 38% | — | — |
+| `focusIndicator` | The ring around a keyboard-focused day cell | `todayContent` | — | — |
+| `hoverBackground` | The wash over a day cell under the pointer | `dayContent` at 8% | — | — |
 | `eventIndicator` | Event dots and blocks when `KalendarEvent.eventColor` is `null` | `primary` | `#6750A4` | `#D0BCFF` |
 | `nowIndicator` | The current-time line on the Schedule views | `error` | `#B3261E` | `#F2B8B5` |
 | `gridLine` | Hour lines and separators | `outlineVariant` | `#CAC4D0` | `#49454F` |
 | `dragGhostBackground` | The drop-target ghost while dragging an event | `secondaryContainer` | `#E8DEF8` | `#4A4458` |
 | `popupBackground` | Fill of the month/year jump picker | `surfaceContainerHigh` | `#ECE6F0` | `#2B2930` |
 | `popupBorder` | Outline around the jump picker | `outlineVariant` | `#CAC4D0` | `#49454F` |
+| `agendaCard` | Fill of one event row on `KalendarAgenda` | `surfaceContainerLow` | `#F7F2FA` | `#26242A` |
 
 And the four alphas, which are the same in every palette:
 
@@ -234,6 +238,8 @@ light and dark — so a single `KalendarTheme` can swap only `colors` and leave 
 | `eventLabel` | Event block titles and all-day chip titles | `labelSmall` |
 | `eventOverflowLabel` | The compact `+N` label | `labelSmall` at `7.sp` |
 | `hourLabel` | The hour-gutter labels on the Schedule views | `labelSmall` |
+| `agendaEventTitle` | An event's name in `KalendarAgenda`'s rows, and its empty-state message | `titleSmall` |
+| `agendaEventSubtitle` | An event's description and time range in `KalendarAgenda`'s rows | `bodySmall` |
 
 To drop the selected/today emphasis entirely, set `dayNumberEmphasized` equal to `dayNumber`:
 
@@ -265,6 +271,7 @@ KalendarTheme(
 | `eventIndicator` | The per-event dots below a day number | `CircleShape` |
 | `eventBlock` | Event blocks on the Schedule views, and all-day chips | `RoundedCornerShape(4.dp)` |
 | `popup` | The month/year jump picker surface | `RoundedCornerShape(12.dp)` |
+| `agendaCard` | One event row on `KalendarAgenda` | `RoundedCornerShape(12.dp)` |
 
 `dayCell` is one token shared by three separate composables that have to agree visually — the cell,
 the indicator that animates behind it, and the drag ghost. That is exactly why it lives on the theme
@@ -304,7 +311,11 @@ from scratch as a one-liner.
 | `allDayChipSpacing` | `4.dp` | Gap between all-day chips. |
 | `allDayChipPadding` | `PaddingValues(horizontal = 6.dp, vertical = 2.dp)` | Padding inside one all-day chip. |
 | `monthSpacing` | `16.dp` | Vertical gap between month grids in `KalendarYear`. |
-| `sectionPadding` | `PaddingValues(horizontal = 16.dp, vertical = 8.dp)` | Padding around section titles — the Timeline's month titles and sticky header, and `KalendarYear`'s month names. |
+| `sectionPadding` | `PaddingValues(horizontal = 16.dp, vertical = 8.dp)` | Padding around section titles — the Timeline's month titles and sticky header, `KalendarYear`'s month names, and `KalendarAgenda`'s date headers. |
+| `agendaRowPadding` | `PaddingValues(horizontal = 12.dp, vertical = 10.dp)` | Padding inside one `KalendarAgenda` row. |
+| `agendaRowSpacing` | `4.dp` | Vertical gap between `KalendarAgenda` rows. |
+| `agendaRowGap` | `12.dp` | Gap between an agenda row's accent dot and its text. |
+| `agendaDotSize` | `10.dp` | Diameter of an agenda row's accent dot. |
 
 Two of these are shared across composables for the same reason `shapes.dayCell` is: `dayCellPadding`
 aligns the cell, the sliding indicator, and the drag ghost; `hourGutterWidth` sizes both the gutter
@@ -317,12 +328,12 @@ KalendarTheme(
         eventBlockAccentWidth = 0.dp,
     ),
 ) {
-    KalendarSchedule(selectedDate = today)
+    KalendarSchedule(state = rememberKalendarScheduleState(initialDate = today))
 }
 ```
 
-> **Note:** `KalendarSchedule` and `KalendarScheduleWeek` also take an `hourHeight: Dp?` parameter.
-> When non-null it overrides `KalendarDimensions.hourHeight` for that one calendar. Use the
+> **Note:** `KalendarSchedule` and `KalendarScheduleWeek` also take an `hourHeight: Dp` parameter,
+> which defaults from `KalendarDimensions.hourHeight` and overrides it for that one calendar. Use the
 > parameter for a single view, the token for every view.
 
 ## Animations

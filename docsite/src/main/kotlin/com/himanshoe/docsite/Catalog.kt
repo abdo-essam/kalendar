@@ -5,7 +5,7 @@ const val SITE_NAME = "Kalendar"
 
 /** The one-line description under the hero, and the fallback meta description. */
 const val SITE_TAGLINE =
-    "Six standalone calendar composables for Compose Multiplatform — Android, iOS, desktop and the web, " +
+    "Seven standalone calendar composables for Compose Multiplatform — Android, iOS, desktop and the web, " +
         "from one API."
 
 /** Where the site is published. Used for canonical links, Open Graph and the sitemap. */
@@ -25,6 +25,12 @@ const val REPO_URL = "https://github.com/hi-manshu/Kalendar"
 
 /** The Wasm playground, assembled in beside the docs by `assembleSite`. */
 const val PLAYGROUND_URL = "playground/index.html"
+
+/** Where recurring sponsorship goes. Verified live against the author's GitHub profile. */
+const val SPONSORS_URL = "https://github.com/sponsors/hi-manshu"
+
+/** The one-off equivalent, for readers who would rather not start a subscription. */
+const val COFFEE_URL = "https://buymeacoffee.com/himanshoe"
 
 /** The heading a directory of pages gets in the sidebar, where the directory name is not enough. */
 val sectionTitles: Map<String, String> =

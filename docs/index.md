@@ -1,6 +1,6 @@
 # Kalendar
 
-Kalendar is a calendar library for **Compose Multiplatform**. It ships six standalone calendar
+Kalendar is a calendar library for **Compose Multiplatform**. It ships seven standalone calendar
 composables — from a one-row week strip to a Google-Calendar-style hourly time grid — that you call
 directly, style through a complete design-token layer, and drive with plain hoisted state.
 
@@ -11,7 +11,7 @@ to use Material 3.
 > [**Kalendar playground**](https://hi-manshu.github.io/Kalendar/playground/) — the sample app
 > compiled to WebAssembly. No install, no setup.
 
-## The six views
+## The seven views
 
 | View | What it is |
 |---|---|
@@ -21,9 +21,44 @@ to use Material 3.
 | [`KalendarTimeline`](views/timeline.md) | A continuous vertical scroll through every month, with no page boundaries and a sticky month header. |
 | [`KalendarSchedule`](views/schedule.md) | An hourly time grid for one day — duration-sized event blocks, overlap packing, and a now-indicator. |
 | [`KalendarScheduleWeek`](views/schedule-week.md) | The seven-day time grid: day columns sharing one hour gutter. |
+| [`KalendarAgenda`](views/agenda.md) | A scrolling list of the events themselves, grouped by date, skipping every empty day. |
 
-There is also a legacy [`Kalendar(type = KalendarType.Agenda)`](views/agenda.md) event list, and a
-separate [`kalendar-sync`](sync.md) module that reads and writes the device's real calendar.
+<div class="shot-gallery">
+<figure>
+<img src="images/week-theme.png" alt="A one-week row for 9–15 March 2026 with the 12th selected and event dots under four of the days.">
+<figcaption><a href="views/week.md"><code>KalendarWeek</code></a></figcaption>
+</figure>
+<figure>
+<img src="images/month-theme.png" alt="The March 2026 month grid with the 12th selected and event dots with a plus-one overflow badge.">
+<figcaption><a href="views/month.md"><code>KalendarMonth</code></a></figcaption>
+</figure>
+<figure>
+<img src="images/year-theme.png" alt="The top of the 2026 year page, with the January and February grids stacked in one scrolling column.">
+<figcaption><a href="views/year.md"><code>KalendarYear</code></a></figcaption>
+</figure>
+<figure>
+<img src="images/timeline-theme.png" alt="A continuous month list scrolled to the join between March and April 2026, with no page break between them.">
+<figcaption><a href="views/timeline.md"><code>KalendarTimeline</code></a></figcaption>
+</figure>
+<figure>
+<img src="images/schedule-theme.png" alt="The hourly day grid for 10 March 2026 with an all-day chip and two overlapping meetings packed side by side.">
+<figcaption><a href="views/schedule.md"><code>KalendarSchedule</code></a></figcaption>
+</figure>
+<figure>
+<img src="images/schedule-week-theme.png" alt="The seven-day time grid for 9–15 March 2026, seven day columns sharing one hour gutter.">
+<figcaption><a href="views/schedule-week.md"><code>KalendarScheduleWeek</code></a></figcaption>
+</figure>
+<figure>
+<img src="images/agenda-theme.png" alt="An agenda list for March 2026, each date a heading with the day's events as cards underneath it.">
+<figcaption><a href="views/agenda.md"><code>KalendarAgenda</code></a></figcaption>
+</figure>
+</div>
+
+Every picture above is rendered from the library when this site is built, so it shows the current
+default theme rather than whatever the calendar looked like when somebody last took a screenshot.
+
+There is also a separate [`kalendar-sync`](sync.md) module that reads and writes the device's real
+calendar.
 
 ## Install
 
@@ -32,7 +67,7 @@ Current coordinates:
 | Artifact | Version | What it gives you |
 |---|---|---|
 | `com.himanshoe:kalendar` | `2.0.0-RC3` | The calendar views. Pulls in `kalendar-foundation` as an `api` dependency. |
-| `com.himanshoe:kalendar-foundation` | `1.1.0` | The event model (`KalendarEvent`, `BasicKalendarEvent`) and legacy config types. |
+| `com.himanshoe:kalendar-foundation` | `2.0.0` | The event model: `KalendarEvent`, `BasicKalendarEvent`, `KalendarEvents`. |
 | `com.himanshoe:kalendar-sync` | `1.0.0` | Optional. Device calendar read/write, recurrence, and iCal. Independent of the other two. |
 
 ### Version catalog
@@ -42,7 +77,7 @@ In `gradle/libs.versions.toml`:
 ```toml
 [versions]
 kalendar = "2.0.0-RC3"
-kalendarFoundation = "1.1.0"
+kalendarFoundation = "2.0.0"
 kalendarSync = "1.0.0"
 
 [libraries]
@@ -128,7 +163,7 @@ opt-in on top of it.
 - [**Configuration**](configuration.md) — the `KalendarViewConfig` knobs every view shares.
 - [**Localization**](localization.md) — `KalendarStrings` and the date formatter hooks.
 - [**Device sync**](sync.md) — reading and writing the real device calendar.
-- [**Migration from 1.x**](migration.md) — what `KalendarType` became.
+- [**Migration from 1.x**](migration.md) — what `KalendarType` and `KalendarConfig` became.
 - [**Changelog**](changelog.md) — everything that has changed.
 
 The generated API reference lives at

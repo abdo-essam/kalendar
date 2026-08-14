@@ -266,6 +266,8 @@ private fun renderFooter(
       <a href="$root$PLAYGROUND_URL">Playground</a>
       <a href="${root}api/kalendar/index.html">API reference</a>
       <a href="$REPO_URL" rel="noopener">GitHub</a>
+      <a href="$SPONSORS_URL" rel="noopener">Sponsor</a>
+      <a href="$COFFEE_URL" rel="noopener">Buy me a coffee</a>
     </nav>
   </div>
 </footer>"""

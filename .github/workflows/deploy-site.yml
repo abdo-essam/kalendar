@@ -44,9 +44,12 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # One task renders the docs, builds the playground and the API reference, and assembles them
-      # into a single directory. The generator fails on a dead link, so a broken cross-reference
-      # stops the deploy rather than reaching a reader.
+      # One task draws the calendar screenshots from the library, renders the docs, builds the
+      # playground and the API reference, and assembles them into a single directory. The
+      # screenshots are not committed — `generateDocsSite` depends on the task that draws them, so
+      # every deploy publishes pictures made from the code being deployed. The generator fails on a
+      # dead link or a missing image, so a broken cross-reference stops the deploy rather than
+      # reaching a reader.
       - name: Build the site
         run: ./gradlew :docsite:assembleSite --no-daemon -PkotlinYarnLockMismatchReport=warning
 

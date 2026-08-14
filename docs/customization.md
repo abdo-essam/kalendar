@@ -13,21 +13,28 @@ paging, gestures, accessibility plumbing — and hands you the part that is your
 
 ## What is replaceable, where
 
-| Slot | Week | Month | Year | Timeline | Schedule | ScheduleWeek |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|
-| `dayContent` | yes | yes | yes | yes | no | no |
-| `header` | yes | yes | yes | yes | no | no |
-| `dayOfWeekLabel` | yes | yes | yes | yes | no | no |
-| `eventContent` | no | no | no | no | yes | yes |
-| `allDayEventContent` | no | no | no | no | yes | yes |
-| `hourLabel` | no | no | no | no | yes | yes |
-| `nowIndicator` | no | no | no | no | yes | yes |
-| `dayHeader` | no | no | no | no | no | yes |
+| Slot | Week | Month | Year | Timeline | Schedule | ScheduleWeek | Agenda |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| `dayContent` | yes | yes | yes | yes | no | no | no |
+| `header` | yes | yes | yes | yes | no | no | no |
+| `dayOfWeekLabel` | yes | yes | yes | yes | no | no | no |
+| `eventContent` | no | no | no | no | yes | yes | yes |
+| `allDayEventContent` | no | no | no | no | yes | yes | no |
+| `hourLabel` | no | no | no | no | yes | yes | no |
+| `nowIndicator` | no | no | no | no | yes | yes | no |
+| `dayHeader` | no | no | no | no | no | yes | no |
+| `dateHeader` | no | no | no | no | no | no | yes |
+| `emptyState` | no | no | no | no | no | no | yes |
 
-The two default-rendering objects are `KalendarHeaderDefaults` (the chrome around a date grid) and
-`KalendarScheduleDefaults` (everything inside a time grid). Every slot defaults to one of their
-functions, which also makes them the thing to reach for when you want to keep the built-in look and
-only add to it.
+> **Note:** `eventContent` appears in two shapes. On the Schedule views it takes a
+> `KalendarScheduleEventScope` — the event plus where the grid placed it; on
+> [`KalendarAgenda`](views/agenda.md) it takes the `KalendarEvent` alone, because a list row has no
+> position to describe.
+
+The three default-rendering objects are `KalendarHeaderDefaults` (the chrome around a date grid),
+`KalendarScheduleDefaults` (everything inside a time grid) and `KalendarAgendaDefaults` (the pieces
+of an event list). Every slot defaults to one of their functions, which also makes them the thing to
+reach for when you want to keep the built-in look and only add to it.
 
 ## Custom day cells
 
@@ -111,7 +118,7 @@ Applied to your cell's outermost modifier, it adds:
 | `scope` | `KalendarDayScope` | — | The cell's state, as handed to the slot. |
 | `onClick` | `() -> Unit` | — | Called when the cell is tapped and the date is not disabled. |
 | `monthNameFormatter` | `(Month) -> String` | English month names | Formats the month name inside the announcement. Pass `KalendarViewConfig.monthNameFormatter` to match a localized calendar. |
-| `interactionSource` | `MutableInteractionSource?` | `null` | Supply one when you want to observe press state yourself. |
+| `interactionSource` | `MutableInteractionSource?` | `null` | Supply one when you want to observe press state yourself. Pass one to rebuild the focus ring and hover wash — see [Accessibility](#accessibility). |
 
 > **Warning:** because the announcements come from `KalendarStrings`, a cell using
 > `kalendarDaySemantics` stays localizable through the same [theme](theming.md) mechanism as the
@@ -339,7 +346,6 @@ and its share of any overlap, so an implementation only draws — it never posit
 
 ```kotlin
 KalendarSchedule(
-    selectedDate = today,
     events = events,
     eventContent = { scope ->
         MyEventCard(
@@ -375,7 +381,6 @@ automatically — pass it yourself if you want it:
 
 ```kotlin
 KalendarScheduleWeek(
-    selectedDate = today,
     events = events,
     allDayEventContent = { event ->
         KalendarScheduleDefaults.AllDayChip(
@@ -393,7 +398,6 @@ row and is `KalendarDimensions.hourGutterWidth` wide.
 
 ```kotlin
 KalendarSchedule(
-    selectedDate = today,
     hourLabel = { hour -> Text(text = twelveHourLabel(hour), style = MyTheme.type.caption) },
 )
 ```
@@ -408,7 +412,6 @@ vertical offset, so the slot renders the marker alone:
 
 ```kotlin
 KalendarSchedule(
-    selectedDate = today,
     nowIndicator = {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(BrandRed))
@@ -425,7 +428,6 @@ is today. It is stretched to the column's width.
 
 ```kotlin
 KalendarScheduleWeek(
-    selectedDate = today,
     dayHeader = { date, isToday ->
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(text = date.dayOfWeek.name.take(3))
@@ -453,6 +455,101 @@ clicks, and drag-to-reschedule.
 
 Falling back to one of them for the cases you do not render specially is the intended pattern — it
 keeps a custom slot consistent with the rest of the calendar.
+
+## Agenda content slots
+
+[`KalendarAgenda`](views/agenda.md) has three, and the list keeps the scrolling and the click
+handling around whatever they draw:
+
+| Slot | Signature | Default |
+|---|---|---|
+| `dateHeader` | `(date: LocalDate) -> Unit` | `KalendarAgendaDefaults.DateHeader` |
+| `eventContent` | `(event: KalendarEvent) -> Unit` | `KalendarAgendaDefaults.EventRow` |
+| `emptyState` | `() -> Unit` | `KalendarAgendaDefaults.EmptyState` |
+
+### `KalendarAgendaDefaults`
+
+| Function | Signature |
+|---|---|
+| `DateHeader` | `(date: LocalDate, monthNameFormatter: (Month) -> String, modifier: Modifier = Modifier)` |
+| `EventRow` | `(event: KalendarEvent, modifier: Modifier = Modifier)` |
+| `EmptyState` | `(modifier: Modifier = Modifier)` |
+
+```kotlin
+KalendarAgenda(
+    events = events,
+    eventContent = { event ->
+        if (event.calendarId == "work") {
+            MyWorkEventRow(event)
+        } else {
+            KalendarAgendaDefaults.EventRow(event = event)
+        }
+    },
+)
+```
+
+## Accessibility
+
+None of this needs turning on. It is what the built-in renderings already do, and it is listed here
+because a custom slot replaces the piece that does it — and because knowing which strings drive it is
+how you [localize](localization.md) the announcements.
+
+### Keyboard and pointer
+
+Every day cell is a tab stop on desktop and wasmJs. A focused cell draws a 2dp ring in
+`KalendarColors.focusIndicator` (defaulting to `todayContent`), and a cell under the pointer is
+washed with `KalendarColors.hoverBackground` (`dayContent` at 8%). Without the ring, keyboard
+navigation of a month grid is invisible — you are tabbing through 42 cells with no way to tell which
+one you are on.
+
+Both are driven by the cell's `MutableInteractionSource`. A custom `dayContent` replaces the cell and
+therefore both affordances; pass your own interaction source to `kalendarDaySemantics` and read
+`collectIsFocusedAsState()` / `collectIsHoveredAsState()` from it to draw them again:
+
+```kotlin
+val interactionSource = remember { MutableInteractionSource() }
+val isFocused by interactionSource.collectIsFocusedAsState()
+val isHovered by interactionSource.collectIsHoveredAsState()
+
+MyDayCell(
+    modifier = Modifier
+        .background(if (isHovered) KalendarTheme.colors.hoverBackground else Color.Transparent)
+        .border(
+            width = 2.dp,
+            color = if (isFocused) KalendarTheme.colors.focusIndicator else Color.Transparent,
+            shape = KalendarTheme.shapes.dayCell,
+        )
+        .kalendarDaySemantics(
+            scope = scope,
+            onClick = { select(scope.date) },
+            interactionSource = interactionSource,
+        ),
+)
+```
+
+### A bounded calendar's arrows look bounded
+
+When `minDate` or `maxDate` blocks a direction, that header arrow is drawn in
+`KalendarColors.headerContentDisabled` — `headerContent` at 38% — as well as being inert. An arrow
+that looks live and silently does nothing is the version of this that ships by accident.
+
+This applies to the built-in chevron and today glyphs. A caller-supplied icon slot draws itself and
+is left alone, so it is yours to dim: read `scope.canScrollBackward` / `scope.canScrollForward` from
+the [header scope](#kalendarheaderscope).
+
+### What a screen reader hears
+
+| Element | Announcement | String |
+|---|---|---|
+| Day cell | `"August 12, 2026, today, has events"` | `dayAccessibilityLabel` + `todaySuffix` + `hasEventsSuffix` |
+| Day-of-week column header | `"Monday"` — the header only *shows* `"M"` | `dayOfWeekAccessibilityLabel` |
+| Timed event block | `"Design review, 09:30 to 11:00"` | `eventAccessibilityLabel` |
+| All-day chip | `"Release day, all day"` | `allDayEventAccessibilityLabel` |
+| Header arrows, today, jump picker | `"Previous"`, `"Next"`, `"Today"`, `"Choose month and year"` | `previousPage`, `nextPage`, `today`, `openJumpPicker` |
+
+All of them live on [`KalendarStrings`](localization.md), so translating the calendar translates what
+is announced. The event labels are applied by `KalendarScheduleDefaults.EventBlock` and `.AllDayChip`
+— a replacement `eventContent` or `allDayEventContent` slot draws its own semantics, and should.
 
 ## Choosing between a token, a config value, and a slot
 

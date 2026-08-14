@@ -6,6 +6,10 @@ grids. The header's arrow buttons (labelled with the year) and a horizontal swip
 
 Use it as a "pick a month" or "year at a glance" screen.
 
+![The top of the 2026 year page: the year in the header, then the January and February month grids stacked in one scrolling column. The 15th of January is selected and filled with a circle, several days carry event dots, and a three-day event runs across the 9th to the 11th of February.](../images/year-theme.png)
+
+The picture shows the first two of the twelve grids — the column scrolls through the rest.
+
 ## Minimal example
 
 ```kotlin

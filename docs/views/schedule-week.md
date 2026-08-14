@@ -8,13 +8,16 @@ with today emphasised. All-day events pin as chips above the grid, prefixed with
 they belong to, because one row is shared by all seven columns. The now-indicator appears only on
 today's column.
 
+![The seven-day time grid for 9–15 March 2026. A row of day headers runs across the top, all-day chips below it carry a day-of-month prefix and a three-day "Compose conference" appears once per day it covers, and the hour grid underneath holds coloured event blocks — including two that overlap on Tuesday and pack side by side in the same column.](../images/schedule-week-theme.png)
+
 ## Minimal example
 
 ```kotlin
 import com.himanshoe.kalendar.view.KalendarScheduleWeek
+import com.himanshoe.kalendar.view.rememberKalendarWeekState
 
 KalendarScheduleWeek(
-    selectedDate = today,
+    state = rememberKalendarWeekState(initialDate = today),
     events = events,
     onEventClick = { event -> openDetails(event) },
 )
@@ -24,19 +27,22 @@ KalendarScheduleWeek(
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `selectedDate` | `LocalDate` | — | The date whose week is initially visible when `state` is left at its default. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost container. |
-| `state` | `KalendarViewState` | `rememberKalendarWeekState(selectedDate)` | Navigation state — pages by week. Note this is the **week** factory, not a schedule-specific one. |
+| `state` | `KalendarViewState` | `rememberKalendarWeekState()` | Navigation state — pages by week. Note this is the **week** factory, not a schedule-specific one. Pass one built with `initialDate` to open on a week other than this one. |
 | `events` | `KalendarEvents` | `emptyList()` | Events for the calendar; only those in the visible week are rendered. |
 | `onEventClick` | `(KalendarEvent) -> Unit` | no-op | Called when an event block or all-day chip is tapped. |
 | `onEventTimeChange` | `((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?` | `null` | When non-null, blocks become draggable and resizable, and a horizontal drag moves the event across day columns. See [Dragging across days](#dragging-across-days). |
 | `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Shared settings. `disabledDates` and `showAdjacentMonthDates` have no effect here. See [Configuration](../configuration.md). |
-| `hourHeight` | `Dp?` | `null` | Vertical space for one hour; block heights scale with it. `null` means `KalendarDimensions.hourHeight` (64.dp). |
+| `hourHeight` | `Dp` | `KalendarTheme.dimensions.hourHeight` | Vertical space for one hour; block heights scale with it. Defaults to the theme's `hourHeight` (64.dp). |
+| `nowIndicatorTick` | `Duration` | `1.minutes` | How often the now-indicator re-reads the clock. |
 | `eventContent` | `@Composable (KalendarScheduleEventScope) -> Unit` | `KalendarScheduleDefaults.EventBlock` | Slot for one timed event block. |
 | `allDayEventContent` | `@Composable (KalendarEvent) -> Unit` | `KalendarScheduleDefaults.AllDayChip`, prefixed with the day of month | Slot for one all-day chip. |
 | `hourLabel` | `@Composable (Int) -> Unit` | `KalendarScheduleDefaults.HourLabel` | Slot for one hour-gutter label, given the hour as `0..23`. |
 | `nowIndicator` | `@Composable () -> Unit` | `KalendarScheduleDefaults.NowIndicator` | Slot for the current-time line. Drawn only on today's column; the grid owns its offset. |
 | `dayHeader` | `@Composable (date: LocalDate, isToday: Boolean) -> Unit` | `KalendarScheduleDefaults.WeekDayHeader` | Slot for one day column's header. Filled to the column's width. |
+
+> **Note:** as on [`KalendarSchedule`](schedule.md), there is no `selectedDate` parameter — the
+> Schedule views have no date selection, so the visible week is the `state`'s business alone.
 
 Everything `KalendarSchedule` documents about
 [event layout](schedule.md#how-events-are-laid-out), [dragging](schedule.md#drag-to-move-and-resize),
@@ -55,7 +61,7 @@ val state = rememberKalendarWeekState(
 
 Column {
     KalendarWeek(selectedDate = today, state = state)
-    KalendarScheduleWeek(selectedDate = today, state = state)
+    KalendarScheduleWeek(state = state)
 }
 ```
 
@@ -65,6 +71,7 @@ Column {
 | `startDayOfWeek` | `DayOfWeek` | `MONDAY` | Which day is the leftmost column. |
 | `minDate` | `LocalDate?` | `null` | Bounds the previous arrow button. |
 | `maxDate` | `LocalDate?` | `null` | Bounds the next arrow button. |
+| `timeSource` | `KalendarTimeSource` | the ambient one | Where the state reads "today" from. Hand it a fixed clock to make a test or a screenshot deterministic. |
 
 ## Dragging across days
 
@@ -78,7 +85,6 @@ write both back:
 
 ```kotlin
 KalendarScheduleWeek(
-    selectedDate = today,
     events = events,
     onEventTimeChange = { event, newStart, newEnd ->
         events = events.map { existing ->
@@ -111,7 +117,6 @@ built-in chip:
 
 ```kotlin
 KalendarScheduleWeek(
-    selectedDate = today,
     events = events,
     allDayEventContent = { event ->
         KalendarScheduleDefaults.AllDayChip(event = event, prefix = event.date.dayOfMonth.toString())
@@ -128,7 +133,6 @@ number in `KalendarColors.todayContent` when it is today.
 
 ```kotlin
 KalendarScheduleWeek(
-    selectedDate = today,
     dayHeader = { date, isToday ->
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(text = date.dayOfWeek.name.take(3))

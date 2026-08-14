@@ -530,6 +530,76 @@ a:hover {
   border: 1px solid var(--border);
 }
 
+/* Theme-aware screenshots.
+   Every calendar picture ships as a pair — one drawn in the library's light palette, one in its dark
+   one — and both are in the document. Which one shows is decided here rather than in script, so the
+   right one is painted on the first frame, including for a reader whose stored preference the inline
+   bootstrap in <head> has just applied.
+   `prefers-color-scheme` would not do: the site has its own toggle that writes `data-theme` on the
+   root and remembers it, so a reader on a light OS reading the dark site would get a white
+   screenshot burned into a black page. `data-theme` is the thing the toggle moves, so it is the
+   thing these keys off. It is always one of the two values — the markup ships with it set and the
+   bootstrap only ever rewrites it — so there is no third state to style for. */
+.shot {
+  display: none;
+}
+
+:root[data-theme="dark"] .shot--dark,
+:root[data-theme="light"] .shot--light {
+  display: block;
+}
+
+/* The lead screenshot on a view's page: centred, and never taller than a screen, so the prose that
+   explains the view is not pushed below the fold by the picture of it.
+   No `width` here on purpose. The generator writes `width`/`height` attributes at half the bitmap's
+   size, which the browser treats as a presentational hint — the lowest-priority style there is — so
+   the picture lays out at its dp size with twice the pixels behind it. Any author-level `width`
+   would beat that hint and stretch it back to its full bitmap width, undoing the reason it is
+   drawn at 2x in the first place. */
+.prose .shot {
+  margin: 24px auto;
+  max-height: 70vh;
+}
+
+/* The gallery on the views index: as many columns as fit, each one a picture above the view's name.
+   `align-items: start` so a short calendar sits at the top of its cell instead of floating in the
+   middle of the tallest one's row. */
+.shot-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+  align-items: start;
+  margin: 28px 0 8px;
+}
+
+.shot-gallery figure {
+  margin: 0;
+}
+
+.shot-gallery .shot {
+  margin: 0;
+  width: 100%;
+  max-height: 320px;
+  object-fit: cover;
+  object-position: top center;
+}
+
+.shot-gallery figcaption {
+  margin-top: 10px;
+  font-size: 14px;
+}
+
+.shot-gallery figcaption a {
+  font-family: var(--mono);
+}
+
+.shot-gallery p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .prose blockquote {
   margin: 20px 0;
   padding: 2px 0 2px 18px;
@@ -743,7 +813,7 @@ h4:hover > .anchor,
 
 .aurora {
   position: absolute;
-  inset: -20% -10% 0;
+  inset: -20% 0 0;
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
@@ -863,6 +933,55 @@ h4:hover > .anchor,
   border-color: var(--text);
   transform: translateY(-1px);
   text-decoration: none;
+}
+
+/* Support links sit a step below the two calls to action: same outline, less weight, less space.
+   Their own row so the primary action stays the only filled button on the page — four equal
+   buttons would make a first-time reader choose between four things instead of two.
+   The label is `<span>` rather than a heading: it names the row without adding an entry to the
+   document outline for two links. */
+.hero .hero-actions {
+  margin-bottom: 16px;
+}
+
+.hero-support {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 40px;
+}
+
+.hero-support-label {
+  margin-right: 2px;
+  color: var(--dim);
+  font-size: 13px;
+}
+
+.btn--sm {
+  gap: 7px;
+  padding: 6px 14px;
+  border-color: var(--border);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.btn--sm:hover {
+  color: var(--text);
+}
+
+/* The mark keeps the text's colour and never shrinks below it when the row wraps. */
+.btn-icon {
+  flex: none;
+}
+
+/* On a phone the row is already two lines; the label above them reads better than beside them. */
+@media (max-width: 420px) {
+  .hero-support-label {
+    width: 100%;
+    margin-right: 0;
+  }
 }
 
 .btn--primary {

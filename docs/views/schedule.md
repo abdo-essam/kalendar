@@ -8,12 +8,15 @@ Overlapping events pack side by side. All-day events (no `startTime`) pin as chi
 now-indicator line marks the current time on today's page, refreshing every minute. On first
 composition the grid starts scrolled to early morning rather than midnight.
 
+![The day grid for Tuesday 10 March 2026, opened at 07:00. An all-day chip reading "Release day" sits above the grid; two overlapping meetings are packed side by side below it — a teal "Design review" from 09:30 and an amber "1:1 with Sam" from 10:00 — each drawn as a block whose height is its duration. A red now-indicator line crosses both blocks at 10:20.](../images/schedule-theme.png)
+
 ## Minimal example
 
 ```kotlin
 import androidx.compose.ui.graphics.Color
 import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
 import com.himanshoe.kalendar.view.KalendarSchedule
+import com.himanshoe.kalendar.view.rememberKalendarScheduleState
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalTime
@@ -21,7 +24,7 @@ import kotlinx.datetime.LocalTime
 val today = LocalDate(2026, 8, 12)
 
 KalendarSchedule(
-    selectedDate = today,
+    state = rememberKalendarScheduleState(initialDate = today),
     events = listOf(
         BasicKalendarEvent(
             date = today,
@@ -39,18 +42,22 @@ KalendarSchedule(
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `selectedDate` | `LocalDate` | — | The day initially visible when `state` is left at its default. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost container. |
-| `state` | `KalendarViewState` | `rememberKalendarScheduleState(selectedDate)` | Navigation state — pages by single day. |
+| `state` | `KalendarViewState` | `rememberKalendarScheduleState()` | Navigation state — pages by single day. Pass one built with `initialDate` to open on a day other than today. |
 | `events` | `KalendarEvents` | `emptyList()` | Events for the calendar; only those on the visible day are rendered. |
 | `onEventClick` | `(KalendarEvent) -> Unit` | no-op | Called when an event block or all-day chip is tapped. |
 | `onEventTimeChange` | `((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?` | `null` | When non-null, blocks become draggable and resizable. See [Drag to move and resize](#drag-to-move-and-resize). |
 | `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Shared settings. `disabledDates` and `showAdjacentMonthDates` have no effect here. See [Configuration](../configuration.md). |
-| `hourHeight` | `Dp?` | `null` | Vertical space for one hour; block heights scale with it. `null` means `KalendarDimensions.hourHeight` (64.dp). |
+| `hourHeight` | `Dp` | `KalendarTheme.dimensions.hourHeight` | Vertical space for one hour; block heights scale with it. Defaults to the theme's `hourHeight` (64.dp). |
+| `nowIndicatorTick` | `Duration` | `1.minutes` | How often the now-indicator re-reads the clock. |
 | `eventContent` | `@Composable (KalendarScheduleEventScope) -> Unit` | `KalendarScheduleDefaults.EventBlock` | Slot for one timed event block. |
 | `allDayEventContent` | `@Composable (KalendarEvent) -> Unit` | `KalendarScheduleDefaults.AllDayChip` | Slot for one all-day chip in the row above the grid. |
 | `hourLabel` | `@Composable (Int) -> Unit` | `KalendarScheduleDefaults.HourLabel` | Slot for one hour-gutter label, given the hour as `0..23`. |
 | `nowIndicator` | `@Composable () -> Unit` | `KalendarScheduleDefaults.NowIndicator` | Slot for the current-time line. The grid owns its vertical offset and only draws it on today. |
+
+> **Note:** there is no `selectedDate` parameter. The Schedule views have no concept of date
+> selection, so the day on screen is entirely the `state`'s business — build one with
+> `rememberKalendarScheduleState(initialDate = …)` to open somewhere other than today.
 
 See [Customization](../customization.md) for what the content slots receive and how to fall back to
 the built-in rendering.
@@ -73,6 +80,7 @@ val state = rememberKalendarScheduleState(
 | `initialDate` | `LocalDate` | today | The day initially visible. |
 | `minDate` | `LocalDate?` | `null` | Turns `canScrollBackward` false at this date. |
 | `maxDate` | `LocalDate?` | `null` | Turns `canScrollForward` false at this date. |
+| `timeSource` | `KalendarTimeSource` | the ambient one | Where the state reads "today" from. Hand it a fixed clock to make a test or a screenshot deterministic. |
 
 ## How events are laid out
 
@@ -109,7 +117,6 @@ mutates events — update your own source:
 var events by remember { mutableStateOf(initialEvents) }
 
 KalendarSchedule(
-    selectedDate = today,
     events = events,
     onEventTimeChange = { event, newStart, newEnd ->
         events = events.map { existing ->

@@ -5,6 +5,8 @@ swipe drive the same `KalendarViewState`, so they always stay in sync.
 
 This is the most capable of the date-grid views: it is the only one with drag-to-reschedule.
 
+![The full month grid for March 2026. Thursday the 12th is selected and filled with a circle, the trailing days of February are dimmed in the first row, and event dots sit under the busy days — the 10th and the 13th each show three coloured dots followed by a "+1" badge for the events beyond the indicator cap.](../images/month-theme.png)
+
 ## Minimal example
 
 ```kotlin

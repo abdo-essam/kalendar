@@ -26,7 +26,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Run Detekt
-        run: ./gradlew :kalendar-foundation:detekt :kalendar:detekt :kalendar-sync:detekt :sample:detekt
+        run: ./gradlew :kalendar-foundation:detekt :kalendar:detekt :kalendar-sync:detekt :sample:detekt :docsite:detekt
 
       - name: Check binary compatibility
         run: ./gradlew :kalendar-foundation:apiCheck :kalendar:apiCheck :kalendar-sync:apiCheck

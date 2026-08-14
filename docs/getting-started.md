@@ -193,6 +193,6 @@ If your app does **not** use Material 3, pass `KalendarThemeDefaults.systemColor
 
 - [**Views**](views/index.md) — pick the right composable and see its full parameter table.
 - [**Theming**](theming.md) — every token and its default.
-- [**Configuration**](configuration.md) — the `KalendarViewConfig` knobs shared by all six views.
+- [**Configuration**](configuration.md) — the `KalendarViewConfig` knobs shared by all seven views.
 - [**Customization**](customization.md) — replace the day cell, the header, or an event block.
 - [**Device sync**](sync.md) — read and write the user's real calendar.
