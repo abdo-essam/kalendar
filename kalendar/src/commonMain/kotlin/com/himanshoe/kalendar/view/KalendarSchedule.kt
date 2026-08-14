@@ -68,6 +68,7 @@ import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.LocalTime
 import kotlinx.datetime.Month
 import kotlinx.datetime.plus
 import kotlin.math.roundToInt
@@ -111,9 +112,17 @@ private val LocalScheduleAllDayPrefix = compositionLocalOf<String?> { null }
  * @param onEventClick Called when an event block or all-day chip is tapped.
  * @param onEventTimeChange When non-null, blocks become draggable: press-and-hold then drag to
  *   move an event (snapped to [KalendarViewConfig.scheduleDragSnapMinutes] steps), or
- *   press-and-hold the block's bottom edge and drag to change its duration. Called on release
- *   with the event and its new start/end — update your event source to complete the change; the
- *   calendar never mutates events itself.
+ *   press-and-hold either the block's top or its bottom edge — a
+ *   [KalendarDimensions.eventBlockResizeHandleHeight] strip, narrowed on short blocks so the
+ *   middle stays grabbable — and drag to move that edge alone, changing the start or the end while
+ *   the other stays put. Called on release with the event and its new start/end — update your
+ *   event source to complete the change; the calendar never mutates events itself.
+ * @param onEventCreate When non-null, press-and-hold on empty grid space then drag vertically to
+ *   sweep out a new time range, previewed as you drag and snapped to
+ *   [KalendarViewConfig.scheduleDragSnapMinutes] steps. Dragging in either direction works — the
+ *   range spans press to release — and it is never shorter than the grid's minimum block nor
+ *   outside the day. Called on release with the swept start/end; a press that lands on an existing
+ *   block moves or resizes that block instead. `null`, the default, disables the gesture.
  * @param config Shared visual/behavioural settings. [KalendarViewConfig.disabledDates] and
  *   [KalendarViewConfig.showAdjacentMonthDates] have no effect here; arrows, the today button,
  *   month-name formatting, and background apply as usual.
@@ -141,6 +150,7 @@ public fun KalendarSchedule(
     events: KalendarEvents = emptyList(),
     onEventClick: (KalendarEvent) -> Unit = {},
     onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
+    onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     hourHeight: Dp = KalendarTheme.dimensions.hourHeight,
     nowIndicatorTick: Duration = DEFAULT_NOW_TICK,
@@ -188,6 +198,7 @@ public fun KalendarSchedule(
                 events = events,
                 onEventClick = onEventClick,
                 onEventTimeChange = onEventTimeChange,
+                onEventCreate = onEventCreate,
                 config = config,
                 hourHeight = hourHeight,
                 allDayEventContent = allDayEventContent,
@@ -229,8 +240,13 @@ public fun KalendarSchedule(
  * @param events Events for the calendar; only those in the visible week are rendered.
  * @param onEventClick Called when an event block or all-day chip is tapped.
  * @param onEventTimeChange When non-null, blocks become draggable exactly as on
- *   [KalendarSchedule], and a horizontal drag additionally moves the event across day columns —
- *   the release callback's new start/end carry the shifted date.
+ *   [KalendarSchedule] — including the top and bottom resize edges — and a horizontal drag
+ *   additionally moves the event across day columns; the release callback's new start/end carry
+ *   the shifted date.
+ * @param onEventCreate When non-null, press-and-hold on empty grid space then drag vertically to
+ *   sweep out a new time range, exactly as on [KalendarSchedule]. The range belongs to whichever
+ *   day column the press landed in; the gesture does not cross columns. `null`, the default,
+ *   disables the gesture.
  * @param config Shared visual/behavioural settings. [KalendarViewConfig.disabledDates] and
  *   [KalendarViewConfig.showAdjacentMonthDates] have no effect here.
  * @param hourHeight Vertical space for one hour of the grid; block heights scale with it. Defaults
@@ -260,6 +276,7 @@ public fun KalendarScheduleWeek(
     events: KalendarEvents = emptyList(),
     onEventClick: (KalendarEvent) -> Unit = {},
     onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
+    onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     hourHeight: Dp = KalendarTheme.dimensions.hourHeight,
     nowIndicatorTick: Duration = DEFAULT_NOW_TICK,
@@ -312,6 +329,7 @@ public fun KalendarScheduleWeek(
                 events = events,
                 onEventClick = onEventClick,
                 onEventTimeChange = onEventTimeChange,
+                onEventCreate = onEventCreate,
                 config = config,
                 hourHeight = hourHeight,
                 allDayEventContent = allDayEventContent,
@@ -524,6 +542,7 @@ private fun ScheduleWeekPage(
     events: KalendarEvents,
     onEventClick: (KalendarEvent) -> Unit,
     onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?,
+    onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)?,
     config: KalendarViewConfig,
     hourHeight: Dp,
     allDayEventContent: @Composable (KalendarEvent) -> Unit,
@@ -575,6 +594,13 @@ private fun ScheduleWeekPage(
                 Box(modifier = Modifier.weight(1f).height(hourHeight * HOURS_PER_DAY)) {
                     HourLines(hourHeight = hourHeight)
                     ScheduleColumnDivider()
+                    ScheduleCreateLayer(
+                        blocks = blocks,
+                        date = day,
+                        hourHeight = hourHeight,
+                        snapMinutes = config.scheduleDragSnapMinutes,
+                        onEventCreate = onEventCreate,
+                    )
                     ScheduleBlockLayout(
                         blocks = blocks,
                         hourHeight = hourHeight,
@@ -627,6 +653,7 @@ private fun SchedulePage(
     events: KalendarEvents,
     onEventClick: (KalendarEvent) -> Unit,
     onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?,
+    onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)?,
     config: KalendarViewConfig,
     hourHeight: Dp,
     allDayEventContent: @Composable (KalendarEvent) -> Unit,
@@ -658,6 +685,13 @@ private fun SchedulePage(
             HourGutter(hourHeight = hourHeight, hourLabel = hourLabel)
             Box(modifier = Modifier.weight(1f).height(hourHeight * HOURS_PER_DAY)) {
                 HourLines(hourHeight = hourHeight)
+                ScheduleCreateLayer(
+                    blocks = blocks,
+                    date = day,
+                    hourHeight = hourHeight,
+                    snapMinutes = config.scheduleDragSnapMinutes,
+                    onEventCreate = onEventCreate,
+                )
                 ScheduleBlockLayout(
                     blocks = blocks,
                     hourHeight = hourHeight,
@@ -724,15 +758,80 @@ private fun HourLines(hourHeight: Dp) {
 }
 
 /**
- * Live drag state for one block being moved or resized: raw pixel deltas accumulated from the
- * gesture, converted to snapped minute/day deltas at render and release time.
+ * Which part of a block a long-press grabbed, and so what a drag from there does: [Move] shifts the
+ * whole block, [ResizeStart] moves its top edge with the end pinned, [ResizeEnd] the reverse.
+ */
+internal enum class ScheduleDragMode {
+    Move,
+    ResizeStart,
+    ResizeEnd,
+}
+
+/**
+ * Live drag state for one block being moved or resized: the grabbed edge plus raw pixel deltas
+ * accumulated from the gesture, converted to snapped minute/day deltas at render and release time.
  */
 private data class BlockDragState(
     val index: Int,
-    val resizing: Boolean,
+    val mode: ScheduleDragMode,
     val rawDeltaYPx: Float = 0f,
     val rawDeltaXPx: Float = 0f,
 )
+
+/**
+ * A block's resize strips never take more than this fraction of its height, so a short block keeps
+ * a grabbable middle that still moves rather than resizes.
+ */
+private const val RESIZE_HANDLE_HEIGHT_DIVISOR = 3f
+
+/**
+ * Which edge — if either — a press at [pressYPx] within a block [blockHeightPx] tall grabbed, given
+ * a nominal [resizeHandlePx] strip at each edge. The strip is narrowed to
+ * `blockHeightPx / [RESIZE_HANDLE_HEIGHT_DIVISOR]` when the block is too short for two full strips
+ * plus a middle, so the top strip, the bottom strip and the move region never collide.
+ */
+internal fun scheduleDragMode(pressYPx: Float, blockHeightPx: Float, resizeHandlePx: Float): ScheduleDragMode {
+    if (blockHeightPx <= 0f) {
+        return ScheduleDragMode.Move
+    }
+    val handle = resizeHandlePx.coerceAtMost(blockHeightPx / RESIZE_HANDLE_HEIGHT_DIVISOR)
+    return when {
+        pressYPx > blockHeightPx - handle -> ScheduleDragMode.ResizeEnd
+        pressYPx < handle -> ScheduleDragMode.ResizeStart
+        else -> ScheduleDragMode.Move
+    }
+}
+
+/**
+ * Applies a snapped drag [deltaMinutes] to [block] for the grabbed [mode].
+ *
+ * [ScheduleDragMode.Move] and [ScheduleDragMode.ResizeEnd] are exactly [adjustedScheduleBlock]'s
+ * two behaviours; [ScheduleDragMode.ResizeStart] is their mirror — the start moves, the end stays
+ * put, and the start can never cross to within less than [MIN_SCHEDULE_BLOCK_MINUTES] of the end
+ * nor run past midnight at the top of the day.
+ */
+internal fun adjustedScheduleBlockForDrag(
+    block: KalendarScheduleBlock,
+    deltaMinutes: Int,
+    mode: ScheduleDragMode,
+): KalendarScheduleBlock = when (mode) {
+    ScheduleDragMode.Move -> adjustedScheduleBlock(
+        block = block,
+        deltaMinutes = deltaMinutes,
+        resizing = false,
+    )
+
+    ScheduleDragMode.ResizeEnd -> adjustedScheduleBlock(
+        block = block,
+        deltaMinutes = deltaMinutes,
+        resizing = true,
+    )
+
+    ScheduleDragMode.ResizeStart -> block.copy(
+        startMinutes = (block.startMinutes + deltaMinutes)
+            .coerceIn(0, block.endMinutes - MIN_SCHEDULE_BLOCK_MINUTES),
+    )
+}
 
 @Composable
 private fun ScheduleBlockLayout(
@@ -770,7 +869,7 @@ private fun ScheduleBlockLayout(
             minutePx = minutePx,
             snapMinutes = latestSnapMinutes.value,
         )
-        return adjustedScheduleBlock(block = block, deltaMinutes = delta, resizing = drag.resizing)
+        return adjustedScheduleBlockForDrag(block = block, deltaMinutes = delta, mode = drag.mode)
     }
 
     Layout(
@@ -881,9 +980,9 @@ private class ScheduleEventScope(
 ) : KalendarScheduleEventScope
 
 /**
- * Long-press-then-drag on a block: a press starting within [resizeHandleHeight] of the block's
- * bottom edge resizes (moves the end time), anywhere else moves the whole block. Long-press is
- * required so plain drags still scroll the surrounding grid.
+ * Long-press-then-drag on a block: a press starting within [resizeHandleHeight] of the block's top
+ * or bottom edge moves that edge alone, anywhere else moves the whole block — see
+ * [scheduleDragMode]. Long-press is required so plain drags still scroll the surrounding grid.
  *
  * This is not a composable, so [resizeHandleHeight] is resolved from
  * [KalendarDimensions.eventBlockResizeHandleHeight] by the caller and passed in; it keys the
@@ -902,9 +1001,12 @@ private fun Modifier.blockDragGestures(
 ): Modifier = pointerInput(index, resizeHandleHeight) {
     detectDragGesturesAfterLongPress(
         onDragStart = { offset ->
-            val resizeStripPx = resizeHandleHeight.toPx()
-            val resizing = offset.y > size.height - resizeStripPx
-            onDragStateChange(BlockDragState(index = index, resizing = resizing))
+            val mode = scheduleDragMode(
+                pressYPx = offset.y,
+                blockHeightPx = size.height.toFloat(),
+                resizeHandlePx = resizeHandleHeight.toPx(),
+            )
+            onDragStateChange(BlockDragState(index = index, mode = mode))
         },
         onDragEnd = {
             currentState()?.let(onRelease)
@@ -923,6 +1025,195 @@ private fun Modifier.blockDragGestures(
                 )
             }
         },
+    )
+}
+
+/**
+ * A time range swept out on the grid, in minutes from the day's midnight. [endMinutes] may be
+ * exactly [MINUTES_PER_DAY], meaning midnight at the end of the day.
+ *
+ * @property startMinutes Inclusive start of the range.
+ * @property endMinutes Exclusive end of the range, always at least [MIN_SCHEDULE_BLOCK_MINUTES]
+ *   after [startMinutes].
+ */
+internal data class ScheduleCreateRange(val startMinutes: Int, val endMinutes: Int)
+
+/** [snappedDragMinutes] read as an absolute grid position rather than a delta, clamped to the day. */
+private fun snappedDayMinute(px: Float, minutePx: Float, snapMinutes: Int): Int =
+    snappedDragMinutes(rawPx = px, minutePx = minutePx, snapMinutes = snapMinutes)
+        .coerceIn(0, MINUTES_PER_DAY)
+
+/**
+ * The range a create-drag from [anchorPx] to [currentPx] sweeps out: both ends snapped to
+ * [snapMinutes] and clamped to the day, ordered so an upward drag reads the same as a downward one,
+ * then grown to [MIN_SCHEDULE_BLOCK_MINUTES] if the sweep was shorter. A minimum-length range that
+ * would spill past midnight is pushed back up against it instead of overflowing the day.
+ */
+internal fun scheduleCreateRange(
+    anchorPx: Float,
+    currentPx: Float,
+    minutePx: Float,
+    snapMinutes: Int,
+): ScheduleCreateRange {
+    val anchor = snappedDayMinute(px = anchorPx, minutePx = minutePx, snapMinutes = snapMinutes)
+    val current = snappedDayMinute(px = currentPx, minutePx = minutePx, snapMinutes = snapMinutes)
+    val start = minOf(anchor, current)
+    val end = maxOf(maxOf(anchor, current), start + MIN_SCHEDULE_BLOCK_MINUTES)
+    return if (end > MINUTES_PER_DAY) {
+        ScheduleCreateRange(
+            startMinutes = MINUTES_PER_DAY - MIN_SCHEDULE_BLOCK_MINUTES,
+            endMinutes = MINUTES_PER_DAY,
+        )
+    } else {
+        ScheduleCreateRange(startMinutes = start, endMinutes = end)
+    }
+}
+
+/**
+ * The (start, end) date-times reported for a released create-drag on [date]. As in
+ * [dragReleaseTimes], an end at exactly [MINUTES_PER_DAY] is midnight of the following day rather
+ * than a 23:59 truncation.
+ */
+internal fun scheduleCreateTimes(
+    range: ScheduleCreateRange,
+    date: LocalDate,
+): Pair<LocalDateTime, LocalDateTime> {
+    val start = LocalDateTime(date, minutesToLocalTime(range.startMinutes))
+    val end = if (range.endMinutes >= MINUTES_PER_DAY) {
+        LocalDateTime(date.plus(1, DateTimeUnit.DAY), LocalTime(hour = 0, minute = 0))
+    } else {
+        LocalDateTime(date, minutesToLocalTime(range.endMinutes))
+    }
+    return start to end
+}
+
+/**
+ * Whether a press at ([xPx], [yPx]) in a day column [widthPx] wide landed on one of [blocks], using
+ * the same column-splitting and minute-to-pixel geometry [ScheduleBlockLayout] places them with.
+ *
+ * The create-drag layer sits beneath the blocks and both see the press, so it asks this before
+ * arming itself: a long-press that starts on a block belongs to that block's move/resize gesture.
+ */
+internal fun scheduleBlockAt(
+    blocks: List<KalendarScheduleBlock>,
+    xPx: Float,
+    yPx: Float,
+    widthPx: Int,
+    minutePx: Float,
+): KalendarScheduleBlock? {
+    if (widthPx <= 0 || minutePx <= 0f) {
+        return null
+    }
+    return blocks.firstOrNull { block ->
+        val columnWidth = widthPx.toFloat() / block.columns
+        val left = block.column * columnWidth
+        xPx >= left &&
+            xPx < left + columnWidth &&
+            yPx >= block.startMinutes * minutePx &&
+            yPx < block.endMinutes * minutePx
+    }
+}
+
+/** Live state for a create-drag: the pressed and current pointer positions down the column. */
+private data class CreateDragState(val anchorPx: Float, val currentPx: Float)
+
+/**
+ * The empty-space create gesture for one day column, drawn beneath that column's blocks so a press
+ * on a block reaches the block first.
+ *
+ * The pointer-input coroutine launches once and captures its lambdas permanently, so everything it
+ * reads at gesture time goes through [rememberUpdatedState] — the same discipline
+ * [ScheduleBlockLayout] uses, and for the same stale-capture reason.
+ */
+@Composable
+private fun ScheduleCreateLayer(
+    blocks: List<KalendarScheduleBlock>,
+    date: LocalDate,
+    hourHeight: Dp,
+    snapMinutes: Int,
+    onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)?,
+) {
+    if (onEventCreate == null) {
+        return
+    }
+    var dragState by remember { mutableStateOf<CreateDragState?>(null) }
+    val minutePx = with(LocalDensity.current) { hourHeight.toPx() } / MINUTES_PER_HOUR
+
+    val latestBlocks = rememberUpdatedState(blocks)
+    val latestDate = rememberUpdatedState(date)
+    val latestSnapMinutes = rememberUpdatedState(snapMinutes)
+    val latestMinutePx = rememberUpdatedState(minutePx)
+    val latestOnEventCreate = rememberUpdatedState(onEventCreate)
+
+    fun rangeOf(state: CreateDragState): ScheduleCreateRange = scheduleCreateRange(
+        anchorPx = state.anchorPx,
+        currentPx = state.currentPx,
+        minutePx = latestMinutePx.value,
+        snapMinutes = latestSnapMinutes.value,
+    )
+
+    Box(
+        modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+            detectDragGesturesAfterLongPress(
+                onDragStart = { offset ->
+                    val onBlock = scheduleBlockAt(
+                        blocks = latestBlocks.value,
+                        xPx = offset.x,
+                        yPx = offset.y,
+                        widthPx = size.width,
+                        minutePx = latestMinutePx.value,
+                    ) != null
+                    dragState = if (onBlock) {
+                        null
+                    } else {
+                        CreateDragState(anchorPx = offset.y, currentPx = offset.y)
+                    }
+                },
+                onDragEnd = {
+                    dragState?.let { state ->
+                        val (start, end) = scheduleCreateTimes(
+                            range = rangeOf(state),
+                            date = latestDate.value,
+                        )
+                        latestOnEventCreate.value(start, end)
+                    }
+                    dragState = null
+                },
+                onDragCancel = {
+                    dragState = null
+                },
+                onDrag = { change, dragAmount ->
+                    dragState?.let { state ->
+                        change.consume()
+                        dragState = state.copy(currentPx = state.currentPx + dragAmount.y)
+                    }
+                },
+            )
+        },
+    ) {
+        dragState?.let { state ->
+            ScheduleCreatePreview(
+                range = rangeOf(state),
+                hourHeight = hourHeight,
+                minutePx = minutePx,
+            )
+        }
+    }
+}
+
+/** The block sketched in place while a create-drag is in progress. */
+@Composable
+private fun ScheduleCreatePreview(range: ScheduleCreateRange, hourHeight: Dp, minutePx: Float) {
+    val colors = kalendarColors()
+    val durationMinutes = (range.endMinutes - range.startMinutes).toFloat()
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .offset { IntOffset(x = 0, y = (range.startMinutes * minutePx).roundToInt()) }
+            .height(hourHeight * (durationMinutes / MINUTES_PER_HOUR))
+            .padding(horizontal = kalendarDimensions().eventBlockGap)
+            .clip(kalendarShapes().eventBlock)
+            .background(colors.eventIndicator.copy(alpha = colors.eventBlockDraggingAlpha)),
     )
 }
 

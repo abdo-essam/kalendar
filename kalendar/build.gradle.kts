@@ -95,6 +95,20 @@ kotlin {
     }
 }
 
+// Compose compiler metrics and stability reports. Off by default: they add a full non-incremental
+// recompile plus report serialisation to every build, which is not worth paying on CI for data
+// nothing gates on. Regenerate on demand with
+//   ./gradlew :kalendar:compileKotlinDesktop -PkalendarComposeMetrics --no-configuration-cache
+// (the configuration-cache opt-out is needed because the flag is read at configuration time).
+// Output lands in kalendar/build/compose-reports and kalendar/build/compose-metrics.
+// See docs/performance.md.
+if (providers.gradleProperty("kalendarComposeMetrics").isPresent) {
+    composeCompiler {
+        metricsDestination.set(layout.buildDirectory.dir("compose-metrics"))
+        reportsDestination.set(layout.buildDirectory.dir("compose-reports"))
+    }
+}
+
 compose.resources {
     publicResClass = false
     packageOfResClass = "com.himanshoe.kalendar.resources"

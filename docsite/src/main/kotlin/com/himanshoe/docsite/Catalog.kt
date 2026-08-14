@@ -29,6 +29,16 @@ const val PLAYGROUND_URL = "playground/index.html"
 /** The landing page's primary call to action — reading docs beats poking a demo. */
 const val GET_STARTED_URL = "getting-started.html"
 
+/**
+ * Sidebar sections that also get a tile grid on the landing page.
+ *
+ * Deliberately not every section: a full site map on a landing page is long enough to bury the
+ * thing a visitor came for. The guide is one click away behind the hero's primary action and is
+ * listed in the sidebar of every other page, whereas the views are what someone is actually
+ * evaluating, so they earn the space.
+ */
+val HOME_TILE_SECTIONS: Set<String> = setOf("Views")
+
 /** Where recurring sponsorship goes. Verified live against the author's GitHub profile. */
 const val SPONSORS_URL = "https://github.com/sponsors/hi-manshu"
 

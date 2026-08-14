@@ -33,13 +33,21 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -50,7 +58,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
@@ -60,6 +71,26 @@ import kotlinx.datetime.Month
  * always drawn — transparent when unfocused — so gaining focus never changes the cell's size.
  */
 private val FOCUS_RING_WIDTH = 2.dp
+
+/** Width bounds of [KalendarDayCellDefaults.OverflowPopup], which sizes itself to its longest row. */
+private val OVERFLOW_POPUP_MIN_WIDTH = 160.dp
+private val OVERFLOW_POPUP_MAX_WIDTH = 280.dp
+
+/** Height ceiling of [KalendarDayCellDefaults.OverflowPopup]; past it the list scrolls. */
+private val OVERFLOW_POPUP_MAX_HEIGHT = 240.dp
+
+/** Inset above and below [KalendarDayCellDefaults.OverflowPopup]'s rows. */
+private val OVERFLOW_POPUP_PADDING = 4.dp
+
+/**
+ * Accessibility label for the `+N` overflow trigger, until [KalendarStrings] carries one of its own.
+ *
+ * Every other announcement in the library is localizable through [KalendarStrings]; this one is not
+ * yet, because the entry it belongs in does not exist. It is deliberately a private constant rather
+ * than a public parameter so that adding `KalendarStrings.showAllDayEvents` later is a pure
+ * addition — nothing here has to be removed or deprecated.
+ */
+private const val OVERFLOW_TRIGGER_LABEL = "Show all events"
 
 /**
  * The state of a single date cell inside [KalendarWeek], [KalendarMonth], or [KalendarYear].
@@ -125,6 +156,73 @@ public class KalendarDayScope(
         "isDisabled=$isDisabled, " +
         "events=$events" +
         ")"
+}
+
+/**
+ * What one day's overflow popover is given to draw: the date, that date's events, and the callbacks
+ * that report a tap and close the popover.
+ *
+ * Passed to the `overflowPopup` slot on [KalendarDayCellDefaults.Cell], and to
+ * [KalendarDayCellDefaults.OverflowPopup] when the slot is left at its default. [events] is the
+ * date's *whole* event list rather than only the hidden tail: a popover opened from a `+2` label
+ * that showed the fourth and fifth event without the first three would be a list with no beginning,
+ * so the count that was hidden is reported separately as [hiddenEventCount] for a popover that wants
+ * to mark the cut-off.
+ *
+ * This is an interface rather than a data class so later releases can add information to it without
+ * breaking every existing `overflowPopup` lambda.
+ */
+@Stable
+public interface KalendarDayOverflowScope {
+
+    /** The date whose events the popover is listing. */
+    public val date: LocalDate
+
+    /** Every event on [date], in the order the day cell received them — not just the hidden ones. */
+    public val events: List<KalendarEvent>
+
+    /**
+     * How many of [events] the cell's indicator dots did not represent, i.e. the `N` in its `+N`
+     * label. Always at least 1 while the popover is open, since nothing else opens it.
+     */
+    public val hiddenEventCount: Int
+
+    /**
+     * Reports [event] to the cell's `onEventClick` and closes the popover, in that order. A popover
+     * that wants to stay open should call the callback it was built with instead of this.
+     */
+    public fun onEventClick(event: KalendarEvent)
+
+    /**
+     * Closes the popover. Tapping outside it and pressing escape already do this; call it for a
+     * close button of your own.
+     */
+    public fun dismiss()
+}
+
+/**
+ * The [KalendarDayOverflowScope] [KalendarDayCellDefaults.Cell] hands its `overflowPopup` slot.
+ *
+ * [onEventClick] dismisses after reporting rather than before, so a handler that reads the popover's
+ * open state sees it open — the cell is the thing that owns that state, and it has not been asked to
+ * close yet at the moment the callback runs.
+ */
+private class KalendarDayOverflowScopeImpl(
+    override val date: LocalDate,
+    override val events: List<KalendarEvent>,
+    override val hiddenEventCount: Int,
+    private val reportEventClick: (KalendarEvent) -> Unit,
+    private val close: () -> Unit,
+) : KalendarDayOverflowScope {
+
+    override fun onEventClick(event: KalendarEvent) {
+        reportEventClick(event)
+        close()
+    }
+
+    override fun dismiss() {
+        close()
+    }
 }
 
 /**
@@ -245,6 +343,12 @@ public object KalendarDayCellDefaults {
      * resolves through the ambient [KalendarTheme]; with [KalendarAnimations.enabled] set to
      * `false` the selection fill, the press-scale, and the indicator row all change instantly.
      *
+     * That `+N` label is a button: tapping it opens a popover listing the day's events, so the cell
+     * no longer announces that events exist and then withholds them. The *label* is the trigger
+     * rather than the cell, because the cell's own tap already means "select this date" — routing
+     * the whole cell to the popover would take selection away from exactly the days that have the
+     * most going on. A cell with no overflow has no label, and so behaves as it always did.
+     *
      * Every cell is also a tab stop, so keyboard focus draws a [KalendarColors.focusIndicator] ring
      * around it and a hovering pointer washes it with [KalendarColors.hoverBackground]. A custom
      * `dayContent` slot replaces this cell entirely, and with it both affordances — apply
@@ -259,8 +363,19 @@ public object KalendarDayCellDefaults {
      * @param maxEventIndicators How many event dots this cell draws before the remainder collapses
      *   into the `+N` overflow label. Defaults to 3; see [KalendarViewConfig.eventIndicatorCap],
      *   which is what the calendar views pass in.
+     * @param onEventClick Called when a row of the overflow popover is tapped, with the event that
+     *   row represents. The popover closes itself afterwards. Defaults to doing nothing, which
+     *   leaves the popover a read-only list of what the cell could not show.
+     * @param showOverflowPopup Whether tapping the `+N` label opens [OverflowPopup]. Set it to
+     *   `false` when your app surfaces a day's full event list some other way — the label then draws
+     *   exactly as before but is no longer interactive.
+     * @param overflowPopup Slot for what the popover shows, given the day's events and the callbacks
+     *   that report a tap and close it. Defaults to [OverflowPopup]. The popover window itself — its
+     *   placement, its focus, and dismissing it on an outside tap or escape — belongs to the cell, so
+     *   a replacement only draws.
      */
     @Composable
+    @Suppress("LongParameterList")
     public fun Cell(
         scope: KalendarDayScope,
         onClick: () -> Unit,
@@ -268,6 +383,11 @@ public object KalendarDayCellDefaults {
         showSelectionBackground: Boolean = true,
         monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
         maxEventIndicators: Int = DEFAULT_EVENT_INDICATOR_CAP,
+        onEventClick: (KalendarEvent) -> Unit = {},
+        showOverflowPopup: Boolean = true,
+        overflowPopup: @Composable (KalendarDayOverflowScope) -> Unit = { overflowScope ->
+            OverflowPopup(scope = overflowScope)
+        },
     ) {
         val colors = kalendarColors()
         val typography = kalendarTypography()
@@ -305,6 +425,8 @@ public object KalendarDayCellDefaults {
                 typography.dayNumber
             }
 
+        val hiddenEventCount = (scope.events.size - maxEventIndicators).coerceAtLeast(0)
+        var overflowOpen by remember { mutableStateOf(false) }
         val interactionSource = remember { MutableInteractionSource() }
         val isPressed by interactionSource.collectIsPressedAsState()
         val isFocused by interactionSource.collectIsFocusedAsState()
@@ -355,12 +477,18 @@ public object KalendarDayCellDefaults {
                     style = textStyle.copy(color = textColor),
                 )
                 val hasEvents = scope.events.isNotEmpty()
+                val onOverflowClick = if (showOverflowPopup && hiddenEventCount > 0) {
+                    { overflowOpen = true }
+                } else {
+                    null
+                }
                 if (animations.enabled) {
                     AnimatedVisibility(visible = hasEvents) {
                         EventIndicatorRow(
                             scope = scope,
                             maxEventIndicators = maxEventIndicators,
                             textColor = textColor,
+                            onOverflowClick = onOverflowClick,
                         )
                     }
                 } else if (hasEvents) {
@@ -368,10 +496,117 @@ public object KalendarDayCellDefaults {
                         scope = scope,
                         maxEventIndicators = maxEventIndicators,
                         textColor = textColor,
+                        onOverflowClick = onOverflowClick,
                     )
                 }
             }
+
+            if (overflowOpen) {
+                val overflowScope = remember(scope.date, scope.events, hiddenEventCount, onEventClick) {
+                    KalendarDayOverflowScopeImpl(
+                        date = scope.date,
+                        events = scope.events,
+                        hiddenEventCount = hiddenEventCount,
+                        reportEventClick = onEventClick,
+                        close = { overflowOpen = false },
+                    )
+                }
+                Popup(
+                    alignment = Alignment.BottomCenter,
+                    onDismissRequest = { overflowOpen = false },
+                    properties = PopupProperties(focusable = true),
+                ) {
+                    overflowPopup(overflowScope)
+                }
+            }
         }
+    }
+
+    /**
+     * The built-in overflow popover: every event on the day, one tappable row each, on a
+     * [KalendarColors.popupBackground] surface clipped to [KalendarShapes.popup] and outlined with
+     * [KalendarColors.popupBorder] so it stays distinguishable from the grid beneath it.
+     *
+     * Each row is an event's accent colour —
+     * [KalendarEvent.eventColor][com.himanshoe.kalendar.foundation.event.KalendarEvent.eventColor],
+     * falling back to [KalendarColors.eventIndicator] — beside its name in
+     * [KalendarTypography.agendaEventTitle], and reports to
+     * [KalendarDayOverflowScope.onEventClick], which closes the popover. The list is width-bounded
+     * and scrolls once it is taller than its ceiling, so a day with thirty events does not produce a
+     * popover taller than the screen.
+     *
+     * @param scope The day's events and the popover's callbacks. Inside an `overflowPopup` slot this
+     *   is the value the slot was handed.
+     * @param modifier [Modifier] applied to the popover's surface.
+     */
+    @Composable
+    public fun OverflowPopup(
+        scope: KalendarDayOverflowScope,
+        modifier: Modifier = Modifier,
+    ) {
+        val colors = kalendarColors()
+        val shapes = kalendarShapes()
+        val dimensions = kalendarDimensions()
+        Column(
+            modifier = modifier
+                .widthIn(min = OVERFLOW_POPUP_MIN_WIDTH, max = OVERFLOW_POPUP_MAX_WIDTH)
+                .clip(shapes.popup)
+                .background(colors.popupBackground)
+                .border(
+                    width = dimensions.gridLineThickness,
+                    color = colors.popupBorder,
+                    shape = shapes.popup,
+                )
+                .heightIn(max = OVERFLOW_POPUP_MAX_HEIGHT)
+                .verticalScroll(rememberScrollState())
+                .padding(vertical = OVERFLOW_POPUP_PADDING),
+        ) {
+            scope.events.forEach { event ->
+                OverflowEventRow(
+                    event = event,
+                    onClick = { scope.onEventClick(event) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One row of [KalendarDayCellDefaults.OverflowPopup]: the event's accent dot beside its name, the
+ * whole row carrying the click and the [Role.Button] role.
+ *
+ * The name is drawn on a single ellipsized line rather than wrapping, so a long event title widens
+ * the popover only up to [OVERFLOW_POPUP_MAX_WIDTH] and never turns one row into four.
+ */
+@Composable
+private fun OverflowEventRow(
+    event: KalendarEvent,
+    onClick: () -> Unit,
+) {
+    val colors = kalendarColors()
+    val typography = kalendarTypography()
+    val shapes = kalendarShapes()
+    val dimensions = kalendarDimensions()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(dimensions.agendaRowPadding),
+        horizontalArrangement = Arrangement.spacedBy(dimensions.agendaRowGap),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(dimensions.agendaDotSize)
+                .clip(shapes.eventIndicator)
+                .background(event.eventColor ?: colors.eventIndicator),
+        )
+        BasicText(
+            text = event.eventName,
+            style = typography.agendaEventTitle.copy(color = colors.dayContent),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -379,17 +614,29 @@ public object KalendarDayCellDefaults {
  * The row of per-event indicator dots below a day number, plus the compact `+N` label for events
  * past [maxEventIndicators]. [textColor] is the day number's colour, reused for the dots and the
  * overflow label on a selected cell so they stay legible against the selection fill.
+ *
+ * [onOverflowClick] turns the `+N` label into the popover trigger. It is applied to the label alone
+ * and adds no padding or minimum size, both because the day cell has no room to spare and because
+ * the cell's three golden images pin this row's geometry exactly — the label's hit area is therefore
+ * as small as the label is, which is the one thing about this trigger that a
+ * [KalendarDimensions.eventIndicatorSize] tuned much smaller would make unusable.
+ *
+ * The label is a merging semantics boundary once it is clickable, so it stays a separate node from
+ * the cell around it: a screen reader reaches the date first and the "show all events" button after,
+ * rather than hearing "+2" spliced into the date announcement.
  */
 @Composable
 private fun EventIndicatorRow(
     scope: KalendarDayScope,
     maxEventIndicators: Int,
     textColor: Color,
+    onOverflowClick: (() -> Unit)?,
 ) {
     val colors = kalendarColors()
     val typography = kalendarTypography()
     val shapes = kalendarShapes()
     val dimensions = kalendarDimensions()
+    val strings = kalendarStrings()
 
     Row(
         modifier = Modifier.padding(top = dimensions.eventIndicatorTopPadding),
@@ -411,10 +658,22 @@ private fun EventIndicatorRow(
         }
         if (scope.events.size > maxEventIndicators) {
             BasicText(
-                text = "+${scope.events.size - maxEventIndicators}",
+                text = strings.eventOverflowLabel(scope.events.size - maxEventIndicators),
                 style = typography.eventOverflowLabel.copy(
                     color = if (scope.isSelected) textColor else colors.eventIndicator,
                 ),
+                modifier = if (onOverflowClick == null) {
+                    Modifier
+                } else {
+                    Modifier
+                        .semantics { contentDescription = OVERFLOW_TRIGGER_LABEL }
+                        .clickable(
+                            interactionSource = null,
+                            indication = null,
+                            role = Role.Button,
+                            onClick = onOverflowClick,
+                        )
+                },
             )
         }
     }
