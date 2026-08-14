@@ -33,6 +33,17 @@ import kotlinx.datetime.LocalDateTime
 @Stable
 public interface KalendarEvent {
     /**
+     * A stable identifier for this event, unique across the whole event list handed to a calendar.
+     *
+     * Views that keep per-item state — [KalendarAgenda][com.himanshoe.kalendar.view.KalendarAgenda]'s
+     * list, for one — use it as their item key, so supplying it keeps that state attached to the
+     * right event across reorders and edits. Consumers can also use it to look an event back up
+     * when a click callback hands them one. `null`, the default, makes such views fall back to the
+     * event's position in the list.
+     */
+    public val id: String? get() = null
+
+    /**
      * The date on which this event falls, or — for a multi-day event — the first date it
      * occupies.
      */
@@ -78,9 +89,8 @@ public interface KalendarEvent {
 
     /**
      * An optional identifier that links this event to a named calendar source (e.g. "work",
-     * "personal"). Carried as metadata so consumers can group or tint events per source
-     * (for example via [com.himanshoe.kalendar.foundation.component.config.KalendarConfig.calendarColors]);
-     * the built-in views colour indicators from [eventColor] only. Defaults to `null`.
+     * "personal"). Carried as metadata so consumers can group or tint events per source; the
+     * built-in views colour indicators from [eventColor] only. Defaults to `null`.
      */
     public val calendarId: String? get() = null
 }
@@ -99,6 +109,8 @@ public interface KalendarEvent {
  *   that group or tint events per source. Defaults to `null`.
  * @property endDate The last date this event occupies, inclusive, for a multi-day event.
  *   Defaults to `null` (single-day event).
+ * @property id A stable identifier, unique across the event list, used as the list item key by
+ *   views that keep per-item state. Defaults to `null` (those views fall back to list position).
  */
 @Immutable
 public data class BasicKalendarEvent(
@@ -110,6 +122,7 @@ public data class BasicKalendarEvent(
     override val eventColor: Color? = null,
     override val calendarId: String? = null,
     override val endDate: LocalDate? = null,
+    override val id: String? = null,
 ) : KalendarEvent
 
 /**

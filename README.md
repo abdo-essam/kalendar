@@ -51,19 +51,15 @@ settings the first time.) The same deployment also publishes the Dokka API refer
 - **[KalendarTimeline](docs/views/timeline.md)**: continuous, boundless vertical scroll through every month — no paging.
 - **[KalendarSchedule](docs/views/schedule.md)**: hourly time grid for a single day — duration-sized event blocks, overlap packing, and a now-indicator.
 - **[KalendarScheduleWeek](docs/views/schedule-week.md)**: the 7-day variant — day columns sharing one hour gutter.
+- **[KalendarAgenda](docs/views/agenda.md)**: scrollable list of events grouped by date — no grid, no paging.
 
 All views are restylable via **[KalendarTheme](docs/theming.md)** colour tokens — no Material dependency required in your app's design system.
 
-These are called directly (`KalendarMonth(...)`, not `Kalendar(type = ...)`). They use the event
-model from `kalendar-foundation` (`KalendarEvent`/`BasicKalendarEvent`), which `kalendar`
-re-exports as an `api` dependency — adding `com.himanshoe:kalendar` alone is enough. See their
-docs for usage.
-
-## Kalendar(type = ...)
-
-The only remaining [`KalendarType`](kalendar/src/commonMain/kotlin/com/himanshoe/kalendar/KalendarType.kt)
-is **[Agenda](docs/views/agenda.md)** — a scrollable event list grouped by date. Month/week/year grids are
-the standalone views above, not `KalendarType` values.
+Every view is a top-level composable called directly — `KalendarMonth(...)`, `KalendarAgenda(...)`.
+There is no `Kalendar(type = ...)` entry point and no `KalendarType`: both were removed in 2.0.
+They use the event model from `kalendar-foundation` (`KalendarEvent`/`BasicKalendarEvent`), which
+`kalendar` re-exports as an `api` dependency — adding `com.himanshoe:kalendar` alone is enough. See
+their docs for usage.
 
 ## Device calendar sync
 

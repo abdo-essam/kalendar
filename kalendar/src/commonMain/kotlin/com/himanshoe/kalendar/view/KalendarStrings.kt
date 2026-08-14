@@ -54,6 +54,7 @@ import kotlinx.datetime.LocalDate
  * @property hasEventsSuffix Appended to a day cell's accessibility description when that date has
  *   at least one event. Include the leading separator. See [dayAccessibilityLabel] to replace the
  *   whole description instead.
+ * @property agendaEmptyState Shown in the middle of [KalendarAgenda] when it has no events at all.
  * @property eventOverflowLabel Formats the compact label shown when a day has more events than
  *   [KalendarViewConfig.eventIndicatorCap] dots, given the number of events not shown.
  * @property dayAccessibilityLabel Builds a day cell's base accessibility description from its date
@@ -71,6 +72,7 @@ public class KalendarStrings(
     public val openJumpPicker: String = "Choose month and year",
     public val todaySuffix: String = ", today",
     public val hasEventsSuffix: String = ", has events",
+    public val agendaEmptyState: String = "No events",
     public val eventOverflowLabel: (hiddenEventCount: Int) -> String = { "+$it" },
     public val dayAccessibilityLabel: (date: LocalDate, monthName: String) -> String = defaultDayAccessibilityLabel,
 ) {
@@ -85,6 +87,7 @@ public class KalendarStrings(
         openJumpPicker: String = this.openJumpPicker,
         todaySuffix: String = this.todaySuffix,
         hasEventsSuffix: String = this.hasEventsSuffix,
+        agendaEmptyState: String = this.agendaEmptyState,
         eventOverflowLabel: (hiddenEventCount: Int) -> String = this.eventOverflowLabel,
         dayAccessibilityLabel: (date: LocalDate, monthName: String) -> String = this.dayAccessibilityLabel,
     ): KalendarStrings = KalendarStrings(
@@ -96,6 +99,7 @@ public class KalendarStrings(
         openJumpPicker = openJumpPicker,
         todaySuffix = todaySuffix,
         hasEventsSuffix = hasEventsSuffix,
+        agendaEmptyState = agendaEmptyState,
         eventOverflowLabel = eventOverflowLabel,
         dayAccessibilityLabel = dayAccessibilityLabel,
     )
@@ -111,6 +115,7 @@ public class KalendarStrings(
         if (openJumpPicker != other.openJumpPicker) return false
         if (todaySuffix != other.todaySuffix) return false
         if (hasEventsSuffix != other.hasEventsSuffix) return false
+        if (agendaEmptyState != other.agendaEmptyState) return false
         if (eventOverflowLabel != other.eventOverflowLabel) return false
         if (dayAccessibilityLabel != other.dayAccessibilityLabel) return false
         return true
@@ -125,6 +130,7 @@ public class KalendarStrings(
         result = 31 * result + openJumpPicker.hashCode()
         result = 31 * result + todaySuffix.hashCode()
         result = 31 * result + hasEventsSuffix.hashCode()
+        result = 31 * result + agendaEmptyState.hashCode()
         result = 31 * result + eventOverflowLabel.hashCode()
         result = 31 * result + dayAccessibilityLabel.hashCode()
         return result
@@ -139,6 +145,7 @@ public class KalendarStrings(
         "openJumpPicker=$openJumpPicker, " +
         "todaySuffix=$todaySuffix, " +
         "hasEventsSuffix=$hasEventsSuffix, " +
+        "agendaEmptyState=$agendaEmptyState, " +
         "eventOverflowLabel=$eventOverflowLabel, " +
         "dayAccessibilityLabel=$dayAccessibilityLabel" +
         ")"

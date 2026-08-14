@@ -9,12 +9,47 @@ project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Breaking changes
+- **`Kalendar(type = ...)` and `KalendarType` are gone.** The last remaining type, `Agenda`, is now
+  the top-level `com.himanshoe.kalendar.view.KalendarAgenda` composable, so every view in the
+  library is called directly. There is no dispatch entry point left; replace
+  `Kalendar(type = KalendarType.Agenda, events = events, config = KalendarConfig(...))` with
+  `KalendarAgenda(events = events, config = KalendarViewConfig(...))`.
+- **`KalendarAgenda` rewritten as a first-class modern view.** It is public, lives in
+  `com.himanshoe.kalendar.view`, takes `KalendarViewConfig`, and draws entirely with Compose
+  Foundation — no Material widgets, no hardcoded colours, shapes or text sizes. Every visual comes
+  from `KalendarTheme`, so it restyles with the other six views. New slots `dateHeader`,
+  `eventContent` and `emptyState` default to `KalendarAgendaDefaults.DateHeader` / `.EventRow` /
+  `.EmptyState`. Its date headers now go through `KalendarViewConfig.monthNameFormatter` (they used
+  the raw English `Month` enum name and could not be localized), and its empty-state text comes
+  from the new `KalendarStrings.agendaEmptyState`.
+- **`kalendar-foundation` is now 2.0.0** (was 1.1.0 stable), aligning it with `kalendar` on one
+  major. The following had zero read sites anywhere in the project and were deleted:
+  `KalendarConfig`, `KalendarDayConfig`, `KalendarDayLabelConfig`, `KalendarHeaderConfig`,
+  `OnDaySelectionAction`, `LocalDate.onDayClick`, `KalendarSelectedDayRange`, and the
+  `KalendarColor` sealed class with its `Color.asSolidColor()` / `List<Color>.asGradientColor()`
+  extensions. `KalendarConfig` in particular published 16 fields of which the Agenda view read
+  exactly two; the rest were inert. What remains in `kalendar-foundation` is the event model:
+  `KalendarEvent`, `BasicKalendarEvent`, `KalendarEvents`. Configure views with
+  `KalendarViewConfig` and style them with `KalendarTheme`.
 - Removed `KalendarType.Oceanic`, `Firey`, `Solaris`, `Aerial`, and `Yearly` (and the
   `kalendar-foundation` internals they depended on) entirely. Replace them with the standalone
   `com.himanshoe.kalendar.view` composables below — there is no `KalendarType`-based drop-in
   replacement; call `KalendarWeek`/`KalendarMonth`/`KalendarYear`/`KalendarTimeline` directly.
+- `KalendarColors`, `KalendarTypography` and `KalendarShapes` each gained a required constructor
+  parameter (`agendaCard`; `agendaEventTitle`/`agendaEventSubtitle`; `agendaCard`). Code that
+  `copy()`s a defaults instance is unaffected; code that constructs one from scratch must supply
+  them.
 
 ### Added
+- **`KalendarEvent.id`** — an optional stable identifier (`null` by default, so existing
+  implementations are unaffected). Views that keep per-item state use it as their list key, and it
+  gives consumers a way to look an event back up instead of matching on name and date.
+  `BasicKalendarEvent` gained a matching trailing `id` parameter.
+- **Agenda theme tokens** — `KalendarColors.agendaCard`, `KalendarShapes.agendaCard`,
+  `KalendarTypography.agendaEventTitle`/`agendaEventSubtitle`,
+  `KalendarDimensions.agendaRowPadding`/`agendaRowSpacing`/`agendaRowGap`/`agendaDotSize`, and
+  `KalendarStrings.agendaEmptyState`, so `KalendarAgenda` restyles and localizes like every other
+  view.
 - **Recurring events write to device calendars** — `insertEvent`/`updateEvent` now persist
   `recurrenceRule` on Android (RRULE + RFC 2445 DURATION — recurring rows must not set DTEND —
   plus EXDATE) and iOS (`EKRecurrenceRule` mapping, with `EKSpanFutureEvents` on rule updates so
@@ -121,6 +156,12 @@ project adheres to [Semantic Versioning](https://semver.org/).
   (ktlint-based) ruleset to read.
 
 ### Fixed
+- **`KalendarAgenda` no longer crashes on duplicate events.** Its list keyed items on
+  `"${date}_${eventName}_${startTime}"`, so two all-day events with the same name on one date
+  produced identical keys and `SaveableStateHolder` threw `IllegalArgumentException` — reliably,
+  since the stable sort placed the colliding pair adjacent. Items are now keyed on the new
+  `KalendarEvent.id` (falling back to the event's position within its date) plus the date it is
+  rendered under.
 - On iOS 17+ the sync provider requested calendar access with the deprecated pre-17 API, which
   can grant only write access and break event fetching; it now calls
   `requestFullAccessToEventsWithCompletion` when available (runtime-gated), falling back to the

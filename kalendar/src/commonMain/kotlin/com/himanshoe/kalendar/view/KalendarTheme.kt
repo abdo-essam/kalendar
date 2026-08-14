@@ -75,6 +75,9 @@ import androidx.compose.ui.unit.sp
  *   picker floats over the calendar.
  * @property popupBorder The jump picker's hairline outline, which separates it from the calendar
  *   underneath. Set it to [Color.Transparent] to drop the outline.
+ * @property agendaCard Fill of a raised surface sitting on top of [background] — [KalendarAgenda]'s
+ *   event rows. It has to be distinguishable from [background], since the raise is drawn with
+ *   colour rather than a shadow.
  * @property disabledContentAlpha Opacity applied to a day cell that
  *   [KalendarViewConfig.disabledDates] rejected, and to adjacent-month dates.
  * @property eventBlockAlpha Opacity of an event block's fill, applied over the event's accent
@@ -98,6 +101,7 @@ public class KalendarColors(
     public val dragGhostBackground: Color,
     public val popupBackground: Color,
     public val popupBorder: Color,
+    public val agendaCard: Color,
     public val disabledContentAlpha: Float = DEFAULT_DISABLED_ALPHA,
     public val eventBlockAlpha: Float = DEFAULT_EVENT_BLOCK_ALPHA,
     public val eventBlockDraggingAlpha: Float = DEFAULT_EVENT_BLOCK_DRAGGING_ALPHA,
@@ -119,6 +123,7 @@ public class KalendarColors(
         dragGhostBackground: Color = this.dragGhostBackground,
         popupBackground: Color = this.popupBackground,
         popupBorder: Color = this.popupBorder,
+        agendaCard: Color = this.agendaCard,
         disabledContentAlpha: Float = this.disabledContentAlpha,
         eventBlockAlpha: Float = this.eventBlockAlpha,
         eventBlockDraggingAlpha: Float = this.eventBlockDraggingAlpha,
@@ -137,6 +142,7 @@ public class KalendarColors(
         dragGhostBackground = dragGhostBackground,
         popupBackground = popupBackground,
         popupBorder = popupBorder,
+        agendaCard = agendaCard,
         disabledContentAlpha = disabledContentAlpha,
         eventBlockAlpha = eventBlockAlpha,
         eventBlockDraggingAlpha = eventBlockDraggingAlpha,
@@ -160,6 +166,7 @@ public class KalendarColors(
         if (dragGhostBackground != other.dragGhostBackground) return false
         if (popupBackground != other.popupBackground) return false
         if (popupBorder != other.popupBorder) return false
+        if (agendaCard != other.agendaCard) return false
         if (disabledContentAlpha != other.disabledContentAlpha) return false
         if (eventBlockAlpha != other.eventBlockAlpha) return false
         if (eventBlockDraggingAlpha != other.eventBlockDraggingAlpha) return false
@@ -181,6 +188,7 @@ public class KalendarColors(
         result = 31 * result + dragGhostBackground.hashCode()
         result = 31 * result + popupBackground.hashCode()
         result = 31 * result + popupBorder.hashCode()
+        result = 31 * result + agendaCard.hashCode()
         result = 31 * result + disabledContentAlpha.hashCode()
         result = 31 * result + eventBlockAlpha.hashCode()
         result = 31 * result + eventBlockDraggingAlpha.hashCode()
@@ -202,6 +210,7 @@ public class KalendarColors(
         "dragGhostBackground=$dragGhostBackground, " +
         "popupBackground=$popupBackground, " +
         "popupBorder=$popupBorder, " +
+        "agendaCard=$agendaCard, " +
         "disabledContentAlpha=$disabledContentAlpha, " +
         "eventBlockAlpha=$eventBlockAlpha, " +
         "eventBlockDraggingAlpha=$eventBlockDraggingAlpha, " +
@@ -239,6 +248,9 @@ public class KalendarColors(
  * @property eventOverflowLabel The compact `+N` label shown when a day has more events than
  *   [KalendarViewConfig.eventIndicatorCap].
  * @property hourLabel The hour-gutter labels on the Schedule views.
+ * @property agendaEventTitle An event's name in [KalendarAgenda]'s rows.
+ * @property agendaEventSubtitle An event's description and time range in [KalendarAgenda]'s rows,
+ *   and its empty-state message.
  */
 @Immutable
 @Suppress("LongParameterList")
@@ -252,6 +264,8 @@ public class KalendarTypography(
     public val eventLabel: TextStyle,
     public val eventOverflowLabel: TextStyle,
     public val hourLabel: TextStyle,
+    public val agendaEventTitle: TextStyle,
+    public val agendaEventSubtitle: TextStyle,
 ) {
 
     /** Returns a duplicate of this type scale with only the styles passed here replaced. */
@@ -265,6 +279,8 @@ public class KalendarTypography(
         eventLabel: TextStyle = this.eventLabel,
         eventOverflowLabel: TextStyle = this.eventOverflowLabel,
         hourLabel: TextStyle = this.hourLabel,
+        agendaEventTitle: TextStyle = this.agendaEventTitle,
+        agendaEventSubtitle: TextStyle = this.agendaEventSubtitle,
     ): KalendarTypography = KalendarTypography(
         headerTitle = headerTitle,
         monthLabel = monthLabel,
@@ -275,6 +291,8 @@ public class KalendarTypography(
         eventLabel = eventLabel,
         eventOverflowLabel = eventOverflowLabel,
         hourLabel = hourLabel,
+        agendaEventTitle = agendaEventTitle,
+        agendaEventSubtitle = agendaEventSubtitle,
     )
 
     override fun equals(other: Any?): Boolean {
@@ -289,6 +307,8 @@ public class KalendarTypography(
         if (eventLabel != other.eventLabel) return false
         if (eventOverflowLabel != other.eventOverflowLabel) return false
         if (hourLabel != other.hourLabel) return false
+        if (agendaEventTitle != other.agendaEventTitle) return false
+        if (agendaEventSubtitle != other.agendaEventSubtitle) return false
         return true
     }
 
@@ -302,6 +322,8 @@ public class KalendarTypography(
         result = 31 * result + eventLabel.hashCode()
         result = 31 * result + eventOverflowLabel.hashCode()
         result = 31 * result + hourLabel.hashCode()
+        result = 31 * result + agendaEventTitle.hashCode()
+        result = 31 * result + agendaEventSubtitle.hashCode()
         return result
     }
 
@@ -314,7 +336,9 @@ public class KalendarTypography(
         "weekDayNumber=$weekDayNumber, " +
         "eventLabel=$eventLabel, " +
         "eventOverflowLabel=$eventOverflowLabel, " +
-        "hourLabel=$hourLabel" +
+        "hourLabel=$hourLabel, " +
+        "agendaEventTitle=$agendaEventTitle, " +
+        "agendaEventSubtitle=$agendaEventSubtitle" +
         ")"
 }
 
@@ -330,6 +354,7 @@ public class KalendarTypography(
  * @property eventIndicator The per-event indicator dots below a day number.
  * @property eventBlock Event blocks on the Schedule views and all-day chips.
  * @property popup The month/year jump picker surface.
+ * @property agendaCard [KalendarAgenda]'s event rows.
  */
 @Immutable
 public class KalendarShapes(
@@ -337,6 +362,7 @@ public class KalendarShapes(
     public val eventIndicator: Shape,
     public val eventBlock: Shape,
     public val popup: Shape,
+    public val agendaCard: Shape,
 ) {
 
     /** Returns a duplicate of these shapes with only the ones passed here replaced. */
@@ -345,11 +371,13 @@ public class KalendarShapes(
         eventIndicator: Shape = this.eventIndicator,
         eventBlock: Shape = this.eventBlock,
         popup: Shape = this.popup,
+        agendaCard: Shape = this.agendaCard,
     ): KalendarShapes = KalendarShapes(
         dayCell = dayCell,
         eventIndicator = eventIndicator,
         eventBlock = eventBlock,
         popup = popup,
+        agendaCard = agendaCard,
     )
 
     override fun equals(other: Any?): Boolean {
@@ -359,6 +387,7 @@ public class KalendarShapes(
         if (eventIndicator != other.eventIndicator) return false
         if (eventBlock != other.eventBlock) return false
         if (popup != other.popup) return false
+        if (agendaCard != other.agendaCard) return false
         return true
     }
 
@@ -367,6 +396,7 @@ public class KalendarShapes(
         result = 31 * result + eventIndicator.hashCode()
         result = 31 * result + eventBlock.hashCode()
         result = 31 * result + popup.hashCode()
+        result = 31 * result + agendaCard.hashCode()
         return result
     }
 
@@ -374,7 +404,8 @@ public class KalendarShapes(
         "dayCell=$dayCell, " +
         "eventIndicator=$eventIndicator, " +
         "eventBlock=$eventBlock, " +
-        "popup=$popup" +
+        "popup=$popup, " +
+        "agendaCard=$agendaCard" +
         ")"
 }
 
@@ -420,7 +451,11 @@ public class KalendarShapes(
  * @property allDayChipPadding Padding inside one all-day chip.
  * @property monthSpacing Vertical gap between month grids in [KalendarYear].
  * @property sectionPadding Padding around section titles — [KalendarTimeline]'s month titles and
- *   sticky header, and [KalendarYear]'s month names.
+ *   sticky header, [KalendarYear]'s month names, and [KalendarAgenda]'s date headers.
+ * @property agendaRowPadding Padding inside one [KalendarAgenda] event row.
+ * @property agendaRowSpacing Vertical gap between [KalendarAgenda] list items.
+ * @property agendaRowGap Horizontal gap between an [KalendarAgenda] row's accent dot and its text.
+ * @property agendaDotSize Diameter of an [KalendarAgenda] row's leading accent dot.
  */
 @Immutable
 public class KalendarDimensions(
@@ -444,6 +479,10 @@ public class KalendarDimensions(
     public val allDayChipPadding: PaddingValues = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
     public val monthSpacing: Dp = 16.dp,
     public val sectionPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+    public val agendaRowPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+    public val agendaRowSpacing: Dp = 4.dp,
+    public val agendaRowGap: Dp = 12.dp,
+    public val agendaDotSize: Dp = 10.dp,
 ) {
 
     /** Returns a duplicate of these dimensions with only the values passed here replaced. */
@@ -468,6 +507,10 @@ public class KalendarDimensions(
         allDayChipPadding: PaddingValues = this.allDayChipPadding,
         monthSpacing: Dp = this.monthSpacing,
         sectionPadding: PaddingValues = this.sectionPadding,
+        agendaRowPadding: PaddingValues = this.agendaRowPadding,
+        agendaRowSpacing: Dp = this.agendaRowSpacing,
+        agendaRowGap: Dp = this.agendaRowGap,
+        agendaDotSize: Dp = this.agendaDotSize,
     ): KalendarDimensions = KalendarDimensions(
         dayCellPadding = dayCellPadding,
         dayCellAspectRatio = dayCellAspectRatio,
@@ -489,6 +532,10 @@ public class KalendarDimensions(
         allDayChipPadding = allDayChipPadding,
         monthSpacing = monthSpacing,
         sectionPadding = sectionPadding,
+        agendaRowPadding = agendaRowPadding,
+        agendaRowSpacing = agendaRowSpacing,
+        agendaRowGap = agendaRowGap,
+        agendaDotSize = agendaDotSize,
     )
 
     @Suppress("CyclomaticComplexMethod")
@@ -515,6 +562,10 @@ public class KalendarDimensions(
         if (allDayChipPadding != other.allDayChipPadding) return false
         if (monthSpacing != other.monthSpacing) return false
         if (sectionPadding != other.sectionPadding) return false
+        if (agendaRowPadding != other.agendaRowPadding) return false
+        if (agendaRowSpacing != other.agendaRowSpacing) return false
+        if (agendaRowGap != other.agendaRowGap) return false
+        if (agendaDotSize != other.agendaDotSize) return false
         return true
     }
 
@@ -539,6 +590,10 @@ public class KalendarDimensions(
         result = 31 * result + allDayChipPadding.hashCode()
         result = 31 * result + monthSpacing.hashCode()
         result = 31 * result + sectionPadding.hashCode()
+        result = 31 * result + agendaRowPadding.hashCode()
+        result = 31 * result + agendaRowSpacing.hashCode()
+        result = 31 * result + agendaRowGap.hashCode()
+        result = 31 * result + agendaDotSize.hashCode()
         return result
     }
 
@@ -562,7 +617,11 @@ public class KalendarDimensions(
         "allDayChipSpacing=$allDayChipSpacing, " +
         "allDayChipPadding=$allDayChipPadding, " +
         "monthSpacing=$monthSpacing, " +
-        "sectionPadding=$sectionPadding" +
+        "sectionPadding=$sectionPadding, " +
+        "agendaRowPadding=$agendaRowPadding, " +
+        "agendaRowSpacing=$agendaRowSpacing, " +
+        "agendaRowGap=$agendaRowGap, " +
+        "agendaDotSize=$agendaDotSize" +
         ")"
 }
 
@@ -701,6 +760,7 @@ public object KalendarThemeDefaults {
         dragGhostBackground = scheme.secondaryContainer,
         popupBackground = scheme.surfaceContainerHigh,
         popupBorder = scheme.outlineVariant,
+        agendaCard = scheme.surfaceContainerLow,
     )
 
     /**
@@ -736,6 +796,7 @@ public object KalendarThemeDefaults {
         dragGhostBackground = Color(0xFFE8DEF8),
         popupBackground = Color(0xFFECE6F0),
         popupBorder = Color(0xFFCAC4D0),
+        agendaCard = Color(0xFFF7F2FA),
     )
 
     /** Kalendar's built-in dark palette. Material-free, so it works in any Compose app. */
@@ -754,6 +815,7 @@ public object KalendarThemeDefaults {
         dragGhostBackground = Color(0xFF4A4458),
         popupBackground = Color(0xFF2B2930),
         popupBorder = Color(0xFF49454F),
+        agendaCard = Color(0xFF26242A),
     )
 
     /** [KalendarTypography] resolved from the ambient [MaterialTheme.typography]. */
@@ -772,6 +834,8 @@ public object KalendarThemeDefaults {
         eventLabel = scale.labelSmall,
         eventOverflowLabel = scale.labelSmall.copy(fontSize = EVENT_OVERFLOW_FONT_SIZE),
         hourLabel = scale.labelSmall,
+        agendaEventTitle = scale.titleSmall,
+        agendaEventSubtitle = scale.bodySmall,
     )
 
     /** Kalendar's built-in [KalendarShapes] — circular day cells, lightly rounded event blocks. */
@@ -780,12 +844,14 @@ public object KalendarThemeDefaults {
         eventIndicator = CircleShape,
         eventBlock = RoundedCornerShape(EVENT_BLOCK_CORNER_RADIUS),
         popup = RoundedCornerShape(POPUP_CORNER_RADIUS),
+        agendaCard = RoundedCornerShape(AGENDA_CARD_CORNER_RADIUS),
     )
 }
 
 private val EVENT_OVERFLOW_FONT_SIZE = 7.sp
 private val EVENT_BLOCK_CORNER_RADIUS = 4.dp
 private val POPUP_CORNER_RADIUS = 12.dp
+private val AGENDA_CARD_CORNER_RADIUS = 12.dp
 private const val DEFAULT_DISABLED_ALPHA = 0.38f
 private const val DEFAULT_EVENT_BLOCK_ALPHA = 0.18f
 private const val DEFAULT_EVENT_BLOCK_DRAGGING_ALPHA = 0.45f

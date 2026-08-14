@@ -300,6 +300,7 @@ class KalendarNoMaterialThemeTest {
         dragGhostBackground = BRAND_DRAG_GHOST,
         popupBackground = BRAND_POPUP_BACKGROUND,
         popupBorder = BRAND_POPUP_BORDER,
+        agendaCard = BRAND_AGENDA_CARD,
     )
 
     /**
@@ -317,6 +318,8 @@ class KalendarNoMaterialThemeTest {
             eventLabel = TextStyle(fontSize = EVENT_LABEL_SIZE),
             eventOverflowLabel = TextStyle(fontSize = EVENT_LABEL_SIZE),
             hourLabel = TextStyle(fontSize = EVENT_LABEL_SIZE),
+            agendaEventTitle = TextStyle(fontSize = EVENT_LABEL_SIZE),
+            agendaEventSubtitle = TextStyle(fontSize = EVENT_LABEL_SIZE),
         )
 
     private companion object {
@@ -375,6 +378,7 @@ class KalendarNoMaterialThemeTest {
         val BRAND_DRAG_GHOST = Color(0xFF586E75)
         val BRAND_POPUP_BACKGROUND = Color(0xFF073642)
         val BRAND_POPUP_BORDER = Color(0xFF586E75)
+        val BRAND_AGENDA_CARD = Color(0xFF6C71C4)
 
         val MATERIAL_BASELINE_SURFACE = Color(0xFFFFFBFE)
         val MATERIAL_BASELINE_PRIMARY = Color(0xFF6750A4)
