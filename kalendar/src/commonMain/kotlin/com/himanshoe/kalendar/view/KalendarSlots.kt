@@ -86,16 +86,15 @@ public interface KalendarHeaderScope {
  *
  * ```kotlin
  * KalendarSchedule(
- *     selectedDate = today,
+ *     state = rememberKalendarScheduleState(initialDate = today),
  *     events = events,
- *     eventContent = { scope ->
- *         MyEventCard(
- *             title = scope.event.eventName,
- *             subtitle = "${scope.start.time} – ${scope.end.time}",
- *             dimmed = scope.isDragging,
- *         )
- *     },
- * )
+ * ) { scope ->
+ *     MyEventCard(
+ *         title = scope.event.eventName,
+ *         subtitle = "${scope.start.time} – ${scope.end.time}",
+ *         dimmed = scope.isDragging,
+ *     )
+ * }
  * ```
  *
  * @see KalendarHeaderScope for why this is an interface.
@@ -106,7 +105,13 @@ public interface KalendarScheduleEventScope {
     /** The event being rendered. */
     public val event: KalendarEvent
 
-    /** The event's start, clamped to the day being rendered when the event began earlier. */
+    /**
+     * The event's start, clamped to the day being rendered when the event began earlier.
+     *
+     * While a drag is in flight this is where the block currently *would* land, not where the event
+     * still is — including the day, on [KalendarScheduleWeek], once the drag has crossed into
+     * another column. The event itself is untouched until the view's change callback is honoured.
+     */
     public val start: LocalDateTime
 
     /** The event's end, clamped to the day being rendered when the event runs past midnight. */

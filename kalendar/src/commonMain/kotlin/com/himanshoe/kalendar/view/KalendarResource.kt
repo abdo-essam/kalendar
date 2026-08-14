@@ -102,17 +102,13 @@ private const val HASH_FACTOR = 31
  * this view can additionally tint or label itself per resource:
  *
  * ```kotlin
- * KalendarResourceView(
- *     resources = rooms,
- *     events = bookings,
- *     eventContent = { scope ->
- *         MyBookingCard(
- *             title = scope.event.eventName,
- *             room = scope.resource.title,
- *             dimmed = scope.isDragging,
- *         )
- *     },
- * )
+ * KalendarResourceView(resources = rooms, events = bookings) { scope ->
+ *     MyBookingCard(
+ *         title = scope.event.eventName,
+ *         room = scope.resource.title,
+ *         dimmed = scope.isDragging,
+ *     )
+ * }
  * ```
  *
  * @see KalendarHeaderScope for why this is an interface rather than a data class.

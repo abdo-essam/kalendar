@@ -17,6 +17,7 @@
 package com.himanshoe.kalendar.view
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
@@ -24,21 +25,30 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.dp
 import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.LocalTime
+import kotlinx.datetime.TimeZone
 import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 /**
@@ -55,6 +65,7 @@ private class Tally {
 
 private val CELLS = Tally()
 private val HEADERS = Tally()
+private val BLOCKS = Tally()
 
 /**
  * Counts runs of the lambda that *calls* the view under test.
@@ -93,6 +104,19 @@ private val HEADER_PROBE: @Composable (KalendarHeaderScope) -> Unit = {
     Box(modifier = Modifier.size(PROBE_SIZE))
 }
 
+/**
+ * The `eventContent` slot handed to the hour-grid views under test.
+ *
+ * It fills its slot rather than drawing the built-in block, so a touch injected at the node's centre
+ * is the centre of the *block* — which is what puts the press in the move region instead of on a
+ * resize edge. Contravariance makes the same probe serve
+ * [KalendarResourceView]'s [KalendarResourceEventScope] slot.
+ */
+private val BLOCK_PROBE: @Composable (KalendarScheduleEventScope) -> Unit = { scope ->
+    BLOCKS.count++
+    Box(modifier = Modifier.fillMaxSize().testTag(scope.event.eventName))
+}
+
 private const val FIXTURE_YEAR = 2026
 private const val FIXTURE_MONTH = 3
 private const val FIXTURE_DAY = 10
@@ -118,6 +142,56 @@ private const val YEAR_LAZY_CELL_CEILING = 300
 /** A month grid is 4 to 6 rows of 7, depending on where the 1st falls and how long the month is. */
 private const val MONTH_GRID_MIN_CELLS = 28
 private const val MONTH_GRID_MAX_CELLS = 42
+
+/**
+ * One block per hour, none of them overlapping, all inside [BENCH_WINDOW] with its first hour left
+ * free for [BENCH_INSERTED_HOUR].
+ */
+private const val BLOCK_COUNT = 8
+private const val BENCH_FIRST_HOUR = 9
+private const val BENCH_INSERTED_HOUR = 8
+private val BENCH_WINDOW = KalendarHourWindow(
+    startHour = BENCH_INSERTED_HOUR,
+    endHour = BENCH_FIRST_HOUR + BLOCK_COUNT,
+)
+private val BENCH_CONFIG = KalendarViewConfig(
+    scheduleVisibleHours = BENCH_WINDOW,
+    scheduleInitialScrollHour = BENCH_WINDOW.startHour,
+)
+private const val BENCH_ROOM_ID = "room-a"
+private val BENCH_ROOMS = listOf(KalendarResource(id = BENCH_ROOM_ID, title = "Room A"))
+
+private const val LONG_PRESS_MS = 1_000L
+private const val FRAME_MS = 16L
+
+/** Comfortably past [DEFAULT_NOW_TICK], so the indicator's timer has certainly fired. */
+private const val TICK_ADVANCE_MS = 90_000L
+private const val TICK_MINUTES = 1
+private const val NOW_TAG = "now-indicator"
+
+/** Three pointer moves of a quarter-hour each, so every one of them changes the snapped delta. */
+private const val DRAG_STEPS = 3
+private const val DRAG_STEP_FRACTION = 0.25f
+
+/**
+ * Slot compositions allowed when one earlier event is inserted: the new block, and nothing else.
+ *
+ * Unkeyed, the loop body is memoized by position, so an insertion at the top of the day re-associates
+ * every slot below it with a different event — [BLOCK_COUNT] + 1 compositions, and any state a
+ * caller's card holds lands on the wrong block. Keyed by the event, the existing subtrees move
+ * instead of being rebuilt and only the newcomer composes. The budget is 2 rather than 1 because the
+ * grid legitimately re-lays the column once the block count changes.
+ */
+private const val INSERT_SLOT_BUDGET = 2
+
+/**
+ * Slot compositions allowed for a whole drag gesture.
+ *
+ * Only the block under the finger changes, and it changes once per snap step: the grab, [DRAG_STEPS]
+ * moves and the release. Anything approaching [BLOCK_COUNT] per move means the drag is being read in
+ * the `Layout` content lambda, which invalidates every block in the column.
+ */
+private const val DRAG_SLOT_BUDGET = BLOCK_COUNT
 
 private val FIXTURE_DATE = LocalDate(FIXTURE_YEAR, FIXTURE_MONTH, FIXTURE_DAY)
 
@@ -295,6 +369,221 @@ class KalendarRecompositionBenchmark {
         ),
     )
 
+    /**
+     * Dragging one block must not recompose the blocks beside it.
+     *
+     * The live drag is a snapshot state shared by a whole column. Read in the `Layout` content
+     * lambda it invalidates all of it, so a single pointer move re-runs every caller's
+     * `eventContent` — the exact shape of the focused-date regression above, on the hour grids. The
+     * measure policy recomputes the positions from the same state anyway, so composition has no
+     * reason to read it.
+     */
+    @Test
+    fun draggingOneScheduleBlockLeavesTheOtherBlocksAlone() {
+        val slots = countDuringDrag {
+            KalendarSchedule(
+                state = rememberKalendarScheduleState(initialDate = FIXTURE_DATE),
+                events = benchBlocks(),
+                config = BENCH_CONFIG,
+                onEventTimeChange = { _, _, _ -> },
+                eventContent = BLOCK_PROBE,
+            )
+        }
+        assertTrue(
+            slots < DRAG_SLOT_BUDGET,
+            "a drag on KalendarSchedule recomposed $slots event slots; the drag state is being read " +
+                "in the Layout content lambda rather than in measure (budget < $DRAG_SLOT_BUDGET)",
+        )
+    }
+
+    /** [draggingOneScheduleBlockLeavesTheOtherBlocksAlone] for the lane grid. */
+    @Test
+    fun draggingOneResourceBlockLeavesTheOtherBlocksAlone() {
+        val slots = countDuringDrag {
+            KalendarResourceView(
+                resources = BENCH_ROOMS,
+                state = rememberKalendarScheduleState(initialDate = FIXTURE_DATE),
+                events = benchBlocks(),
+                config = BENCH_CONFIG,
+                onEventChange = { _, _, _, _ -> },
+                eventContent = BLOCK_PROBE,
+            )
+        }
+        assertTrue(
+            slots < DRAG_SLOT_BUDGET,
+            "a drag on KalendarResourceView recomposed $slots event slots; the drag state is being " +
+                "read in the Layout content lambda rather than in measure (budget < $DRAG_SLOT_BUDGET)",
+        )
+    }
+
+    /**
+     * A minute passing must not recompose a single event block.
+     *
+     * The now-indicator's reading is a snapshot state that changes once a minute for as long as a
+     * Schedule view is on screen, so it is the one value in these views guaranteed to churn. It is
+     * handed down as a lambda and only ever invoked inside the indicator's own composable — read
+     * anywhere above that, every block on the grid would recompose sixty times an hour.
+     */
+    @Test
+    fun aNowIndicatorTickRecomposesNoScheduleBlock() {
+        reset()
+        val clock = TickingClock()
+        rule.setContent {
+            ProvideKalendarTimeSource(KalendarTimeSource(timeZone = TimeZone.UTC, clock = clock)) {
+                MaterialTheme(colorScheme = STABLE_SCHEME) {
+                    KalendarTheme(animations = STILL_ANIMATIONS) {
+                        KalendarSchedule(
+                            state = rememberKalendarScheduleState(initialDate = FIXTURE_DATE),
+                            events = benchBlocks(),
+                            config = BENCH_CONFIG,
+                            nowIndicator = { Box(modifier = Modifier.size(PROBE_SIZE).testTag(NOW_TAG)) },
+                            eventContent = BLOCK_PROBE,
+                        )
+                    }
+                }
+            }
+        }
+        rule.waitForIdle()
+        val before = BLOCKS.count
+        val lineBefore = rule.onNodeWithTag(NOW_TAG, useUnmergedTree = true).getUnclippedBoundsInRoot().top
+
+        clock.instant += TICK_MINUTES.minutes
+        rule.mainClock.advanceTimeBy(TICK_ADVANCE_MS)
+        rule.waitForIdle()
+
+        val lineAfter = rule.onNodeWithTag(NOW_TAG, useUnmergedTree = true).getUnclippedBoundsInRoot().top
+        println("BENCH after a now tick: slotsAfter=${BLOCKS.count - before} line=$lineBefore->$lineAfter")
+        // Vacuity guard: unless the line actually moved, the timer never fired and the count below
+        // would be a zero that keeps passing after a real regression.
+        assertTrue(
+            lineAfter > lineBefore,
+            "the now-indicator did not move ($lineBefore to $lineAfter); the tick never reached the view",
+        )
+        assertEquals(
+            0,
+            BLOCKS.count - before,
+            "a minute tick recomposed ${BLOCKS.count - before} event slots; the now reading is being " +
+                "made in a composable body instead of inside the indicator's own layout lambda",
+        )
+    }
+
+    /** A clock the test moves by hand, so the now-indicator's timer can be made to fire on cue. */
+    private class TickingClock : Clock {
+        var instant: Instant = Instant.parse("2026-03-10T09:00:00Z")
+
+        override fun now(): Instant = instant
+    }
+
+    /**
+     * Inserting an event at the top of the day must not re-associate the blocks below it.
+     *
+     * This is the per-block keying guard. Unkeyed the loop body is memoized positionally, so every
+     * later slot is handed a different event — and with it any state a caller's card holds, an
+     * expand animation or a text-field cursor, jumps to the wrong block. The count is the visible
+     * half of that: the whole column recomposes.
+     */
+    @Test
+    fun insertingAnEarlierEventRecomposesOnlyTheNewScheduleBlock() {
+        val slots = countAfterInsertingAnEarlierEvent { events ->
+            KalendarSchedule(
+                state = rememberKalendarScheduleState(initialDate = FIXTURE_DATE),
+                events = events,
+                config = BENCH_CONFIG,
+                eventContent = BLOCK_PROBE,
+            )
+        }
+        assertTrue(
+            slots <= INSERT_SLOT_BUDGET,
+            "inserting one earlier event recomposed $slots KalendarSchedule blocks; the block loop is " +
+                "memoized by position rather than keyed by its event (budget <= $INSERT_SLOT_BUDGET)",
+        )
+    }
+
+    /** [insertingAnEarlierEventRecomposesOnlyTheNewScheduleBlock] for the lane grid. */
+    @Test
+    fun insertingAnEarlierEventRecomposesOnlyTheNewResourceBlock() {
+        val slots = countAfterInsertingAnEarlierEvent { events ->
+            KalendarResourceView(
+                resources = BENCH_ROOMS,
+                state = rememberKalendarScheduleState(initialDate = FIXTURE_DATE),
+                events = events,
+                config = BENCH_CONFIG,
+                eventContent = BLOCK_PROBE,
+            )
+        }
+        assertTrue(
+            slots <= INSERT_SLOT_BUDGET,
+            "inserting one earlier event recomposed $slots KalendarResourceView blocks; the block loop " +
+                "is memoized by position rather than keyed by its event (budget <= $INSERT_SLOT_BUDGET)",
+        )
+    }
+
+    /** [BLOCK_COUNT] back-to-back one-hour events inside [BENCH_WINDOW], all in [BENCH_ROOM_ID]. */
+    private fun benchBlocks(): KalendarEvents = List(BLOCK_COUNT) { index ->
+        benchBlock(hour = BENCH_FIRST_HOUR + index, name = "Block $index")
+    }
+
+    /**
+     * One block, deliberately without an [com.himanshoe.kalendar.foundation.event.KalendarEvent.id].
+     *
+     * The easy id-keyed path is not the one that regresses — the fallback is, and a fixture that
+     * supplied ids everywhere would never exercise it.
+     */
+    private fun benchBlock(hour: Int, name: String): BasicKalendarEvent = BasicKalendarEvent(
+        date = FIXTURE_DATE,
+        eventName = name,
+        startTime = LocalDateTime(FIXTURE_DATE, LocalTime(hour = hour, minute = 0)),
+        endTime = LocalDateTime(FIXTURE_DATE, LocalTime(hour = hour + 1, minute = 0)),
+        calendarId = BENCH_ROOM_ID,
+    )
+
+    /**
+     * Composes [view], long-press-drags its first block down the grid, and returns how many
+     * `eventContent` slots that gesture composed.
+     */
+    private fun countDuringDrag(view: @Composable () -> Unit): Int {
+        reset()
+        rule.setContent { Harness(tick = 0) { view() } }
+        rule.waitForIdle()
+        val before = BLOCKS.count
+        // Unmerged: the block's clickable wrapper merges its descendants, so the tag the probe puts
+        // on the slot itself is only reachable in the unmerged tree.
+        rule.onNodeWithTag("Block 0", useUnmergedTree = true).performTouchInput {
+            down(center)
+            advanceEventTime(LONG_PRESS_MS)
+            // A frame between moves, or the injector dispatches all three under one timestamp and
+            // Compose collapses them into a single recomposition — which would hide the regression.
+            repeat(DRAG_STEPS) {
+                advanceEventTime(FRAME_MS)
+                moveBy(Offset(x = 0f, y = height * DRAG_STEP_FRACTION))
+            }
+            up()
+        }
+        rule.waitForIdle()
+        val delta = BLOCKS.count - before
+        println("BENCH after drag: slotsFirst=$before slotsDuringDrag=$delta blocks=$BLOCK_COUNT")
+        return delta
+    }
+
+    /**
+     * Composes [view] over [benchBlocks], prepends one earlier event, and returns how many
+     * `eventContent` slots the resulting recomposition walked.
+     */
+    private fun countAfterInsertingAnEarlierEvent(view: @Composable (KalendarEvents) -> Unit): Int {
+        reset()
+        val events = mutableStateOf(benchBlocks())
+        rule.setContent { Harness(tick = 0) { view(events.value) } }
+        rule.waitForIdle()
+        val before = BLOCKS.count
+        rule.runOnIdle {
+            events.value = listOf(benchBlock(hour = BENCH_INSERTED_HOUR, name = "Inserted")) + events.value
+        }
+        rule.waitForIdle()
+        val delta = BLOCKS.count - before
+        println("BENCH after inserting an earlier event: slotsFirst=$before slotsAfter=$delta blocks=$BLOCK_COUNT")
+        return delta
+    }
+
     /** Composes [view] once and returns how many day cells that first composition walked. */
     private fun countFirstComposition(view: @Composable () -> Unit): Int {
         reset()
@@ -333,6 +622,7 @@ class KalendarRecompositionBenchmark {
     private fun reset() {
         CELLS.count = 0
         HEADERS.count = 0
+        BLOCKS.count = 0
         CALL_SITES.count = 0
     }
 

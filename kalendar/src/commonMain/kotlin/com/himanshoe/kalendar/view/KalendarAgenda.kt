@@ -64,8 +64,9 @@ import kotlinx.datetime.Month
  * KalendarAgenda(
  *     events = events,
  *     onEventClick = { event -> openDetails(event) },
- *     eventContent = { event -> MyEventCard(title = event.eventName) },
- * )
+ * ) { event ->
+ *     MyEventCard(title = event.eventName)
+ * }
  * ```
  *
  * @param events The events to list. Supply [KalendarEvent.id] to keep scroll and per-row state
@@ -81,10 +82,11 @@ import kotlinx.datetime.Month
  *   or to scroll programmatically.
  * @param dateHeader Slot for one date's header, given the date its events fall on. Defaults to
  *   [KalendarAgendaDefaults.DateHeader] formatted with [KalendarViewConfig.monthNameFormatter].
- * @param eventContent Slot for one event row; the list applies [onEventClick] around it. Defaults
- *   to [KalendarAgendaDefaults.EventRow].
  * @param emptyState Slot shown centred in place of the list when [events] is empty. Defaults to
  *   [KalendarAgendaDefaults.EmptyState], which shows [KalendarStrings.agendaEmptyState].
+ * @param eventContent Slot for one event row; the list applies [onEventClick] around it. Last, so
+ *   trailing-lambda syntax lands on it — this is the view's primary slot. Defaults to
+ *   [KalendarAgendaDefaults.EventRow].
  */
 @Composable
 public fun KalendarAgenda(
@@ -96,10 +98,10 @@ public fun KalendarAgenda(
     dateHeader: @Composable (date: LocalDate) -> Unit = { date ->
         KalendarAgendaDefaults.DateHeader(date = date, monthNameFormatter = config.monthNameFormatter)
     },
+    emptyState: @Composable () -> Unit = { KalendarAgendaDefaults.EmptyState() },
     eventContent: @Composable (event: KalendarEvent) -> Unit = { event ->
         KalendarAgendaDefaults.EventRow(event = event)
     },
-    emptyState: @Composable () -> Unit = { KalendarAgendaDefaults.EmptyState() },
 ) {
     val colors = kalendarColors()
     val dimensions = kalendarDimensions()
@@ -146,16 +148,13 @@ public fun KalendarAgenda(
  * for the events you don't render specially:
  *
  * ```kotlin
- * KalendarAgenda(
- *     events = events,
- *     eventContent = { event ->
- *         if (event.calendarId == "work") {
- *             MyWorkEventRow(event)
- *         } else {
- *             KalendarAgendaDefaults.EventRow(event = event)
- *         }
- *     },
- * )
+ * KalendarAgenda(events = events) { event ->
+ *     if (event.calendarId == "work") {
+ *         MyWorkEventRow(event)
+ *     } else {
+ *         KalendarAgendaDefaults.EventRow(event = event)
+ *     }
+ * }
  * ```
  *
  * All of them draw only: the list owns scrolling and clicks.

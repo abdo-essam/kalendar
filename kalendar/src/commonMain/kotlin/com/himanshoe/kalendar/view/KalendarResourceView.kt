@@ -17,8 +17,6 @@
 package com.himanshoe.kalendar.view
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,7 +25,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -36,37 +33,30 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CollectionInfo
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.collectionInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastForEach
+import androidx.compose.ui.util.fastForEachIndexed
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.Month
-import kotlin.math.roundToInt
 import kotlin.time.Duration
 
 /**
@@ -116,9 +106,12 @@ import kotlin.time.Duration
  * @param onEventClick Called when an event block is tapped.
  * @param onEventChange When non-null, blocks become draggable: press-and-hold then drag to move an
  *   event in time (snapped to [KalendarViewConfig.scheduleDragSnapMinutes]) and across lanes, or
- *   press-and-hold the block's bottom edge and drag to change its duration. Called on release with
- *   the event, its new start/end, and the id of the lane it landed in — update your event source to
- *   complete the change; the calendar never mutates events itself.
+ *   press-and-hold either the block's top or its bottom edge — a
+ *   [KalendarDimensions.eventBlockResizeHandleHeight] strip, narrowed on short blocks so the middle
+ *   stays grabbable — and drag to move that edge alone, changing the start or the end while the
+ *   other stays put. Called on release with the event, its new start/end, and the id of the lane it
+ *   landed in — update your event source to complete the change; the calendar never mutates events
+ *   itself.
  * @param config Shared visual/behavioural settings. [KalendarViewConfig.disabledDates] and
  *   [KalendarViewConfig.showAdjacentMonthDates] have no effect here.
  * @param hourHeight Vertical space for one hour of the grid; block heights scale with it. Defaults
@@ -131,11 +124,6 @@ import kotlin.time.Duration
  *   than recomposing the grid.
  * @param resourceHeader Slot for one lane's column header, given the resource. Filled to the
  *   column's width. Defaults to [KalendarResourceDefaults.ResourceHeader].
- * @param eventContent Slot for one timed event block, given a [KalendarResourceEventScope] with the
- *   event, its start and end on the rendered day, its duration, its overlap column and its lane. The
- *   grid measures and positions the slot for you and keeps the tap and drag gestures on the cell
- *   around it, so a replacement never loses them. Defaults to
- *   [KalendarResourceDefaults.EventBlock].
  * @param hourLabel Slot for one hour-gutter label, given the absolute hour it labels — `0..23`, and
  *   only the hours inside [KalendarViewConfig.scheduleVisibleHours]. Defaults to
  *   [KalendarResourceDefaults.HourLabel] formatted with [KalendarViewConfig.hourLabelFormatter].
@@ -144,6 +132,11 @@ import kotlin.time.Duration
  *   [KalendarResourceDefaults.NowIndicator].
  * @param emptyState Slot shown centred in place of the grid when [resources] is empty. Defaults to
  *   [KalendarResourceDefaults.EmptyState].
+ * @param eventContent Slot for one timed event block, given a [KalendarResourceEventScope] with the
+ *   event, its start and end on the rendered day, its duration, its overlap column and its lane. The
+ *   grid measures and positions the slot for you and keeps the tap and drag gestures on the cell
+ *   around it, so a replacement never loses them. Last, so trailing-lambda syntax lands on it —
+ *   this is the view's primary slot. Defaults to [KalendarResourceDefaults.EventBlock].
  */
 @Composable
 public fun KalendarResourceView(
@@ -163,9 +156,6 @@ public fun KalendarResourceView(
     resourceHeader: @Composable (resource: KalendarResource) -> Unit = {
         KalendarResourceDefaults.ResourceHeader(resource = it)
     },
-    eventContent: @Composable (KalendarResourceEventScope) -> Unit = {
-        KalendarResourceDefaults.EventBlock(scope = it)
-    },
     hourLabel: @Composable (Int) -> Unit = {
         KalendarResourceDefaults.HourLabel(hour = it, formatter = config.hourLabelFormatter)
     },
@@ -175,10 +165,16 @@ public fun KalendarResourceView(
     emptyState: @Composable () -> Unit = {
         KalendarResourceDefaults.EmptyState()
     },
+    eventContent: @Composable (KalendarResourceEventScope) -> Unit = {
+        KalendarResourceDefaults.EventBlock(scope = it)
+    },
 ) {
     val colors = kalendarColors()
-    val now = rememberKalendarNowState(timeSource = state.timeSource, tick = nowIndicatorTick)
-    val today by remember(now) { derivedStateOf { now.value.date } }
+    val nowState = rememberKalendarNowState(timeSource = state.timeSource, tick = nowIndicatorTick)
+    // Remembered so the identity is stable: an inline lambda would be a fresh parameter every
+    // recomposition and would stop the grid below from ever skipping.
+    val now: () -> LocalDateTime = remember(nowState) { { nowState.value } }
+    val today by remember(nowState) { derivedStateOf { nowState.value.date } }
     val lanes = remember(resources) { orderedResources(resources) }
     Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
         KalendarNavigationHeader(
@@ -398,7 +394,7 @@ private val RESOURCE_HEADER_ACCENT_GAP = 2.dp
 private fun ResourceGrid(
     day: LocalDate,
     isToday: Boolean,
-    now: State<LocalDateTime>,
+    now: () -> LocalDateTime,
     lanes: List<KalendarResource>,
     events: KalendarEvents,
     resourceIdOf: (KalendarEvent) -> String?,
@@ -422,6 +418,7 @@ private fun ResourceGrid(
     val horizontalScrollState = rememberScrollState()
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     val window = config.scheduleVisibleHours
+    val nowState = rememberDeferredNow(now)
     val blocksByResource = remember(eventsByDate, lanes, resourceIdOf, day, window) {
         resourceBlocks(
             events = eventsByDate[day] ?: emptyList(),
@@ -459,7 +456,7 @@ private fun ResourceGrid(
                 // Offset by the shared state but not itself draggable: the header follows the lanes
                 // without registering a second horizontal scrollable over the same pixels.
                 Row(modifier = Modifier.horizontalScroll(state = horizontalScrollState, enabled = false)) {
-                    lanes.forEach { resource ->
+                    lanes.fastForEach { resource ->
                         Box(modifier = Modifier.width(columnWidth), propagateMinConstraints = true) {
                             resourceHeader(resource)
                         }
@@ -470,7 +467,7 @@ private fun ResourceGrid(
             Row(modifier = Modifier.fillMaxWidth().verticalScroll(verticalScrollState)) {
                 KalendarHourGutter(hourHeight = hourHeight, window = window, hourLabel = hourLabel)
                 Row(modifier = Modifier.horizontalScroll(horizontalScrollState)) {
-                    lanes.forEachIndexed { index, resource ->
+                    lanes.fastForEachIndexed { index, resource ->
                         Box(modifier = Modifier.width(columnWidth).height(hourHeight * window.hourCount)) {
                             KalendarHourLines(hourHeight = hourHeight, window = window)
                             KalendarHourColumnDivider()
@@ -488,7 +485,7 @@ private fun ResourceGrid(
                             )
                             KalendarNowLine(
                                 isToday = isToday,
-                                now = now,
+                                now = nowState,
                                 hourHeight = hourHeight,
                                 window = window,
                                 content = nowIndicator,
@@ -502,16 +499,9 @@ private fun ResourceGrid(
 }
 
 /**
- * Live drag state for one block being moved or resized: raw pixel deltas accumulated from the
- * gesture, converted to snapped minute deltas and whole lane shifts at render and release time.
+ * Positions one lane's [blocks] and owns their move/resize gestures — [KalendarBlockLayout] with a
+ * lane's answer to a sideways drag.
  */
-private data class ResourceDragState(
-    val index: Int,
-    val resizing: Boolean,
-    val rawDeltaYPx: Float = 0f,
-    val rawDeltaXPx: Float = 0f,
-)
-
 @Composable
 private fun ResourceBlockLayout(
     blocks: List<KalendarScheduleBlock>,
@@ -527,137 +517,60 @@ private fun ResourceBlockLayout(
     )?,
     eventContent: @Composable (KalendarResourceEventScope) -> Unit,
 ) {
-    if (blocks.isEmpty()) {
-        return
-    }
-    var dragState by remember { mutableStateOf<ResourceDragState?>(null) }
-    LaunchedEffect(blocks) { dragState = null }
-
-    val density = LocalDensity.current
-    val minutePx = with(density) { hourHeight.toPx() } / MINUTES_PER_HOUR
-    val resizeHandleHeight = kalendarDimensions().eventBlockResizeHandleHeight
-
-    // A pointerInput coroutine captures the lambdas it was first composed with and never refreshes
-    // them, so everything the gesture reads goes through rememberUpdatedState.
-    val latestBlocks = rememberUpdatedState(blocks)
-    val latestLanes = rememberUpdatedState(lanes)
-    val latestLaneIndex = rememberUpdatedState(laneIndex)
-    val latestDate = rememberUpdatedState(date)
-    val latestSnapMinutes = rememberUpdatedState(snapMinutes)
-    val latestWindow = rememberUpdatedState(window)
-    val latestOnEventChange = rememberUpdatedState(onEventChange)
-    // The *column's* measured width, never the dragged block's: a block that overlaps another is a
-    // fraction of the column wide, and dividing by that over-shifts the lane.
-    var laneColumnWidthPx by remember { mutableStateOf(0) }
-    val latestLaneColumnWidthPx = rememberUpdatedState(laneColumnWidthPx)
-
-    fun adjusted(index: Int): KalendarScheduleBlock? {
-        val block = latestBlocks.value.getOrNull(index) ?: return null
-        val drag = dragState?.takeIf { it.index == index } ?: return block
-        val delta = snappedDragMinutes(
-            rawPx = drag.rawDeltaYPx,
-            minutePx = minutePx,
-            snapMinutes = latestSnapMinutes.value,
-        )
-        return adjustedScheduleBlock(
-            block = block,
-            deltaMinutes = delta,
-            resizing = drag.resizing,
-            window = latestWindow.value,
-        )
-    }
-
-    fun laneShift(index: Int): Int {
-        val drag = dragState?.takeIf { it.index == index && !it.resizing } ?: return 0
-        val shift = resourceShiftForDrag(
-            rawDeltaXPx = drag.rawDeltaXPx,
-            resourceColumnWidthPx = latestLaneColumnWidthPx.value,
-            resourceCount = latestLanes.value.size,
-        )
-        return shiftedResourceIndex(
-            index = latestLaneIndex.value,
-            shift = shift,
-            resourceCount = latestLanes.value.size,
-        ) - latestLaneIndex.value
-    }
-
-    Layout(
-        content = {
-            blocks.forEachIndexed { index, block ->
-                val isDragging = dragState?.index == index
-                val rendered = adjusted(index) ?: block
-                val hoveredLane = lanes[shiftedResourceIndex(laneIndex, laneShift(index), lanes.size)]
-                val scope = remember(rendered, date, isDragging, hoveredLane) {
-                    resourceEventScope(
-                        block = rendered,
-                        date = date,
-                        isDragging = isDragging,
-                        resource = hoveredLane,
-                    )
-                }
-                val dragModifier = if (onEventChange == null) {
-                    Modifier
-                } else {
-                    Modifier.resourceBlockDragGestures(
-                        index = index,
-                        resizeHandleHeight = resizeHandleHeight,
-                        onDragStateChange = { dragState = it },
-                        currentState = { dragState },
-                        onRelease = { state ->
-                            val result = adjusted(state.index)
-                            val handler = latestOnEventChange.value
-                            if (result != null && handler != null) {
-                                val targetLane = latestLanes.value[
-                                    shiftedResourceIndex(
-                                        index = latestLaneIndex.value,
-                                        shift = laneShift(state.index),
-                                        resourceCount = latestLanes.value.size,
-                                    ),
-                                ]
-                                val (newStart, newEnd) = dragReleaseTimes(
-                                    block = result,
-                                    targetDate = latestDate.value,
-                                )
-                                handler(result.event, newStart, newEnd, targetLane.id)
-                            }
-                            dragState = null
-                        },
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .then(dragModifier)
-                        .clickable(role = Role.Button) { onEventClick(block.event) },
-                ) {
-                    eventContent(scope)
-                }
+    KalendarBlockLayout(
+        blocks = blocks,
+        hourHeight = hourHeight,
+        window = window,
+        snapMinutes = snapMinutes,
+        horizontalShift = ResourceLaneAxis(lanes = lanes, laneIndex = laneIndex),
+        onEventClick = onEventClick,
+        onRelease = onEventChange?.let { handler -> resourceReleaseHandler(date = date, handler = handler) },
+        eventContent = { block, isDragging, lane ->
+            val scope = remember(block, isDragging, lane) {
+                resourceEventScope(block = block, date = date, isDragging = isDragging, resource = lane)
             }
+            eventContent(scope)
         },
-        modifier = Modifier.fillMaxSize().onSizeChanged { laneColumnWidthPx = it.width },
-    ) { measurables, constraints ->
-        val minuteHeightPx = hourHeight.toPx() / MINUTES_PER_HOUR
-        val rendered = blocks.indices.map { adjusted(it) ?: blocks[it] }
-        // Clipped to the window, exactly as on the Schedule views: a booking that runs past the end
-        // of the visible hours is cut off at the bottom edge rather than overflowing the lane.
-        val placements = rendered.map { blockPlacement(block = it, window = window) }
-        val placeables = measurables.mapIndexed { index, measurable ->
-            val columnWidth = constraints.maxWidth / rendered[index].columns
-            val blockHeight = (placements[index].heightMinutes * minuteHeightPx).roundToInt()
-            measurable.measure(Constraints.fixed(width = columnWidth, height = blockHeight))
-        }
-        layout(constraints.maxWidth, (minuteHeightPx * window.spanMinutes).roundToInt()) {
-            placeables.forEachIndexed { index, placeable ->
-                val columnWidth = constraints.maxWidth / rendered[index].columns
-                // A lane shift in flight slides the block over its neighbours so the drag is visible
-                // before release; the grid never re-parents it.
-                placeable.place(
-                    x = rendered[index].column * columnWidth + laneShift(index) * constraints.maxWidth,
-                    y = (placements[index].topMinutes * minuteHeightPx).roundToInt(),
-                )
-            }
-        }
-    }
+    )
+}
+
+/**
+ * Adapts the block layout's release callback to [KalendarResourceView]'s: the layout reports the
+ * adjusted block and the lane it landed in, the caller is owed the event, wall-clock times and a
+ * lane id. [date] is the visible day, which a lane drag never changes.
+ */
+private fun resourceReleaseHandler(
+    date: LocalDate,
+    handler: (event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime, newResourceId: String) -> Unit,
+): (KalendarScheduleBlock, KalendarResource) -> Unit = { block, lane ->
+    val (newStart, newEnd) = dragReleaseTimes(block = block, targetDate = date)
+    handler(block.event, newStart, newEnd, lane.id)
+}
+
+/**
+ * A sideways drag on a lane column moves the block to a neighbouring lane, and the block slides with
+ * it so the drag is visible before it is released.
+ *
+ * Dragging past either end parks the block in the last lane rather than reporting one that does not
+ * exist — see [shiftedResourceIndex].
+ */
+private data class ResourceLaneAxis(
+    val lanes: List<KalendarResource>,
+    val laneIndex: Int,
+) : KalendarBlockDragAxis<KalendarResource> {
+
+    override fun targetOf(rawDeltaXPx: Float, columnWidthPx: Int): KalendarResource =
+        lanes[laneIndex + placementShift(rawDeltaXPx = rawDeltaXPx, columnWidthPx = columnWidthPx)]
+
+    override fun placementShift(rawDeltaXPx: Float, columnWidthPx: Int): Int = shiftedResourceIndex(
+        index = laneIndex,
+        shift = resourceShiftForDrag(
+            rawDeltaXPx = rawDeltaXPx,
+            resourceColumnWidthPx = columnWidthPx,
+            resourceCount = lanes.size,
+        ),
+        resourceCount = lanes.size,
+    ) - laneIndex
 }
 
 /**
@@ -700,49 +613,6 @@ private class ResourceEventScope(
     override val overlapColumn: Int get() = block.column
 
     override val overlapColumns: Int get() = block.columns
-}
-
-/**
- * Long-press-then-drag on a block: a press starting within [resizeHandleHeight] of the block's
- * bottom edge resizes (moves the end time), anywhere else moves the whole block in time and across
- * lanes. Long-press is required so plain drags still scroll the surrounding grid in either
- * direction.
- *
- * The lambdas passed here are captured once when the pointer-input coroutine first launches and
- * never refreshed, so callers must route them through [rememberUpdatedState]-backed reads — see
- * [ResourceBlockLayout].
- */
-private fun Modifier.resourceBlockDragGestures(
-    index: Int,
-    resizeHandleHeight: Dp,
-    onDragStateChange: (ResourceDragState?) -> Unit,
-    currentState: () -> ResourceDragState?,
-    onRelease: (state: ResourceDragState) -> Unit,
-): Modifier = pointerInput(index, resizeHandleHeight) {
-    detectDragGesturesAfterLongPress(
-        onDragStart = { offset ->
-            val resizeStripPx = resizeHandleHeight.toPx()
-            val resizing = offset.y > size.height - resizeStripPx
-            onDragStateChange(ResourceDragState(index = index, resizing = resizing))
-        },
-        onDragEnd = {
-            currentState()?.let(onRelease)
-        },
-        onDragCancel = {
-            onDragStateChange(null)
-        },
-        onDrag = { change, dragAmount ->
-            change.consume()
-            currentState()?.let { state ->
-                onDragStateChange(
-                    state.copy(
-                        rawDeltaYPx = state.rawDeltaYPx + dragAmount.y,
-                        rawDeltaXPx = state.rawDeltaXPx + dragAmount.x,
-                    ),
-                )
-            }
-        },
-    )
 }
 
 private fun resourceDayTitle(
