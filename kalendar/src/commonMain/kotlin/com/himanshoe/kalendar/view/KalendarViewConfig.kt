@@ -63,8 +63,23 @@ import kotlinx.datetime.Month
  *   from [KalendarStrings.dayOfWeekAccessibilityLabel].
  * @param hourLabelFormatter Formats the hour-gutter labels on [KalendarSchedule] and
  *   [KalendarScheduleWeek]. Defaults to 24-hour `"HH:00"`; supply your own for 12-hour AM/PM.
+ * @param visibleDaysOfWeek Which days of the week get a column. Applies to [KalendarWeek],
+ *   [KalendarMonth], [KalendarYear], [KalendarTimeline] and [KalendarScheduleWeek]; the single-day
+ *   views have no columns to drop. Pass `setOf(MONDAY, ..., FRIDAY)` for a work week: the grid
+ *   narrows to five columns, the day-of-week header row narrows with it, the month grid's leading
+ *   padding is recomputed so the columns stay under their labels, and keyboard arrows step over the
+ *   hidden days rather than onto them. Independent of
+ *   [KalendarViewState.startDayOfWeek], which still decides where the week begins. Must not be
+ *   empty. Defaults to all seven days.
+ * @param scheduleVisibleHours The slice of the day the hour-grid views draw — [KalendarSchedule],
+ *   [KalendarScheduleWeek] and [KalendarResourceView]. `KalendarHourWindow(startHour = 8, endHour =
+ *   20)` is a business-hours calendar. Defaults to [KalendarHourWindow.FullDay]. Like
+ *   [scheduleInitialScrollHour] and [scheduleDragSnapMinutes] it is a policy an app sets once for
+ *   every hour grid it shows, which is why it lives here rather than on the individual composables;
+ *   the grid views ignore it. See [KalendarHourWindow] for what the window does and does not hide.
  * @param scheduleInitialScrollHour The hour the Schedule views scroll to when a page first
- *   appears (0–23). Defaults to 7.
+ *   appears (0–23). Defaults to 7. Absolute, not relative to [scheduleVisibleHours] — an hour above
+ *   the window opens the grid at its top rather than scrolling backwards past it.
  * @param scheduleDragSnapMinutes Snap step, in minutes, for dragging/resizing event blocks on
  *   the Schedule views. Must be at least 1. Defaults to 15.
  * @param eventIndicatorCap Maximum per-event indicator dots below a day number before collapsing
@@ -86,12 +101,17 @@ public class KalendarViewConfig(
     public val dayOfWeekNameFormatter: (DayOfWeek) -> String = defaultDayOfWeekNameFormatter,
     public val dayOfWeekLabelFormatter: (DayOfWeek) -> String = defaultDayOfWeekLabelFormatter,
     public val hourLabelFormatter: (Int) -> String = defaultHourLabelFormatter,
+    public val visibleDaysOfWeek: Set<DayOfWeek> = ALL_DAYS_OF_WEEK,
+    public val scheduleVisibleHours: KalendarHourWindow = KalendarHourWindow.FullDay,
     public val scheduleInitialScrollHour: Int = DEFAULT_SCHEDULE_SCROLL_HOUR,
     public val scheduleDragSnapMinutes: Int = DEFAULT_SCHEDULE_SNAP_MINUTES,
     public val eventIndicatorCap: Int = DEFAULT_EVENT_INDICATOR_CAP,
     public val background: Brush? = null,
 ) {
     init {
+        require(visibleDaysOfWeek.isNotEmpty()) {
+            "visibleDaysOfWeek must contain at least one day; a calendar with no columns has nothing to show"
+        }
         require(scheduleInitialScrollHour in 0 until HOURS_PER_DAY) {
             "scheduleInitialScrollHour must be in 0..23, was $scheduleInitialScrollHour"
         }
@@ -119,6 +139,8 @@ public class KalendarViewConfig(
         dayOfWeekNameFormatter: (DayOfWeek) -> String = this.dayOfWeekNameFormatter,
         dayOfWeekLabelFormatter: (DayOfWeek) -> String = this.dayOfWeekLabelFormatter,
         hourLabelFormatter: (Int) -> String = this.hourLabelFormatter,
+        visibleDaysOfWeek: Set<DayOfWeek> = this.visibleDaysOfWeek,
+        scheduleVisibleHours: KalendarHourWindow = this.scheduleVisibleHours,
         scheduleInitialScrollHour: Int = this.scheduleInitialScrollHour,
         scheduleDragSnapMinutes: Int = this.scheduleDragSnapMinutes,
         eventIndicatorCap: Int = this.eventIndicatorCap,
@@ -135,6 +157,8 @@ public class KalendarViewConfig(
         dayOfWeekNameFormatter = dayOfWeekNameFormatter,
         dayOfWeekLabelFormatter = dayOfWeekLabelFormatter,
         hourLabelFormatter = hourLabelFormatter,
+        visibleDaysOfWeek = visibleDaysOfWeek,
+        scheduleVisibleHours = scheduleVisibleHours,
         scheduleInitialScrollHour = scheduleInitialScrollHour,
         scheduleDragSnapMinutes = scheduleDragSnapMinutes,
         eventIndicatorCap = eventIndicatorCap,
@@ -156,6 +180,8 @@ public class KalendarViewConfig(
         if (dayOfWeekNameFormatter != other.dayOfWeekNameFormatter) return false
         if (dayOfWeekLabelFormatter != other.dayOfWeekLabelFormatter) return false
         if (hourLabelFormatter != other.hourLabelFormatter) return false
+        if (visibleDaysOfWeek != other.visibleDaysOfWeek) return false
+        if (scheduleVisibleHours != other.scheduleVisibleHours) return false
         if (scheduleInitialScrollHour != other.scheduleInitialScrollHour) return false
         if (scheduleDragSnapMinutes != other.scheduleDragSnapMinutes) return false
         if (eventIndicatorCap != other.eventIndicatorCap) return false
@@ -175,6 +201,8 @@ public class KalendarViewConfig(
         result = 31 * result + dayOfWeekNameFormatter.hashCode()
         result = 31 * result + dayOfWeekLabelFormatter.hashCode()
         result = 31 * result + hourLabelFormatter.hashCode()
+        result = 31 * result + visibleDaysOfWeek.hashCode()
+        result = 31 * result + scheduleVisibleHours.hashCode()
         result = 31 * result + scheduleInitialScrollHour.hashCode()
         result = 31 * result + scheduleDragSnapMinutes.hashCode()
         result = 31 * result + eventIndicatorCap.hashCode()
@@ -194,6 +222,8 @@ public class KalendarViewConfig(
         "dayOfWeekNameFormatter=$dayOfWeekNameFormatter, " +
         "dayOfWeekLabelFormatter=$dayOfWeekLabelFormatter, " +
         "hourLabelFormatter=$hourLabelFormatter, " +
+        "visibleDaysOfWeek=$visibleDaysOfWeek, " +
+        "scheduleVisibleHours=$scheduleVisibleHours, " +
         "scheduleInitialScrollHour=$scheduleInitialScrollHour, " +
         "scheduleDragSnapMinutes=$scheduleDragSnapMinutes, " +
         "eventIndicatorCap=$eventIndicatorCap, " +

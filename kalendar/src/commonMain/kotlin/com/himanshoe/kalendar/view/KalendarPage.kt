@@ -66,31 +66,11 @@ internal val defaultHourLabelFormatter: (Int) -> String = { "${it.toString().pad
 private const val MAX_EVENT_SPAN_DAYS = 366
 
 internal fun LocalDate.startOfWeek(startDayOfWeek: DayOfWeek): LocalDate =
-    minus((dayOfWeek.ordinal - startDayOfWeek.ordinal + 7) % 7, DateTimeUnit.DAY)
+    minus((dayOfWeek.ordinal - startDayOfWeek.ordinal + DAYS_PER_WEEK) % DAYS_PER_WEEK, DateTimeUnit.DAY)
 
 internal fun LocalDate.startOfMonth(): LocalDate = minus(dayOfMonth - 1, DateTimeUnit.DAY)
 
 internal fun LocalDate.startOfYear(): LocalDate = LocalDate(year, 1, 1)
-
-internal fun weekDates(weekStart: LocalDate): List<LocalDate> =
-    (0..6).map { weekStart.plus(it, DateTimeUnit.DAY) }
-
-internal fun monthGridDates(monthStart: LocalDate, startDayOfWeek: DayOfWeek): List<LocalDate> {
-    val lastDayOfMonth = monthStart.plus(1, DateTimeUnit.MONTH).minus(1, DateTimeUnit.DAY)
-    val leadingPaddingDays = (monthStart.dayOfWeek.ordinal - startDayOfWeek.ordinal + 7) % 7
-    return (-leadingPaddingDays until lastDayOfMonth.dayOfMonth).map {
-        monthStart.plus(it.toLong(), DateTimeUnit.DAY)
-    }
-}
-
-/**
- * A month's own days, without the leading/trailing padding [monthGridDates] adds. This is the
- * *period* a keyboard user navigates: `Home` belongs on the 1st, not on the previous month's 26th.
- */
-internal fun monthDates(monthStart: LocalDate): List<LocalDate> {
-    val lastDayOfMonth = monthStart.plus(1, DateTimeUnit.MONTH).minus(1, DateTimeUnit.DAY)
-    return (0 until lastDayOfMonth.dayOfMonth).map { monthStart.plus(it, DateTimeUnit.DAY) }
-}
 
 internal fun weeksBetween(from: LocalDate, to: LocalDate, startDayOfWeek: DayOfWeek): Int {
     val fromWeekStart = from.startOfWeek(startDayOfWeek)
@@ -105,11 +85,6 @@ internal fun monthsBetween(from: LocalDate, to: LocalDate): Int {
 }
 
 internal fun yearsBetween(from: LocalDate, to: LocalDate): Int = to.year - from.year
-
-internal fun daysOfWeekStartingAt(startDayOfWeek: DayOfWeek): List<DayOfWeek> {
-    val all = DayOfWeek.entries
-    return all.drop(startDayOfWeek.ordinal) + all.take(startDayOfWeek.ordinal)
-}
 
 internal fun monthTitle(
     monthStart: LocalDate,
@@ -144,8 +119,17 @@ internal data class KalendarScheduleBlock(
  * schedule blocks: minute ranges clamped to the day (events spanning midnight are truncated at
  * the day's edges), a missing [KalendarEvent.endTime] defaulting to one hour, and overlapping
  * events packed greedily into side-by-side columns per overlap cluster.
+ *
+ * Blocks keep their true minute range even when [window] shows less than the whole day — clipping is
+ * a drawing concern ([blockPlacement]), and truncating here would make a drag report the clipped
+ * time rather than the event's own. Events that do not intersect [window] at all are dropped, so the
+ * result is exactly what the grid draws and every block the caller is handed has a hit target.
  */
-internal fun scheduleBlocks(events: List<KalendarEvent>, date: LocalDate): List<KalendarScheduleBlock> {
+internal fun scheduleBlocks(
+    events: List<KalendarEvent>,
+    date: LocalDate,
+    window: KalendarHourWindow = KalendarHourWindow.FullDay,
+): List<KalendarScheduleBlock> {
     data class Working(val event: KalendarEvent, val start: Int, val end: Int) {
         var column: Int = 0
         var columns: Int = 1
@@ -168,6 +152,7 @@ internal fun scheduleBlocks(events: List<KalendarEvent>, date: LocalDate): List<
         val clampedStart = start.coerceIn(0, MINUTES_PER_DAY - MIN_SCHEDULE_BLOCK_MINUTES)
         val end = requestedEnd.coerceIn(clampedStart + MIN_SCHEDULE_BLOCK_MINUTES, MINUTES_PER_DAY)
         Working(event = event, start = clampedStart, end = end)
+            .takeIf { it.end > window.startMinutes && it.start < window.endMinutes }
     }.sortedWith(compareBy({ it.start }, { it.end }))
 
     val active = mutableListOf<Working>()
@@ -214,34 +199,48 @@ internal fun snappedDragMinutes(rawPx: Float, minutePx: Float, snapMinutes: Int)
 
 /**
  * Applies a drag [deltaMinutes] to [block]: resizing moves only the end (clamped to at least
- * [MIN_SCHEDULE_BLOCK_MINUTES] long and at most midnight), moving shifts the whole block within
- * the day while preserving its duration.
+ * [MIN_SCHEDULE_BLOCK_MINUTES] long and at most the end of [window]), moving shifts the whole block
+ * within [window] while preserving its duration.
+ *
+ * The clamp is the visible window rather than the day, so a drag cannot push a block off the top or
+ * bottom of a business-hours grid into space the user cannot scroll to and would have no way to
+ * drag it back from.
  */
 internal fun adjustedScheduleBlock(
     block: KalendarScheduleBlock,
     deltaMinutes: Int,
     resizing: Boolean,
+    window: KalendarHourWindow = KalendarHourWindow.FullDay,
 ): KalendarScheduleBlock = if (resizing) {
     val newEnd = (block.endMinutes + deltaMinutes)
-        .coerceIn(block.startMinutes + MIN_SCHEDULE_BLOCK_MINUTES, MINUTES_PER_DAY)
+        .coerceWithin(block.startMinutes + MIN_SCHEDULE_BLOCK_MINUTES, window.endMinutes)
     block.copy(endMinutes = newEnd)
 } else {
     val duration = block.endMinutes - block.startMinutes
-    val newStart = (block.startMinutes + deltaMinutes).coerceIn(0, MINUTES_PER_DAY - duration)
+    val newStart = (block.startMinutes + deltaMinutes)
+        .coerceWithin(window.startMinutes, window.endMinutes - duration)
     block.copy(startMinutes = newStart, endMinutes = newStart + duration)
 }
 
-private const val MAX_DAY_SHIFT = 6
-
 /**
- * Converts a horizontal drag distance into whole day columns on the week grid, dividing by the
- * full day-column width and clamped to one week in either direction.
+ * Converts a horizontal drag distance into whole day columns on the week grid, dividing by the full
+ * day-column width and clamped to one grid width in either direction.
+ *
+ * [columnCount] is the number of day columns actually drawn, which is not always seven — a Mon–Fri
+ * week has five, and clamping to six would let a drag land the block a column past the grid's edge.
+ * The result counts *columns*, so a caller on a filtered week converts it to a date with
+ * [visibleDateStep] rather than by adding days.
  */
-internal fun dayShiftForDrag(rawDeltaXPx: Float, dayColumnWidthPx: Int): Int {
+internal fun dayShiftForDrag(
+    rawDeltaXPx: Float,
+    dayColumnWidthPx: Int,
+    columnCount: Int = DAYS_PER_WEEK,
+): Int {
     if (dayColumnWidthPx <= 0) {
         return 0
     }
-    return (rawDeltaXPx / dayColumnWidthPx).roundToInt().coerceIn(-MAX_DAY_SHIFT, MAX_DAY_SHIFT)
+    val maximumShift = (columnCount - 1).coerceAtLeast(0)
+    return (rawDeltaXPx / dayColumnWidthPx).roundToInt().coerceIn(-maximumShift, maximumShift)
 }
 
 /**

@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -60,7 +59,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
@@ -77,7 +75,8 @@ import kotlin.time.Duration
  * equivalent `resourceTimeGrid`.
  *
  * One day is on screen at a time. Each lane from [resources] is a column, time runs vertically down
- * a shared hour gutter, and each lane packs its own overlapping events side by side exactly as
+ * a shared hour gutter spanning [KalendarViewConfig.scheduleVisibleHours] — the whole day unless a
+ * caller narrows it to opening hours — and each lane packs its own overlapping events side by side exactly as
  * [KalendarScheduleWeek] packs a day's. The resource header row stays put while the grid scrolls
  * vertically, and the hour gutter stays put while the lanes scroll horizontally — which they do
  * only once there are more lanes than fit at [minResourceColumnWidth]; below that the lanes divide
@@ -137,7 +136,8 @@ import kotlin.time.Duration
  *   grid measures and positions the slot for you and keeps the tap and drag gestures on the cell
  *   around it, so a replacement never loses them. Defaults to
  *   [KalendarResourceDefaults.EventBlock].
- * @param hourLabel Slot for one hour-gutter label, given the hour as `0..23`. Defaults to
+ * @param hourLabel Slot for one hour-gutter label, given the absolute hour it labels — `0..23`, and
+ *   only the hours inside [KalendarViewConfig.scheduleVisibleHours]. Defaults to
  *   [KalendarResourceDefaults.HourLabel] formatted with [KalendarViewConfig.hourLabelFormatter].
  * @param nowIndicator Slot for the current-time line. The grid draws it only when the visible day
  *   is today and owns its vertical offset, so the slot renders the marker alone. Defaults to
@@ -333,7 +333,8 @@ public object KalendarResourceDefaults {
      * The built-in hour-gutter label, shared with the Schedule views. The gutter aligns it to the
      * top of its hour row.
      *
-     * @param hour The hour to label, `0..23`.
+     * @param hour The absolute hour to label, `0..23` — only hours inside
+     *   [KalendarViewConfig.scheduleVisibleHours] are ever asked for.
      * @param formatter Turns [hour] into text — [KalendarViewConfig.hourLabelFormatter] by default.
      * @param modifier [Modifier] applied to the label.
      */
@@ -420,17 +421,23 @@ private fun ResourceGrid(
     // about which lane is under which column.
     val horizontalScrollState = rememberScrollState()
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
-    val blocksByResource = remember(eventsByDate, lanes, resourceIdOf, day) {
+    val window = config.scheduleVisibleHours
+    val blocksByResource = remember(eventsByDate, lanes, resourceIdOf, day, window) {
         resourceBlocks(
             events = eventsByDate[day] ?: emptyList(),
             resources = lanes,
             resourceIdOf = resourceIdOf,
             date = day,
+            window = window,
         )
     }
 
-    LaunchedEffect(day) {
-        verticalScrollState.scrollTo(with(density) { (hourHeight * config.scheduleInitialScrollHour).roundToPx() })
+    LaunchedEffect(day, window, config.scheduleInitialScrollHour) {
+        val hours = initialScrollHourOffset(
+            initialScrollHour = config.scheduleInitialScrollHour,
+            window = window,
+        )
+        verticalScrollState.scrollTo(with(density) { (hourHeight * hours).roundToPx() })
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -444,7 +451,7 @@ private fun ResourceGrid(
             modifier = Modifier
                 .fillMaxSize()
                 .semantics {
-                    collectionInfo = CollectionInfo(rowCount = HOURS_PER_DAY, columnCount = lanes.size)
+                    collectionInfo = CollectionInfo(rowCount = window.hourCount, columnCount = lanes.size)
                 },
         ) {
             Row(modifier = Modifier.fillMaxWidth()) {
@@ -459,14 +466,14 @@ private fun ResourceGrid(
                     }
                 }
             }
-            ResourceGridLine()
+            KalendarHourGridLine()
             Row(modifier = Modifier.fillMaxWidth().verticalScroll(verticalScrollState)) {
-                ResourceHourGutter(hourHeight = hourHeight, hourLabel = hourLabel)
+                KalendarHourGutter(hourHeight = hourHeight, window = window, hourLabel = hourLabel)
                 Row(modifier = Modifier.horizontalScroll(horizontalScrollState)) {
                     lanes.forEachIndexed { index, resource ->
-                        Box(modifier = Modifier.width(columnWidth).height(hourHeight * HOURS_PER_DAY)) {
-                            ResourceHourLines(hourHeight = hourHeight)
-                            ResourceColumnDivider()
+                        Box(modifier = Modifier.width(columnWidth).height(hourHeight * window.hourCount)) {
+                            KalendarHourLines(hourHeight = hourHeight, window = window)
+                            KalendarHourColumnDivider()
                             ResourceBlockLayout(
                                 blocks = blocksByResource[resource.id] ?: emptyList(),
                                 lanes = lanes,
@@ -474,14 +481,16 @@ private fun ResourceGrid(
                                 hourHeight = hourHeight,
                                 onEventClick = onEventClick,
                                 date = day,
+                                window = window,
                                 snapMinutes = config.scheduleDragSnapMinutes,
                                 onEventChange = onEventChange,
                                 eventContent = eventContent,
                             )
-                            ResourceNowIndicator(
+                            KalendarNowLine(
                                 isToday = isToday,
                                 now = now,
                                 hourHeight = hourHeight,
+                                window = window,
                                 content = nowIndicator,
                             )
                         }
@@ -490,53 +499,6 @@ private fun ResourceGrid(
             }
         }
     }
-}
-
-@Composable
-private fun ResourceHourGutter(hourHeight: Dp, hourLabel: @Composable (Int) -> Unit) {
-    Column(modifier = Modifier.width(kalendarDimensions().hourGutterWidth)) {
-        repeat(HOURS_PER_DAY) { hour ->
-            Box(
-                modifier = Modifier.height(hourHeight).fillMaxWidth(),
-                contentAlignment = Alignment.TopCenter,
-            ) {
-                hourLabel(hour)
-            }
-        }
-    }
-}
-
-@Composable
-private fun ResourceHourLines(hourHeight: Dp) {
-    val gridLineThickness = kalendarDimensions().gridLineThickness
-    Column(modifier = Modifier.fillMaxSize()) {
-        repeat(HOURS_PER_DAY) {
-            ResourceGridLine()
-            Box(modifier = Modifier.height(hourHeight - gridLineThickness))
-        }
-    }
-}
-
-/** The hour lines and separators the lane grid rules across itself. */
-@Composable
-private fun ResourceGridLine(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(kalendarDimensions().gridLineThickness)
-            .background(kalendarColors().gridLine),
-    )
-}
-
-/** [ResourceGridLine]'s vertical twin, separating one lane column from the next. */
-@Composable
-private fun ResourceColumnDivider(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxHeight()
-            .width(kalendarDimensions().gridLineThickness)
-            .background(kalendarColors().gridLine),
-    )
 }
 
 /**
@@ -558,6 +520,7 @@ private fun ResourceBlockLayout(
     hourHeight: Dp,
     onEventClick: (KalendarEvent) -> Unit,
     date: LocalDate,
+    window: KalendarHourWindow,
     snapMinutes: Int,
     onEventChange: (
         (event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime, newResourceId: String) -> Unit
@@ -581,6 +544,7 @@ private fun ResourceBlockLayout(
     val latestLaneIndex = rememberUpdatedState(laneIndex)
     val latestDate = rememberUpdatedState(date)
     val latestSnapMinutes = rememberUpdatedState(snapMinutes)
+    val latestWindow = rememberUpdatedState(window)
     val latestOnEventChange = rememberUpdatedState(onEventChange)
     // The *column's* measured width, never the dragged block's: a block that overlaps another is a
     // fraction of the column wide, and dividing by that over-shifts the lane.
@@ -595,7 +559,12 @@ private fun ResourceBlockLayout(
             minutePx = minutePx,
             snapMinutes = latestSnapMinutes.value,
         )
-        return adjustedScheduleBlock(block = block, deltaMinutes = delta, resizing = drag.resizing)
+        return adjustedScheduleBlock(
+            block = block,
+            deltaMinutes = delta,
+            resizing = drag.resizing,
+            window = latestWindow.value,
+        )
     }
 
     fun laneShift(index: Int): Int {
@@ -669,21 +638,22 @@ private fun ResourceBlockLayout(
     ) { measurables, constraints ->
         val minuteHeightPx = hourHeight.toPx() / MINUTES_PER_HOUR
         val rendered = blocks.indices.map { adjusted(it) ?: blocks[it] }
+        // Clipped to the window, exactly as on the Schedule views: a booking that runs past the end
+        // of the visible hours is cut off at the bottom edge rather than overflowing the lane.
+        val placements = rendered.map { blockPlacement(block = it, window = window) }
         val placeables = measurables.mapIndexed { index, measurable ->
-            val block = rendered[index]
-            val columnWidth = constraints.maxWidth / block.columns
-            val blockHeight = ((block.endMinutes - block.startMinutes) * minuteHeightPx).roundToInt()
+            val columnWidth = constraints.maxWidth / rendered[index].columns
+            val blockHeight = (placements[index].heightMinutes * minuteHeightPx).roundToInt()
             measurable.measure(Constraints.fixed(width = columnWidth, height = blockHeight))
         }
-        layout(constraints.maxWidth, (minuteHeightPx * MINUTES_PER_DAY).roundToInt()) {
+        layout(constraints.maxWidth, (minuteHeightPx * window.spanMinutes).roundToInt()) {
             placeables.forEachIndexed { index, placeable ->
-                val block = rendered[index]
-                val columnWidth = constraints.maxWidth / block.columns
+                val columnWidth = constraints.maxWidth / rendered[index].columns
                 // A lane shift in flight slides the block over its neighbours so the drag is visible
                 // before release; the grid never re-parents it.
                 placeable.place(
-                    x = block.column * columnWidth + laneShift(index) * constraints.maxWidth,
-                    y = (block.startMinutes * minuteHeightPx).roundToInt(),
+                    x = rendered[index].column * columnWidth + laneShift(index) * constraints.maxWidth,
+                    y = (placements[index].topMinutes * minuteHeightPx).roundToInt(),
                 )
             }
         }
@@ -773,32 +743,6 @@ private fun Modifier.resourceBlockDragGestures(
             }
         },
     )
-}
-
-/**
- * The current-time line, drawn in every lane when the visible day is today.
- *
- * [now] is read inside [Modifier.offset]'s lambda rather than in composition, so a minute passing
- * re-places the lines instead of recomposing the grid and everything the read would invalidate.
- */
-@Composable
-private fun ResourceNowIndicator(
-    isToday: Boolean,
-    now: State<LocalDateTime>,
-    hourHeight: Dp,
-    content: @Composable () -> Unit,
-) {
-    if (!isToday) {
-        return
-    }
-    Box(
-        modifier = Modifier.fillMaxWidth().offset {
-            val minutes = now.value.hour * MINUTES_PER_HOUR + now.value.minute
-            IntOffset(x = 0, y = (hourHeight.toPx() * minutes / MINUTES_PER_HOUR).roundToInt())
-        },
-    ) {
-        content()
-    }
 }
 
 private fun resourceDayTitle(

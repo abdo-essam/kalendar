@@ -43,12 +43,15 @@ internal fun orderedResources(resources: List<KalendarResource>): List<KalendarR
  * @param resources The lanes to bucket into; only their [KalendarResource.id]s are read.
  * @param resourceIdOf Maps an event to the id of the lane it belongs in, or `null` for none.
  * @param date The day being drawn, used to clamp blocks that start or end outside it.
+ * @param window The visible slice of the day; events outside it are dropped, so a lane's overlap
+ *   clusters are packed from what is actually on screen.
  */
 internal fun resourceBlocks(
     events: List<KalendarEvent>,
     resources: List<KalendarResource>,
     resourceIdOf: (KalendarEvent) -> String?,
     date: LocalDate,
+    window: KalendarHourWindow = KalendarHourWindow.FullDay,
 ): Map<String, List<KalendarScheduleBlock>> {
     val known = resources.mapTo(mutableSetOf()) { it.id }
     val byResource = mutableMapOf<String, MutableList<KalendarEvent>>()
@@ -56,7 +59,9 @@ internal fun resourceBlocks(
         val id = resourceIdOf(event)?.takeIf { it in known } ?: continue
         byResource.getOrPut(id) { mutableListOf() }.add(event)
     }
-    return byResource.mapValues { (_, laneEvents) -> scheduleBlocks(events = laneEvents, date = date) }
+    return byResource.mapValues { (_, laneEvents) ->
+        scheduleBlocks(events = laneEvents, date = date, window = window)
+    }
 }
 
 /**

@@ -38,6 +38,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
 import kotlinx.datetime.plus
@@ -80,12 +81,19 @@ internal fun rememberKalendarGridKeyboardState(): KalendarGridKeyboardState =
 /**
  * The date a navigation key moves focus to from [focused], or `null` if [key] does not navigate.
  *
- * Arrows step by one day and one row, so wrapping from the end of a week to the start of the next
- * falls out of date arithmetic rather than index arithmetic — the caller decides whether the result
- * still lies on the visible page. `Home`/`End` land on the first and last day of [periodDates], the
- * *period* rather than the grid, so `Home` in a month view reaches the 1st and not the leading
- * padding day from the previous month. `PageUp`/`PageDown` delegate to [pageStep], which is the
- * view's own unit: a week for [KalendarWeek], a month for [KalendarMonth].
+ * Left/right step by one *visible* day, so on a Mon–Fri calendar `Right` from Friday reaches Monday
+ * rather than stopping the ring on a Saturday that has no cell. Wrapping from the end of a row to
+ * the start of the next therefore still falls out of date arithmetic rather than index arithmetic —
+ * the caller decides whether the result still lies on the visible page.
+ *
+ * Up/down step a whole week, which lands on the same weekday and so on the same column; a column is
+ * on screen by definition, so no snapping is needed. `Home`/`End` land on the first and last day of
+ * [periodDates], the *period* rather than the grid, so `Home` in a month view reaches the 1st and not
+ * the leading padding day from the previous month — and [periodDates] carries the same visible-day
+ * filter, so neither lands on a hidden day either. `PageUp`/`PageDown` delegate to [pageStep], which
+ * is the view's own unit: a week for [KalendarWeek], a month for [KalendarMonth]. A month step keeps
+ * the day of *month*, which may be a hidden weekday, so its result is nudged forward to the next
+ * visible day.
  */
 @Suppress("ReturnCount")
 internal fun keyboardTargetDate(
@@ -93,13 +101,14 @@ internal fun keyboardTargetDate(
     focused: LocalDate,
     periodDates: List<LocalDate>,
     pageStep: (date: LocalDate, pages: Int) -> LocalDate,
+    visibleDaysOfWeek: Set<DayOfWeek> = ALL_DAYS_OF_WEEK,
 ): LocalDate? = when (key) {
-    Key.DirectionLeft -> focused.plus(-1, DateTimeUnit.DAY)
-    Key.DirectionRight -> focused.plus(1, DateTimeUnit.DAY)
+    Key.DirectionLeft -> visibleDateStep(from = focused, step = -1, visibleDaysOfWeek = visibleDaysOfWeek)
+    Key.DirectionRight -> visibleDateStep(from = focused, step = 1, visibleDaysOfWeek = visibleDaysOfWeek)
     Key.DirectionUp -> focused.plus(-DAYS_PER_WEEK, DateTimeUnit.DAY)
     Key.DirectionDown -> focused.plus(DAYS_PER_WEEK, DateTimeUnit.DAY)
-    Key.PageUp -> pageStep(focused, -1)
-    Key.PageDown -> pageStep(focused, 1)
+    Key.PageUp -> visibleDateOnOrAfter(pageStep(focused, -1), visibleDaysOfWeek)
+    Key.PageDown -> visibleDateOnOrAfter(pageStep(focused, 1), visibleDaysOfWeek)
     Key.MoveHome -> periodDates.firstOrNull()
     Key.MoveEnd -> periodDates.lastOrNull()
     else -> null
@@ -144,6 +153,8 @@ private fun isShiftKey(key: Key): Boolean = key == Key.ShiftLeft || key == Key.S
  *   so the trailing padding cells belonging to the next month are never focused in place of that
  *   month's real ones. It drives `Home`/`End`, and a navigation target outside it is what triggers
  *   [onScrollTo].
+ * @param visibleDaysOfWeek The days that have a column, from [KalendarViewConfig.visibleDaysOfWeek].
+ *   Arrowing skips the rest, so the ring can never land on a date that is not drawn.
  * @param today Today's date, used as the entry point when the grid is focused for the first time and
  *   nothing is selected.
  * @param selectedDate The date focus enters on, preferred over [today]. Pass the single selected
@@ -172,6 +183,7 @@ internal fun Modifier.kalendarGridKeyboard(
     onRangeDrag: ((start: LocalDate, current: LocalDate) -> Unit)?,
     onRangeDragEnd: (() -> Unit)?,
     monthNameFormatter: (Month) -> String,
+    visibleDaysOfWeek: Set<DayOfWeek> = ALL_DAYS_OF_WEEK,
 ): Modifier {
     val strings = kalendarStrings()
 
@@ -189,6 +201,7 @@ internal fun Modifier.kalendarGridKeyboard(
     val latestOnRangeDrag = rememberUpdatedState(onRangeDrag)
     val latestOnRangeDragEnd = rememberUpdatedState(onRangeDragEnd)
     val latestMonthNameFormatter = rememberUpdatedState(monthNameFormatter)
+    val latestVisibleDaysOfWeek = rememberUpdatedState(visibleDaysOfWeek)
 
     return this
         .onFocusChanged { focusState ->
@@ -231,6 +244,7 @@ internal fun Modifier.kalendarGridKeyboard(
                 focused = focused,
                 periodDates = latestPeriodDates.value,
                 pageStep = latestPageStep.value,
+                visibleDaysOfWeek = latestVisibleDaysOfWeek.value,
             ) ?: return@onPreviewKeyEvent false
 
             val extending = event.isShiftPressed && latestOnRangeDrag.value != null

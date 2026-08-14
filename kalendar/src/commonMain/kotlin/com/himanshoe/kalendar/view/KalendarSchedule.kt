@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -85,11 +84,15 @@ private val LocalScheduleAllDayPrefix = compositionLocalOf<String?> { null }
 /**
  * An hourly time-grid calendar for a single day, navigable by both arrow-click and swipe.
  *
- * Each page is one day: a scrollable 24-hour grid with timed events (those with a non-null
+ * Each page is one day: a scrollable hour grid with timed events (those with a non-null
  * [KalendarEvent.startTime]) rendered as positioned blocks sized by their duration, overlapping
  * events packed side by side, all-day events (no `startTime`) pinned as chips above the grid, and
  * a now-indicator line drawn across the current time on today's page. On first composition the
  * grid starts scrolled to early morning rather than midnight.
+ *
+ * The grid shows the whole day unless [KalendarViewConfig.scheduleVisibleHours] narrows it — set
+ * that for a business-hours calendar, and the gutter, the rules, the block positions, the
+ * now-indicator and every drag follow the window rather than midnight.
  *
  * Every drawn piece is a slot: [eventContent], [allDayEventContent], [hourLabel] and
  * [nowIndicator] each default to the matching [KalendarScheduleDefaults] rendering, so you can
@@ -120,9 +123,10 @@ private val LocalScheduleAllDayPrefix = compositionLocalOf<String?> { null }
  * @param onEventCreate When non-null, press-and-hold on empty grid space then drag vertically to
  *   sweep out a new time range, previewed as you drag and snapped to
  *   [KalendarViewConfig.scheduleDragSnapMinutes] steps. Dragging in either direction works — the
- *   range spans press to release — and it is never shorter than the grid's minimum block nor
- *   outside the day. Called on release with the swept start/end; a press that lands on an existing
- *   block moves or resizes that block instead. `null`, the default, disables the gesture.
+ *   range spans press to release — and it is never shorter than the grid's minimum block nor outside
+ *   [KalendarViewConfig.scheduleVisibleHours]. Called on release with the swept start/end; a press
+ *   that lands on an existing block moves or resizes that block instead. `null`, the default,
+ *   disables the gesture.
  * @param config Shared visual/behavioural settings. [KalendarViewConfig.disabledDates] and
  *   [KalendarViewConfig.showAdjacentMonthDates] have no effect here; arrows, the today button,
  *   month-name formatting, and background apply as usual.
@@ -137,10 +141,12 @@ private val LocalScheduleAllDayPrefix = compositionLocalOf<String?> { null }
  *   around it, so a replacement never loses them. Defaults to [KalendarScheduleDefaults.EventBlock].
  * @param allDayEventContent Slot for one all-day chip in the row above the grid; the row applies
  *   [onEventClick]. Defaults to [KalendarScheduleDefaults.AllDayChip].
- * @param hourLabel Slot for one hour-gutter label, given the hour as `0..23`. Defaults to
+ * @param hourLabel Slot for one hour-gutter label, given the absolute hour it labels — `0..23`, and
+ *   only the hours inside [KalendarViewConfig.scheduleVisibleHours]. Defaults to
  *   [KalendarScheduleDefaults.HourLabel] formatted with [KalendarViewConfig.hourLabelFormatter].
- * @param nowIndicator Slot for the current-time line. The grid draws it only on today's page and
- *   owns its vertical offset, so the slot renders the marker alone. Defaults to
+ * @param nowIndicator Slot for the current-time line. The grid draws it only on today's page, and
+ *   only while the clock is inside [KalendarViewConfig.scheduleVisibleHours], and owns its vertical
+ *   offset — so the slot renders the marker alone. Defaults to
  *   [KalendarScheduleDefaults.NowIndicator].
  */
 @Composable
@@ -214,7 +220,9 @@ public fun KalendarSchedule(
  * A 7-day hourly time-grid calendar — [KalendarSchedule]'s week variant, navigable by both
  * arrow-click and swipe with one week per page.
  *
- * Seven day columns share a single hour gutter: each column renders that day's timed events as
+ * One column per visible day of the week — seven by default, five when
+ * [KalendarViewConfig.visibleDaysOfWeek] hides the weekend — sharing a single hour gutter, itself
+ * spanning [KalendarViewConfig.scheduleVisibleHours]. Each column renders that day's timed events as
  * duration-sized blocks (overlaps packed side by side, exactly as in [KalendarSchedule]), a
  * header row shows each day's label and date with today emphasised, all-day events pin as chips
  * above the grid prefixed with their day of month, and the now-indicator line appears on today's
@@ -260,7 +268,8 @@ public fun KalendarSchedule(
  * @param allDayEventContent Slot for one all-day chip in the row above the grid; the row applies
  *   [onEventClick]. Defaults to [KalendarScheduleDefaults.AllDayChip] prefixed with the day of
  *   month the chip belongs to, since one row is shared by all seven days.
- * @param hourLabel Slot for one hour-gutter label, given the hour as `0..23`. Defaults to
+ * @param hourLabel Slot for one hour-gutter label, given the absolute hour it labels — `0..23`, and
+ *   only the hours inside [KalendarViewConfig.scheduleVisibleHours]. Defaults to
  *   [KalendarScheduleDefaults.HourLabel] formatted with [KalendarViewConfig.hourLabelFormatter].
  * @param nowIndicator Slot for the current-time line. The grid draws it only on today's column and
  *   owns its vertical offset, so the slot renders the marker alone. Defaults to
@@ -441,7 +450,9 @@ public object KalendarScheduleDefaults {
      * The built-in hour-gutter label, in [KalendarTypography.hourLabel]. The gutter aligns it to
      * the top of its hour row.
      *
-     * @param hour The hour to label, `0..23`.
+     * @param hour The absolute hour to label, `0..23` — the gutter only ever asks for hours inside
+     *   [KalendarViewConfig.scheduleVisibleHours], so a formatter never has to know where the grid
+     *   starts.
      * @param formatter Turns [hour] into text — [KalendarViewConfig.hourLabelFormatter] by default
      *   on both Schedule views.
      * @param modifier [Modifier] applied to the label.
@@ -509,28 +520,6 @@ public object KalendarScheduleDefaults {
     }
 }
 
-/** The hour lines and separators the Schedule views rule across the grid. */
-@Composable
-private fun ScheduleGridLine(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(kalendarDimensions().gridLineThickness)
-            .background(kalendarColors().gridLine),
-    )
-}
-
-/** [ScheduleGridLine]'s vertical twin, separating one day column from the next. */
-@Composable
-private fun ScheduleColumnDivider(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxHeight()
-            .width(kalendarDimensions().gridLineThickness)
-            .background(kalendarColors().gridLine),
-    )
-}
-
 private const val EVENT_LABEL_MAX_LINES = 2
 private val WEEK_DAY_HEADER_PADDING = 4.dp
 
@@ -551,7 +540,9 @@ private fun ScheduleWeekPage(
     dayHeader: @Composable (date: LocalDate, isToday: Boolean) -> Unit,
     eventContent: @Composable (KalendarScheduleEventScope) -> Unit,
 ) {
-    val days = remember(weekStart) { weekDates(weekStart) }
+    val days = remember(weekStart, config.visibleDaysOfWeek) {
+        weekDates(weekStart = weekStart, visibleDaysOfWeek = config.visibleDaysOfWeek)
+    }
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     val allDayEvents = remember(days, eventsByDate) {
         days.flatMap { day ->
@@ -563,9 +554,14 @@ private fun ScheduleWeekPage(
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
     val dimensions = kalendarDimensions()
+    val window = config.scheduleVisibleHours
 
-    LaunchedEffect(weekStart) {
-        scrollState.scrollTo(with(density) { (hourHeight * config.scheduleInitialScrollHour).roundToPx() })
+    LaunchedEffect(weekStart, window, config.scheduleInitialScrollHour) {
+        val hours = initialScrollHourOffset(
+            initialScrollHour = config.scheduleInitialScrollHour,
+            window = window,
+        )
+        scrollState.scrollTo(with(density) { (hourHeight * hours).roundToPx() })
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -584,21 +580,26 @@ private fun ScheduleWeekPage(
                 chipContent = allDayEventContent,
             )
         }
-        ScheduleGridLine()
+        KalendarHourGridLine()
         Row(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState)) {
-            HourGutter(hourHeight = hourHeight, hourLabel = hourLabel)
+            KalendarHourGutter(hourHeight = hourHeight, window = window, hourLabel = hourLabel)
             days.forEach { day ->
-                val blocks = remember(eventsByDate, day) {
-                    scheduleBlocks(events = eventsByDate[day] ?: emptyList(), date = day)
+                val blocks = remember(eventsByDate, day, window) {
+                    scheduleBlocks(
+                        events = eventsByDate[day] ?: emptyList(),
+                        date = day,
+                        window = window,
+                    )
                 }
-                Box(modifier = Modifier.weight(1f).height(hourHeight * HOURS_PER_DAY)) {
-                    HourLines(hourHeight = hourHeight)
-                    ScheduleColumnDivider()
+                Box(modifier = Modifier.weight(1f).height(hourHeight * window.hourCount)) {
+                    KalendarHourLines(hourHeight = hourHeight, window = window)
+                    KalendarHourColumnDivider()
                     ScheduleCreateLayer(
                         blocks = blocks,
                         date = day,
                         hourHeight = hourHeight,
                         snapMinutes = config.scheduleDragSnapMinutes,
+                        window = window,
                         onEventCreate = onEventCreate,
                     )
                     ScheduleBlockLayout(
@@ -606,15 +607,17 @@ private fun ScheduleWeekPage(
                         hourHeight = hourHeight,
                         onEventClick = onEventClick,
                         date = day,
-                        allowDayShift = true,
+                        window = window,
+                        dayColumns = config.visibleDaysOfWeek,
                         snapMinutes = config.scheduleDragSnapMinutes,
                         onEventTimeChange = onEventTimeChange,
                         eventContent = eventContent,
                     )
-                    ScheduleNowIndicator(
+                    KalendarNowLine(
                         isToday = day == today,
                         now = now,
                         hourHeight = hourHeight,
+                        window = window,
                         content = nowIndicator,
                     )
                 }
@@ -664,12 +667,19 @@ private fun SchedulePage(
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     val dayEvents = eventsByDate[day] ?: emptyList()
     val allDayEvents = remember(dayEvents) { dayEvents.filter { it.startTime == null } }
-    val blocks = remember(dayEvents, day) { scheduleBlocks(events = dayEvents, date = day) }
+    val window = config.scheduleVisibleHours
+    val blocks = remember(dayEvents, day, window) {
+        scheduleBlocks(events = dayEvents, date = day, window = window)
+    }
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
 
-    LaunchedEffect(day) {
-        scrollState.scrollTo(with(density) { (hourHeight * config.scheduleInitialScrollHour).roundToPx() })
+    LaunchedEffect(day, window, config.scheduleInitialScrollHour) {
+        val hours = initialScrollHourOffset(
+            initialScrollHour = config.scheduleInitialScrollHour,
+            window = window,
+        )
+        scrollState.scrollTo(with(density) { (hourHeight * hours).roundToPx() })
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -679,17 +689,18 @@ private fun SchedulePage(
                 onEventClick = onEventClick,
                 chipContent = allDayEventContent,
             )
-            ScheduleGridLine()
+            KalendarHourGridLine()
         }
         Row(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState)) {
-            HourGutter(hourHeight = hourHeight, hourLabel = hourLabel)
-            Box(modifier = Modifier.weight(1f).height(hourHeight * HOURS_PER_DAY)) {
-                HourLines(hourHeight = hourHeight)
+            KalendarHourGutter(hourHeight = hourHeight, window = window, hourLabel = hourLabel)
+            Box(modifier = Modifier.weight(1f).height(hourHeight * window.hourCount)) {
+                KalendarHourLines(hourHeight = hourHeight, window = window)
                 ScheduleCreateLayer(
                     blocks = blocks,
                     date = day,
                     hourHeight = hourHeight,
                     snapMinutes = config.scheduleDragSnapMinutes,
+                    window = window,
                     onEventCreate = onEventCreate,
                 )
                 ScheduleBlockLayout(
@@ -697,14 +708,16 @@ private fun SchedulePage(
                     hourHeight = hourHeight,
                     onEventClick = onEventClick,
                     date = day,
+                    window = window,
                     snapMinutes = config.scheduleDragSnapMinutes,
                     onEventTimeChange = onEventTimeChange,
                     eventContent = eventContent,
                 )
-                ScheduleNowIndicator(
+                KalendarNowLine(
                     isToday = isToday,
                     now = now,
                     hourHeight = hourHeight,
+                    window = window,
                     content = nowIndicator,
                 )
             }
@@ -728,31 +741,6 @@ private fun AllDayRow(
             Box(modifier = Modifier.clickable(role = Role.Button) { onEventClick(event) }) {
                 chipContent(event)
             }
-        }
-    }
-}
-
-@Composable
-private fun HourGutter(hourHeight: Dp, hourLabel: @Composable (Int) -> Unit) {
-    Column(modifier = Modifier.width(kalendarDimensions().hourGutterWidth)) {
-        repeat(HOURS_PER_DAY) { hour ->
-            Box(
-                modifier = Modifier.height(hourHeight).fillMaxWidth(),
-                contentAlignment = Alignment.TopCenter,
-            ) {
-                hourLabel(hour)
-            }
-        }
-    }
-}
-
-@Composable
-private fun HourLines(hourHeight: Dp) {
-    val gridLineThickness = kalendarDimensions().gridLineThickness
-    Column(modifier = Modifier.fillMaxSize()) {
-        repeat(HOURS_PER_DAY) {
-            ScheduleGridLine()
-            Box(modifier = Modifier.height(hourHeight - gridLineThickness))
         }
     }
 }
@@ -808,38 +796,54 @@ internal fun scheduleDragMode(pressYPx: Float, blockHeightPx: Float, resizeHandl
  * [ScheduleDragMode.Move] and [ScheduleDragMode.ResizeEnd] are exactly [adjustedScheduleBlock]'s
  * two behaviours; [ScheduleDragMode.ResizeStart] is their mirror — the start moves, the end stays
  * put, and the start can never cross to within less than [MIN_SCHEDULE_BLOCK_MINUTES] of the end
- * nor run past midnight at the top of the day.
+ * nor run past the top of [window].
  */
 internal fun adjustedScheduleBlockForDrag(
     block: KalendarScheduleBlock,
     deltaMinutes: Int,
     mode: ScheduleDragMode,
+    window: KalendarHourWindow = KalendarHourWindow.FullDay,
 ): KalendarScheduleBlock = when (mode) {
     ScheduleDragMode.Move -> adjustedScheduleBlock(
         block = block,
         deltaMinutes = deltaMinutes,
         resizing = false,
+        window = window,
     )
 
     ScheduleDragMode.ResizeEnd -> adjustedScheduleBlock(
         block = block,
         deltaMinutes = deltaMinutes,
         resizing = true,
+        window = window,
     )
 
     ScheduleDragMode.ResizeStart -> block.copy(
         startMinutes = (block.startMinutes + deltaMinutes)
-            .coerceIn(0, block.endMinutes - MIN_SCHEDULE_BLOCK_MINUTES),
+            .coerceIn(
+                window.startMinutes,
+                maxOf(window.startMinutes, block.endMinutes - MIN_SCHEDULE_BLOCK_MINUTES),
+            ),
     )
 }
 
+/**
+ * Positions one day column's [blocks] and owns their move/resize gestures.
+ *
+ * @param window The visible slice of the day. Positions are measured from its top edge and every
+ *   drag clamps to it, so a block can never be dragged out of reach.
+ * @param dayColumns The days that have a column, when a horizontal drag may move a block to another
+ *   of them — [KalendarScheduleWeek]. `null`, which [KalendarSchedule] passes, means the view shows
+ *   one day and a horizontal drag changes nothing.
+ */
 @Composable
 private fun ScheduleBlockLayout(
     blocks: List<KalendarScheduleBlock>,
     hourHeight: Dp,
     onEventClick: (KalendarEvent) -> Unit,
     date: LocalDate,
-    allowDayShift: Boolean = false,
+    window: KalendarHourWindow,
+    dayColumns: Set<DayOfWeek>? = null,
     snapMinutes: Int = DEFAULT_SCHEDULE_SNAP_MINUTES,
     onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
     eventContent: @Composable (KalendarScheduleEventScope) -> Unit,
@@ -857,6 +861,8 @@ private fun ScheduleBlockLayout(
     val latestBlocks = rememberUpdatedState(blocks)
     val latestDate = rememberUpdatedState(date)
     val latestSnapMinutes = rememberUpdatedState(snapMinutes)
+    val latestWindow = rememberUpdatedState(window)
+    val latestDayColumns = rememberUpdatedState(dayColumns)
     val latestOnEventTimeChange = rememberUpdatedState(onEventTimeChange)
     var dayColumnWidthPx by remember { mutableStateOf(0) }
     val latestDayColumnWidthPx = rememberUpdatedState(dayColumnWidthPx)
@@ -869,7 +875,12 @@ private fun ScheduleBlockLayout(
             minutePx = minutePx,
             snapMinutes = latestSnapMinutes.value,
         )
-        return adjustedScheduleBlockForDrag(block = block, deltaMinutes = delta, mode = drag.mode)
+        return adjustedScheduleBlockForDrag(
+            block = block,
+            deltaMinutes = delta,
+            mode = drag.mode,
+            window = latestWindow.value,
+        )
     }
 
     Layout(
@@ -892,15 +903,22 @@ private fun ScheduleBlockLayout(
                             val result = adjusted(state.index)
                             val handler = latestOnEventTimeChange.value
                             if (result != null && handler != null) {
-                                val dayShift = if (allowDayShift) {
-                                    dayShiftForDrag(
-                                        rawDeltaXPx = state.rawDeltaXPx,
-                                        dayColumnWidthPx = latestDayColumnWidthPx.value,
-                                    )
+                                val columns = latestDayColumns.value
+                                // Columns, not days: on a Mon–Fri week the column right of Friday
+                                // is Monday, so the shift is applied in visible-day steps.
+                                val targetDate = if (columns == null) {
+                                    latestDate.value
                                 } else {
-                                    0
+                                    visibleDateStep(
+                                        from = latestDate.value,
+                                        step = dayShiftForDrag(
+                                            rawDeltaXPx = state.rawDeltaXPx,
+                                            dayColumnWidthPx = latestDayColumnWidthPx.value,
+                                            columnCount = columns.size,
+                                        ),
+                                        visibleDaysOfWeek = columns,
+                                    )
                                 }
-                                val targetDate = latestDate.value.plus(dayShift, DateTimeUnit.DAY)
                                 val (newStart, newEnd) = dragReleaseTimes(
                                     block = result,
                                     targetDate = targetDate,
@@ -925,19 +943,20 @@ private fun ScheduleBlockLayout(
     ) { measurables, constraints ->
         val minuteHeightPx = hourHeight.toPx() / MINUTES_PER_HOUR
         val rendered = blocks.indices.map { adjusted(it) ?: blocks[it] }
+        // Clipped to the window, so an event that starts before it is drawn with its head cut off
+        // at the top edge instead of being pushed above the grid or dropped.
+        val placements = rendered.map { blockPlacement(block = it, window = window) }
         val placeables = measurables.mapIndexed { index, measurable ->
-            val block = rendered[index]
-            val columnWidth = constraints.maxWidth / block.columns
-            val blockHeight = ((block.endMinutes - block.startMinutes) * minuteHeightPx).roundToInt()
+            val columnWidth = constraints.maxWidth / rendered[index].columns
+            val blockHeight = (placements[index].heightMinutes * minuteHeightPx).roundToInt()
             measurable.measure(Constraints.fixed(width = columnWidth, height = blockHeight))
         }
-        layout(constraints.maxWidth, (minuteHeightPx * MINUTES_PER_DAY).roundToInt()) {
+        layout(constraints.maxWidth, (minuteHeightPx * window.spanMinutes).roundToInt()) {
             placeables.forEachIndexed { index, placeable ->
-                val block = rendered[index]
-                val columnWidth = constraints.maxWidth / block.columns
+                val columnWidth = constraints.maxWidth / rendered[index].columns
                 placeable.place(
-                    x = block.column * columnWidth,
-                    y = (block.startMinutes * minuteHeightPx).roundToInt(),
+                    x = rendered[index].column * columnWidth,
+                    y = (placements[index].topMinutes * minuteHeightPx).roundToInt(),
                 )
             }
         }
@@ -1038,31 +1057,52 @@ private fun Modifier.blockDragGestures(
  */
 internal data class ScheduleCreateRange(val startMinutes: Int, val endMinutes: Int)
 
-/** [snappedDragMinutes] read as an absolute grid position rather than a delta, clamped to the day. */
-private fun snappedDayMinute(px: Float, minutePx: Float, snapMinutes: Int): Int =
-    snappedDragMinutes(rawPx = px, minutePx = minutePx, snapMinutes = snapMinutes)
-        .coerceIn(0, MINUTES_PER_DAY)
+/**
+ * [snappedDragMinutes] read as an absolute wall-clock minute rather than a delta.
+ *
+ * [px] is measured from the top of the *grid*, which is [KalendarHourWindow.startHour] and not
+ * necessarily midnight, so the window's origin is added back before clamping.
+ */
+private fun snappedWindowMinute(
+    px: Float,
+    minutePx: Float,
+    snapMinutes: Int,
+    window: KalendarHourWindow,
+): Int = window.clamp(
+    window.startMinutes + snappedDragMinutes(rawPx = px, minutePx = minutePx, snapMinutes = snapMinutes),
+)
 
 /**
  * The range a create-drag from [anchorPx] to [currentPx] sweeps out: both ends snapped to
- * [snapMinutes] and clamped to the day, ordered so an upward drag reads the same as a downward one,
+ * [snapMinutes] and clamped to [window], ordered so an upward drag reads the same as a downward one,
  * then grown to [MIN_SCHEDULE_BLOCK_MINUTES] if the sweep was shorter. A minimum-length range that
- * would spill past midnight is pushed back up against it instead of overflowing the day.
+ * would spill past the bottom of the window is pushed back up against it instead of overflowing.
  */
 internal fun scheduleCreateRange(
     anchorPx: Float,
     currentPx: Float,
     minutePx: Float,
     snapMinutes: Int,
+    window: KalendarHourWindow = KalendarHourWindow.FullDay,
 ): ScheduleCreateRange {
-    val anchor = snappedDayMinute(px = anchorPx, minutePx = minutePx, snapMinutes = snapMinutes)
-    val current = snappedDayMinute(px = currentPx, minutePx = minutePx, snapMinutes = snapMinutes)
+    val anchor = snappedWindowMinute(
+        px = anchorPx,
+        minutePx = minutePx,
+        snapMinutes = snapMinutes,
+        window = window,
+    )
+    val current = snappedWindowMinute(
+        px = currentPx,
+        minutePx = minutePx,
+        snapMinutes = snapMinutes,
+        window = window,
+    )
     val start = minOf(anchor, current)
     val end = maxOf(maxOf(anchor, current), start + MIN_SCHEDULE_BLOCK_MINUTES)
-    return if (end > MINUTES_PER_DAY) {
+    return if (end > window.endMinutes) {
         ScheduleCreateRange(
-            startMinutes = MINUTES_PER_DAY - MIN_SCHEDULE_BLOCK_MINUTES,
-            endMinutes = MINUTES_PER_DAY,
+            startMinutes = window.endMinutes - MIN_SCHEDULE_BLOCK_MINUTES,
+            endMinutes = window.endMinutes,
         )
     } else {
         ScheduleCreateRange(startMinutes = start, endMinutes = end)
@@ -1089,7 +1129,8 @@ internal fun scheduleCreateTimes(
 
 /**
  * Whether a press at ([xPx], [yPx]) in a day column [widthPx] wide landed on one of [blocks], using
- * the same column-splitting and minute-to-pixel geometry [ScheduleBlockLayout] places them with.
+ * the same column-splitting and minute-to-pixel geometry [ScheduleBlockLayout] places them with —
+ * [yPx] included, which is measured from the top of [window] rather than from midnight.
  *
  * The create-drag layer sits beneath the blocks and both see the press, so it asks this before
  * arming itself: a long-press that starts on a block belongs to that block's move/resize gesture.
@@ -1100,6 +1141,7 @@ internal fun scheduleBlockAt(
     yPx: Float,
     widthPx: Int,
     minutePx: Float,
+    window: KalendarHourWindow = KalendarHourWindow.FullDay,
 ): KalendarScheduleBlock? {
     if (widthPx <= 0 || minutePx <= 0f) {
         return null
@@ -1107,10 +1149,11 @@ internal fun scheduleBlockAt(
     return blocks.firstOrNull { block ->
         val columnWidth = widthPx.toFloat() / block.columns
         val left = block.column * columnWidth
+        val placement = blockPlacement(block = block, window = window)
         xPx >= left &&
             xPx < left + columnWidth &&
-            yPx >= block.startMinutes * minutePx &&
-            yPx < block.endMinutes * minutePx
+            yPx >= placement.topMinutes * minutePx &&
+            yPx < (placement.topMinutes + placement.heightMinutes) * minutePx
     }
 }
 
@@ -1131,6 +1174,7 @@ private fun ScheduleCreateLayer(
     date: LocalDate,
     hourHeight: Dp,
     snapMinutes: Int,
+    window: KalendarHourWindow,
     onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)?,
 ) {
     if (onEventCreate == null) {
@@ -1143,6 +1187,7 @@ private fun ScheduleCreateLayer(
     val latestDate = rememberUpdatedState(date)
     val latestSnapMinutes = rememberUpdatedState(snapMinutes)
     val latestMinutePx = rememberUpdatedState(minutePx)
+    val latestWindow = rememberUpdatedState(window)
     val latestOnEventCreate = rememberUpdatedState(onEventCreate)
 
     fun rangeOf(state: CreateDragState): ScheduleCreateRange = scheduleCreateRange(
@@ -1150,6 +1195,7 @@ private fun ScheduleCreateLayer(
         currentPx = state.currentPx,
         minutePx = latestMinutePx.value,
         snapMinutes = latestSnapMinutes.value,
+        window = latestWindow.value,
     )
 
     Box(
@@ -1162,6 +1208,7 @@ private fun ScheduleCreateLayer(
                         yPx = offset.y,
                         widthPx = size.width,
                         minutePx = latestMinutePx.value,
+                        window = latestWindow.value,
                     ) != null
                     dragState = if (onBlock) {
                         null
@@ -1196,52 +1243,32 @@ private fun ScheduleCreateLayer(
                 range = rangeOf(state),
                 hourHeight = hourHeight,
                 minutePx = minutePx,
+                window = window,
             )
         }
     }
 }
 
-/** The block sketched in place while a create-drag is in progress. */
+/** The block sketched in place while a create-drag is in progress, positioned within [window]. */
 @Composable
-private fun ScheduleCreatePreview(range: ScheduleCreateRange, hourHeight: Dp, minutePx: Float) {
+private fun ScheduleCreatePreview(
+    range: ScheduleCreateRange,
+    hourHeight: Dp,
+    minutePx: Float,
+    window: KalendarHourWindow,
+) {
     val colors = kalendarColors()
     val durationMinutes = (range.endMinutes - range.startMinutes).toFloat()
+    val topMinutes = range.startMinutes - window.startMinutes
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .offset { IntOffset(x = 0, y = (range.startMinutes * minutePx).roundToInt()) }
+            .offset { IntOffset(x = 0, y = (topMinutes * minutePx).roundToInt()) }
             .height(hourHeight * (durationMinutes / MINUTES_PER_HOUR))
             .padding(horizontal = kalendarDimensions().eventBlockGap)
             .clip(kalendarShapes().eventBlock)
             .background(colors.eventIndicator.copy(alpha = colors.eventBlockDraggingAlpha)),
     )
-}
-
-/**
- * The current-time line on the column that is today.
- *
- * [now] is deliberately read inside [Modifier.offset]'s lambda rather than in composition: the
- * position is then recomputed during placement, so a minute passing re-places one line instead of
- * recomposing this composable, its slot content, and everything the read would invalidate above it.
- */
-@Composable
-private fun ScheduleNowIndicator(
-    isToday: Boolean,
-    now: State<LocalDateTime>,
-    hourHeight: Dp,
-    content: @Composable () -> Unit,
-) {
-    if (!isToday) {
-        return
-    }
-    Box(
-        modifier = Modifier.fillMaxWidth().offset {
-            val minutes = now.value.hour * MINUTES_PER_HOUR + now.value.minute
-            IntOffset(x = 0, y = (hourHeight.toPx() * minutes / MINUTES_PER_HOUR).roundToInt())
-        },
-    ) {
-        content()
-    }
 }
 
 private fun dayTitle(

@@ -84,7 +84,9 @@ import kotlinx.datetime.plus
  *   as the drag moves. Pair with [onDateRangeSelectEnd] and, for the common case, wire both to
  *   [KalendarSelectionState.onRangeDrag]/[KalendarSelectionState.onRangeDragEnd].
  * @param onDateRangeSelectEnd Called once when a drag started by [onDateRangeSelect] ends.
- * @param config Shared visual/behavioural settings — disabled dates, arrow visibility, background.
+ * @param config Shared visual/behavioural settings — disabled dates, arrow visibility, background,
+ *   and [KalendarViewConfig.visibleDaysOfWeek], which drops a weekday's column from the row, its
+ *   header and the keyboard's path through it — a Mon–Fri week is five columns, not seven.
  * @param header Replaces the navigation header above the week row. Receives a [KalendarHeaderScope]
  *   carrying the formatted title and the navigation callbacks, so your own chrome keeps working
  *   arrows and today button. Defaults to [KalendarHeaderDefaults.Header] driven by [config].
@@ -135,7 +137,9 @@ public fun KalendarWeek(
     val keyboard = rememberKalendarGridKeyboardState()
     val coroutineScope = rememberCoroutineScope()
     val visibleWeekStart = state.visibleDate.startOfWeek(state.startDayOfWeek)
-    val periodDates = remember(visibleWeekStart) { weekDates(visibleWeekStart) }
+    val periodDates = remember(visibleWeekStart, config.visibleDaysOfWeek) {
+        weekDates(weekStart = visibleWeekStart, visibleDaysOfWeek = config.visibleDaysOfWeek)
+    }
 
     Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
         val title = remember(state.visibleDate, config) {
@@ -155,6 +159,7 @@ public fun KalendarWeek(
                 onRangeDrag = onDateRangeSelect,
                 onRangeDragEnd = onDateRangeSelectEnd,
                 monthNameFormatter = config.monthNameFormatter,
+                visibleDaysOfWeek = config.visibleDaysOfWeek,
             )
         ) {
             HorizontalPager(
@@ -162,7 +167,9 @@ public fun KalendarWeek(
                 modifier = Modifier.fillMaxWidth(),
             ) { page ->
                 val weekStart = state.pageToDate(page)
-                val dates = remember(weekStart) { weekDates(weekStart) }
+                val dates = remember(weekStart, config.visibleDaysOfWeek) {
+                    weekDates(weekStart = weekStart, visibleDaysOfWeek = config.visibleDaysOfWeek)
+                }
                 KalendarGrid(
                     dates = dates,
                     startDayOfWeek = state.startDayOfWeek,
@@ -170,6 +177,7 @@ public fun KalendarWeek(
                     keyboard = keyboard,
                     onDateRangeDrag = onDateRangeSelect,
                     onDateRangeDragEnd = onDateRangeSelectEnd,
+                    visibleDaysOfWeek = config.visibleDaysOfWeek,
                     dayOfWeekLabel = dayOfWeekLabel,
                 ) { date ->
                     val dateEvents = eventsByDate[date] ?: emptyList()

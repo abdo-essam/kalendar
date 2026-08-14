@@ -21,13 +21,15 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import kotlinx.datetime.LocalDate
@@ -193,12 +195,15 @@ class KalendarDayCellOverflowUiTest {
      *
      * The `onAllNodes...[0]` is deliberate: [KalendarYear] and [KalendarTimeline] render the same
      * date on more than one month grid, so more than one trigger can exist. Any of them opens a
-     * popover listing the same day. [scrollToTrigger] is for the views whose months stack in a
-     * scrolling column, where the trigger starts below the viewport and a click at its coordinates
-     * would land on whatever is on screen there instead.
+     * popover listing the same day.
+     *
+     * [scrollingListTag] is for the views whose months stack in a **lazy** scrolling list. There the
+     * trigger has no node at all until its month composes, so the list itself is scrolled until the
+     * trigger appears; asking the trigger to scroll itself into view would fail on a node that does
+     * not exist yet.
      */
     private fun tapPopupRow(
-        scrollToTrigger: Boolean = false,
+        scrollingListTag: String? = null,
         view: @Composable ((KalendarEvent) -> Unit) -> Unit,
     ): KalendarEvent? {
         var clicked: KalendarEvent? = null
@@ -207,11 +212,11 @@ class KalendarDayCellOverflowUiTest {
                 view { clicked = it }
             }
         }
-        val trigger = rule.onAllNodesWithContentDescription(OVERFLOW_TRIGGER_DESCRIPTION)[0]
-        if (scrollToTrigger) {
-            trigger.performScrollTo()
+        if (scrollingListTag != null) {
+            rule.onNodeWithTag(scrollingListTag)
+                .performScrollToNode(hasContentDescription(OVERFLOW_TRIGGER_DESCRIPTION))
         }
-        trigger.performClick()
+        rule.onAllNodesWithContentDescription(OVERFLOW_TRIGGER_DESCRIPTION)[0].performClick()
         rule.onAllNodesWithText("Charlie")[0].performClick()
         return clicked
     }
@@ -234,7 +239,7 @@ class KalendarDayCellOverflowUiTest {
 
     @Test
     fun yearView_overflowPopupRowTapped_reachesOnDayEventClick() {
-        val clicked = tapPopupRow(scrollToTrigger = true) { onEvent ->
+        val clicked = tapPopupRow(scrollingListTag = YEAR_MONTH_LIST_TAG) { onEvent ->
             KalendarYear(selectedDate = date, events = fourEvents, onDayEventClick = onEvent)
         }
         assertEquals("Charlie", clicked?.eventName)

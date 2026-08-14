@@ -97,8 +97,27 @@ private const val FIXTURE_YEAR = 2026
 private const val FIXTURE_MONTH = 3
 private const val FIXTURE_DAY = 10
 
-/** Twelve months of 28..42 cells. Loose on purpose: the point is the order of magnitude. */
+/**
+ * What twelve eagerly composed months of 28..42 cells used to cost on the first frame, before the
+ * year page's month column became lazy. Kept as the number the fix is measured against.
+ */
 private const val YEAR_EAGER_CELL_FLOOR = 400
+
+/**
+ * First-frame ceiling for the lazy year page, measured with [DAY_PROBE]'s deliberately tiny cell.
+ *
+ * The probe is [PROBE_SIZE] tall, so a month grid here is a few tens of dp and seven of the twelve
+ * months fit in the test window at once — a lazy list has to compose all of them, and the measured
+ * cost is 235. That is the *worst* case for this test, not a target: with a day cell of any realistic
+ * height (the built-in one is an order of magnitude taller) far fewer months are on screen and the
+ * count falls with them, which is the whole point of the container being lazy. The budget is
+ * therefore "materially below the eager cost", not a tight fit.
+ */
+private const val YEAR_LAZY_CELL_CEILING = 300
+
+/** A month grid is 4 to 6 rows of 7, depending on where the 1st falls and how long the month is. */
+private const val MONTH_GRID_MIN_CELLS = 28
+private const val MONTH_GRID_MAX_CELLS = 42
 
 private val FIXTURE_DATE = LocalDate(FIXTURE_YEAR, FIXTURE_MONTH, FIXTURE_DAY)
 
@@ -173,22 +192,36 @@ class KalendarRecompositionBenchmark {
     @Test
     fun monthComposesOneCellPerGridSlot() {
         val cells = countFirstComposition { KalendarMonth(selectedDate = FIXTURE_DATE, dayContent = DAY_PROBE) }
-        assertTrue(cells in 28..42, "KalendarMonth composed $cells day cells; a month grid is 28..42 slots")
+        assertTrue(
+            cells in MONTH_GRID_MIN_CELLS..MONTH_GRID_MAX_CELLS,
+            "KalendarMonth composed $cells day cells; a month grid is " +
+                "$MONTH_GRID_MIN_CELLS..$MONTH_GRID_MAX_CELLS slots",
+        )
     }
 
     /**
-     * Twelve month grids inside a non-lazy `verticalScroll` `Column`: every cell of every month is
-     * composed on the first frame, on screen or not. This pins that cost, so a future move to a
-     * lazy container shows up as a deliberate, visible drop rather than an unnoticed one.
+     * The year page composes the months on screen, not all twelve.
+     *
+     * Its month column used to be a non-lazy `verticalScroll` `Column`, which composed every cell of
+     * every month before the first frame whether it was visible or not — 404 cells here, against 37
+     * for a month and 7 for a week. It is now a `LazyColumn`, and this is the guard on that: a
+     * regression to an eager container puts the number straight back over
+     * [YEAR_EAGER_CELL_FLOOR].
+     *
+     * The month grid *inside* each item is still eager ([KalendarStaticGrid]) and must stay that
+     * way — a `LazyVerticalGrid` nested in a scrolling parent is measured with an unbounded height
+     * and crashes. Laziness belongs to the outer container only.
      */
     @Test
-    fun yearComposesEveryMonthEagerly() {
+    fun yearComposesOnlyTheMonthsOnScreen() {
         val cells = countFirstComposition { KalendarYear(selectedDate = FIXTURE_DATE, dayContent = DAY_PROBE) }
         assertTrue(
-            cells >= YEAR_EAGER_CELL_FLOOR,
-            "KalendarYear composed only $cells day cells; expected all twelve months eagerly " +
-                "(>= $YEAR_EAGER_CELL_FLOOR)",
+            cells < YEAR_LAZY_CELL_CEILING,
+            "KalendarYear composed $cells day cells on its first frame; the month column is composing " +
+                "more than the viewport needs (budget < $YEAR_LAZY_CELL_CEILING, eager cost was " +
+                "$YEAR_EAGER_CELL_FLOOR+)",
         )
+        assertTrue(cells >= MONTH_GRID_MIN_CELLS, "KalendarYear composed $cells day cells; at least one month should")
     }
 
     /**

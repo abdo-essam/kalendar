@@ -132,8 +132,12 @@ public fun KalendarTimeline(
         ) {
             items(count = state.itemCount, key = { index -> index }) { index ->
                 val monthStart = state.indexToDate(index)
-                val dates = remember(monthStart, state.startDayOfWeek) {
-                    monthGridDates(monthStart = monthStart, startDayOfWeek = state.startDayOfWeek)
+                val dates = remember(monthStart, state.startDayOfWeek, config.visibleDaysOfWeek) {
+                    monthGridDates(
+                        monthStart = monthStart,
+                        startDayOfWeek = state.startDayOfWeek,
+                        visibleDaysOfWeek = config.visibleDaysOfWeek,
+                    )
                 }
                 Column {
                     BasicText(
@@ -144,6 +148,7 @@ public fun KalendarTimeline(
                     KalendarStaticGrid(
                         dates = dates,
                         startDayOfWeek = state.startDayOfWeek,
+                        visibleDaysOfWeek = config.visibleDaysOfWeek,
                         dayOfWeekLabel = dayOfWeekLabel,
                     ) { date ->
                         val dateEvents = eventsByDate[date] ?: emptyList()

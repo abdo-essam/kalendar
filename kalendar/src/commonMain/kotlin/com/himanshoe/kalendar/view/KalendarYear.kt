@@ -21,20 +21,32 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
+
+/** Inset either side of a month grid on the year page, so twelve grids don't run edge to edge. */
+private val YEAR_MONTH_GRID_PADDING = 8.dp
+
+/**
+ * Test tag on the year page's scrolling list of months.
+ *
+ * The list is lazy, so a month below the viewport has no node for a test to find, let alone scroll
+ * to; a test reaches one by scrolling *this* node until the month it wants composes.
+ */
+internal const val YEAR_MONTH_LIST_TAG = "KalendarYearMonthList"
 
 /**
  * A year-overview calendar (all 12 months) navigable by both arrow-click and swipe.
@@ -72,7 +84,8 @@ import kotlinx.datetime.Month
  *   the event that row represents; the popover closes itself afterwards. Defaults to `null`, which
  *   leaves the popover a read-only list of what the cell could not show. Has no effect when
  *   [dayContent] replaces the built-in cell — a replacement cell owns its own popover, if any.
- * @param config Shared visual/behavioural settings — disabled dates, arrow visibility, background.
+ * @param config Shared visual/behavioural settings — disabled dates, arrow visibility, background,
+ *   and [KalendarViewConfig.visibleDaysOfWeek], applied to all twelve month grids alike.
  * @param header Replaces the navigation header above the year's months. Receives a
  *   [KalendarHeaderScope] carrying the formatted title and the navigation callbacks, so your own
  *   chrome keeps working arrows and today button. Defaults to [KalendarHeaderDefaults.Header]
@@ -127,14 +140,23 @@ public fun KalendarYear(
             modifier = Modifier.fillMaxWidth(),
         ) { page ->
             val yearStart = state.pageToDate(page)
-            Column(
-                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+            // Lazy, one item per month: a year is twelve month grids of up to 42 cells, and a
+            // non-lazy scrolling Column composed all ~404 of them before the first frame even
+            // though one or two months are ever on screen. The *inner* grid stays eager
+            // ([KalendarStaticGrid]) on purpose — a LazyVerticalGrid nested in a scrolling parent
+            // is measured with an unbounded height and crashes.
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().testTag(YEAR_MONTH_LIST_TAG),
                 verticalArrangement = Arrangement.spacedBy(dimensions.monthSpacing),
             ) {
-                Month.entries.forEach { month ->
+                items(items = Month.entries, key = { month -> month.ordinal }) { month ->
                     val monthStart = LocalDate(yearStart.year, month, 1)
-                    val dates = remember(monthStart, state.startDayOfWeek) {
-                        monthGridDates(monthStart = monthStart, startDayOfWeek = state.startDayOfWeek)
+                    val dates = remember(monthStart, state.startDayOfWeek, config.visibleDaysOfWeek) {
+                        monthGridDates(
+                            monthStart = monthStart,
+                            startDayOfWeek = state.startDayOfWeek,
+                            visibleDaysOfWeek = config.visibleDaysOfWeek,
+                        )
                     }
                     Column {
                         BasicText(
@@ -145,7 +167,8 @@ public fun KalendarYear(
                         KalendarStaticGrid(
                             dates = dates,
                             startDayOfWeek = state.startDayOfWeek,
-                            modifier = Modifier.padding(horizontal = 8.dp),
+                            modifier = Modifier.padding(horizontal = YEAR_MONTH_GRID_PADDING),
+                            visibleDaysOfWeek = config.visibleDaysOfWeek,
                             dayOfWeekLabel = dayOfWeekLabel,
                         ) { date ->
                             val dateEvents = eventsByDate[date] ?: emptyList()

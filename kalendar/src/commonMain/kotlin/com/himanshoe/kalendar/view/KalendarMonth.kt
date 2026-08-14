@@ -88,7 +88,9 @@ import kotlinx.datetime.plus
  *   this with the pressed date's events and the drop date — update your event source with the new
  *   date to complete the move. Dates without events fall through to [onDateRangeSelect]'s range
  *   behaviour, so both can be enabled together.
- * @param config Shared visual/behavioural settings — disabled dates, arrow visibility, background.
+ * @param config Shared visual/behavioural settings — disabled dates, arrow visibility, background,
+ *   and [KalendarViewConfig.visibleDaysOfWeek], which drops a weekday's column from the grid, its
+ *   header row and the keyboard's path through it.
  * @param header Replaces the navigation header above the grid. Receives a [KalendarHeaderScope]
  *   carrying the formatted title and the navigation callbacks, so your own chrome keeps working
  *   arrows and today button. Defaults to [KalendarHeaderDefaults.Header] driven by [config].
@@ -145,7 +147,9 @@ public fun KalendarMonth(
     val keyboard = rememberKalendarGridKeyboardState()
     val coroutineScope = rememberCoroutineScope()
     val visibleMonthStart = state.visibleDate.startOfMonth()
-    val periodDates = remember(visibleMonthStart) { monthDates(visibleMonthStart) }
+    val periodDates = remember(visibleMonthStart, config.visibleDaysOfWeek) {
+        monthDates(monthStart = visibleMonthStart, visibleDaysOfWeek = config.visibleDaysOfWeek)
+    }
 
     Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
         val title = remember(state.visibleDate) { monthTitle(state.visibleDate, config.monthNameFormatter) }
@@ -163,6 +167,7 @@ public fun KalendarMonth(
                 onRangeDrag = onDateRangeSelect,
                 onRangeDragEnd = onDateRangeSelectEnd,
                 monthNameFormatter = config.monthNameFormatter,
+                visibleDaysOfWeek = config.visibleDaysOfWeek,
             )
         ) {
             HorizontalPager(
@@ -170,8 +175,12 @@ public fun KalendarMonth(
                 modifier = Modifier.fillMaxWidth(),
             ) { page ->
                 val monthStart = state.pageToDate(page)
-                val dates = remember(monthStart, state.startDayOfWeek) {
-                    monthGridDates(monthStart = monthStart, startDayOfWeek = state.startDayOfWeek)
+                val dates = remember(monthStart, state.startDayOfWeek, config.visibleDaysOfWeek) {
+                    monthGridDates(
+                        monthStart = monthStart,
+                        startDayOfWeek = state.startDayOfWeek,
+                        visibleDaysOfWeek = config.visibleDaysOfWeek,
+                    )
                 }
                 KalendarGrid(
                     dates = dates,
@@ -182,6 +191,7 @@ public fun KalendarMonth(
                     onDateRangeDragEnd = onDateRangeSelectEnd,
                     hasEvents = { date -> eventsByDate[date]?.isNotEmpty() == true },
                     onEventDrop = gridEventDrop,
+                    visibleDaysOfWeek = config.visibleDaysOfWeek,
                     dayOfWeekLabel = dayOfWeekLabel,
                 ) { date ->
                     val dateEvents = eventsByDate[date] ?: emptyList()

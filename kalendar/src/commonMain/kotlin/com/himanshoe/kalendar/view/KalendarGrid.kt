@@ -77,11 +77,8 @@ internal const val SELECTION_INDICATOR_TAG = "KalendarSelectionIndicator"
  */
 internal const val KEYBOARD_FOCUS_RING_TAG = "KalendarKeyboardFocusRing"
 
-/** Columns in every calendar grid — one per day of the week. */
-private const val GRID_COLUMNS = 7
-
 /**
- * Fresh 7-column grid engine backing [KalendarWeek] and [KalendarMonth].
+ * Grid engine backing [KalendarWeek] and [KalendarMonth], one column per *visible* day of the week.
  *
  * When [selectedDate] is non-null, a single indicator shaped by [KalendarShapes.dayCell] is drawn
  * behind the grid and animates its position to that date's cell whenever [selectedDate] changes —
@@ -104,8 +101,10 @@ private const val GRID_COLUMNS = 7
  * range selection.
  *
  * [dayOfWeekLabel] supplies the *content* of each weekday column header; the grid itself still
- * measures and places one per column, in the same 7-column track as the day cells, so a replacement
- * label can never knock the header row out of alignment with the dates below it.
+ * measures and places one per column, in the same track as the day cells, so a replacement label can
+ * never knock the header row out of alignment with the dates below it. The column count comes from
+ * [visibleDaysOfWeek] — [dates] is expected to have been filtered by the same set, so a Mon–Fri
+ * calendar is five columns of five labels and five dates per row.
  *
  * When [keyboard] is non-null the grid takes part in keyboard navigation: it draws the roving focus
  * ring at [KalendarGridKeyboardState.focusedDate], reports itself to a screen reader as a grid of
@@ -127,6 +126,7 @@ internal fun KalendarGrid(
     onDateRangeDragEnd: (() -> Unit)? = null,
     hasEvents: (LocalDate) -> Boolean = { false },
     onEventDrop: ((from: LocalDate, to: LocalDate) -> Unit)? = null,
+    visibleDaysOfWeek: Set<DayOfWeek> = ALL_DAYS_OF_WEEK,
     dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
         KalendarHeaderDefaults.DayOfWeekLabel(dayOfWeek = dayOfWeek)
     },
@@ -136,7 +136,10 @@ internal fun KalendarGrid(
     val shapes = kalendarShapes()
     val dimensions = kalendarDimensions()
     val animations = kalendarAnimations()
-    val labelDays = remember(startDayOfWeek) { daysOfWeekStartingAt(startDayOfWeek) }
+    val labelDays = remember(startDayOfWeek, visibleDaysOfWeek) {
+        daysOfWeekStartingAt(startDayOfWeek = startDayOfWeek, visibleDaysOfWeek = visibleDaysOfWeek)
+    }
+    val columns = labelDays.size
     var containerCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val cellCoordinates = remember { mutableStateMapOf<LocalDate, LayoutCoordinates>() }
 
@@ -284,12 +287,12 @@ internal fun KalendarGrid(
             )
         }
 
-        val rowCount = (dates.size + GRID_COLUMNS - 1) / GRID_COLUMNS
+        val rowCount = (dates.size + columns - 1) / columns
         LazyVerticalGrid(
-            columns = GridCells.Fixed(GRID_COLUMNS),
+            columns = GridCells.Fixed(columns),
             modifier = Modifier
                 .fillMaxWidth()
-                .semantics { collectionInfo = CollectionInfo(rowCount = rowCount, columnCount = GRID_COLUMNS) },
+                .semantics { collectionInfo = CollectionInfo(rowCount = rowCount, columnCount = columns) },
             horizontalArrangement = Arrangement.Center,
             userScrollEnabled = false,
         ) {
@@ -310,9 +313,9 @@ internal fun KalendarGrid(
                         .then(if (keyboard == null) Modifier else Modifier.focusProperties { canFocus = false })
                         .semantics {
                             collectionItemInfo = CollectionItemInfo(
-                                rowIndex = index / GRID_COLUMNS,
+                                rowIndex = index / columns,
                                 rowSpan = 1,
-                                columnIndex = index % GRID_COLUMNS,
+                                columnIndex = index % columns,
                                 columnSpan = 1,
                             )
                         },
@@ -390,24 +393,29 @@ private fun dateAtOffset(
 
 /**
  * Eager (non-lazy) variant of [KalendarGrid] for use inside another scrollable container — e.g.
- * [KalendarTimeline]'s `LazyColumn` items — where a nested `LazyVerticalGrid` would be measured
- * with an unbounded height and crash. A month grid is at most 42 cells, cheap enough to compose
- * eagerly.
+ * [KalendarTimeline]'s and [KalendarYear]'s `LazyColumn` items — where a nested `LazyVerticalGrid`
+ * would be measured with an unbounded height and crash. A month grid is at most 42 cells, cheap
+ * enough to compose eagerly once the container around it only asks for the months on screen.
  *
  * As in [KalendarGrid], [dayOfWeekLabel] supplies only the content of each weekday column header —
- * this grid keeps the `weight(1f)` column placement, so alignment with the day cells is preserved.
+ * this grid keeps the `weight(1f)` column placement, so alignment with the day cells is preserved —
+ * and [visibleDaysOfWeek] sets the column count, [dates] being expected to carry the same filter.
  */
 @Composable
 internal fun KalendarStaticGrid(
     dates: List<LocalDate>,
     startDayOfWeek: DayOfWeek,
     modifier: Modifier = Modifier,
+    visibleDaysOfWeek: Set<DayOfWeek> = ALL_DAYS_OF_WEEK,
     dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
         KalendarHeaderDefaults.DayOfWeekLabel(dayOfWeek = dayOfWeek)
     },
     cell: @Composable (LocalDate) -> Unit,
 ) {
-    val labelDays = remember(startDayOfWeek) { daysOfWeekStartingAt(startDayOfWeek) }
+    val labelDays = remember(startDayOfWeek, visibleDaysOfWeek) {
+        daysOfWeekStartingAt(startDayOfWeek = startDayOfWeek, visibleDaysOfWeek = visibleDaysOfWeek)
+    }
+    val columns = labelDays.size
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -417,9 +425,9 @@ internal fun KalendarStaticGrid(
                 }
             }
         }
-        dates.chunked(7).forEach { week ->
+        dates.chunked(columns).forEach { week ->
             Row(modifier = Modifier.fillMaxWidth()) {
-                for (dayIndex in 0 until 7) {
+                for (dayIndex in 0 until columns) {
                     Box(modifier = Modifier.weight(1f)) {
                         val date = week.getOrNull(dayIndex)
                         if (date != null) {
