@@ -93,6 +93,13 @@ kotlin {
             implementation(compose.desktop.currentOs)
 //            implementation(libs.kotlinx.coroutines.swing)
         }
+        named("desktopTest") {
+            dependencies {
+                implementation(libs.kotlin.test)
+                implementation(compose.desktop.uiTestJUnit4)
+                implementation(compose.desktop.currentOs)
+            }
+        }
     }
 }
 
