@@ -17,8 +17,10 @@
 package com.himanshoe.kalendar.view
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -26,6 +28,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.use
 import kotlinx.datetime.LocalDate
@@ -176,13 +179,55 @@ class KalendarNoMaterialThemeTest {
         rule.onNodeWithText(APRIL_TITLE).assertIsDisplayed()
     }
 
-    private fun renderMonth(typography: KalendarTypography): RenderedPixels = renderToPixels {
-        KalendarTheme(
-            colors = brandColors(),
-            typography = typography,
-            animations = KalendarAnimations(enabled = false),
-        ) {
-            KalendarMonth(selectedDate = MARCH_TENTH)
+    /**
+     * The navigation chevrons are drawn rather than supplied by an auto-mirroring icon set, so RTL
+     * has to be handled explicitly: "previous" points left in LTR and right in RTL.
+     */
+    @Test
+    fun noMaterialTheme_navigationChevronsMirrorInRtl() {
+        val ltr = renderMonth(
+            typography = brandTypography(dayNumberSize = DAY_NUMBER_SIZE),
+            layoutDirection = LayoutDirection.Ltr,
+        )
+        val rtl = renderMonth(
+            typography = brandTypography(dayNumberSize = DAY_NUMBER_SIZE),
+            layoutDirection = LayoutDirection.Rtl,
+        )
+
+        // In LTR the previous-page button is the leading one, at the left edge; in RTL "leading"
+        // is the right edge, so the same button lands in the mirrored slot.
+        assertEquals(
+            TIP_LEFT,
+            ltr.chevronTipSide(
+                color = BRAND_HEADER_CONTENT,
+                fromX = LEADING_SLOT_START,
+                toX = LEADING_SLOT_END,
+            ),
+            "in LTR the previous-page chevron must point left",
+        )
+        assertEquals(
+            TIP_RIGHT,
+            rtl.chevronTipSide(
+                color = BRAND_HEADER_CONTENT,
+                fromX = WIDTH - LEADING_SLOT_END,
+                toX = WIDTH - LEADING_SLOT_START,
+            ),
+            "in RTL the previous-page chevron must point right",
+        )
+    }
+
+    private fun renderMonth(
+        typography: KalendarTypography,
+        layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+    ): RenderedPixels = renderToPixels {
+        CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
+            KalendarTheme(
+                colors = brandColors(),
+                typography = typography,
+                animations = KalendarAnimations(enabled = false),
+            ) {
+                KalendarMonth(selectedDate = MARCH_TENTH)
+            }
         }
     }
 
@@ -209,15 +254,34 @@ class KalendarNoMaterialThemeTest {
 
         fun colorAt(x: Int, y: Int): Int = argb[y * width + x]
 
+        /**
+         * Which way a chevron drawn inside `[fromX, toX)` of the header's icon band points:
+         * [TIP_LEFT] or [TIP_RIGHT].
+         *
+         * Both of a chevron's strokes run the glyph's full width, so its ink is spread evenly across
+         * columns and a centre of mass says nothing. What distinguishes the two ends is vertical
+         * extent: the strokes meet at the tip and splay apart at the base, so the tip column is the
+         * narrow one.
+         */
+        fun chevronTipSide(color: Color, fromX: Int, toX: Int): Int {
+            val spreads = (fromX until toX).mapNotNull { x ->
+                val ys = (ICON_BAND_TOP until ICON_BAND_BOTTOM)
+                    .filter { y -> matches(argb[y * width + x], color) }
+                if (ys.isEmpty()) null else ys.max() - ys.min()
+            }
+            check(spreads.isNotEmpty()) { "no chevron ink found in x $fromX..$toX" }
+            return if (spreads.first() < spreads.last()) TIP_LEFT else TIP_RIGHT
+        }
+
         /** How many pixels are [color], within [CHANNEL_TOLERANCE] per channel for antialiasing. */
-        fun count(color: Color): Int {
+        fun count(color: Color): Int = argb.count { pixel -> matches(pixel, color) }
+
+        private fun matches(pixel: Int, color: Color): Boolean {
             val target = color.toArgbInt()
-            return argb.count { pixel ->
-                CHANNEL_SHIFTS.all { shift ->
-                    val a = (pixel shr shift) and CHANNEL_MASK
-                    val b = (target shr shift) and CHANNEL_MASK
-                    kotlin.math.abs(a - b) <= CHANNEL_TOLERANCE
-                }
+            return CHANNEL_SHIFTS.all { shift ->
+                val a = (pixel shr shift) and CHANNEL_MASK
+                val b = (target shr shift) and CHANNEL_MASK
+                kotlin.math.abs(a - b) <= CHANNEL_TOLERANCE
             }
         }
     }
@@ -270,6 +334,16 @@ class KalendarNoMaterialThemeTest {
         const val WIDTH = 420
         const val HEIGHT = 480
         const val CORNER_PROBE = 2
+
+        // The header's icon row: KalendarDimensions.headerPadding is 4dp horizontal / 8dp vertical
+        // around a 48dp slot holding a 24dp glyph, all at density 1.
+        const val ICON_BAND_TOP = 18
+        const val ICON_BAND_BOTTOM = 46
+        const val LEADING_SLOT_START = 4
+        const val LEADING_SLOT_END = 52
+
+        const val TIP_LEFT = -1
+        const val TIP_RIGHT = 1
         const val SETTLE_FRAME_NANOS = 1_000_000_000L
         const val CHANNEL_TOLERANCE = 6
         const val CHANNEL_MASK = 0xFF
