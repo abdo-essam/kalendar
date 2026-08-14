@@ -32,7 +32,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Text
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
@@ -327,10 +327,9 @@ public object KalendarDayCellDefaults {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text(
+                BasicText(
                     text = scope.date.dayOfMonth.toString(),
-                    color = textColor,
-                    style = textStyle,
+                    style = textStyle.copy(color = textColor),
                 )
                 val hasEvents = scope.events.isNotEmpty()
                 if (animations.enabled) {
@@ -388,10 +387,11 @@ private fun EventIndicatorRow(
             )
         }
         if (scope.events.size > maxEventIndicators) {
-            Text(
+            BasicText(
                 text = "+${scope.events.size - maxEventIndicators}",
-                style = typography.eventOverflowLabel,
-                color = if (scope.isSelected) textColor else colors.eventIndicator,
+                style = typography.eventOverflowLabel.copy(
+                    color = if (scope.isSelected) textColor else colors.eventIndicator,
+                ),
             )
         }
     }

@@ -77,8 +77,9 @@ kotlin {
             implementation(compose.runtime)
             implementation(compose.ui)
             implementation(compose.foundation)
+            // Views render entirely in Foundation; material3 is consulted only by
+            // KalendarThemeDefaults, to derive default token values from the host app's theme.
             implementation(compose.material3)
-            implementation(compose.materialIconsExtended)
             implementation(libs.kotlinx.datetime)
             api(project(":kalendar-foundation"))
         }

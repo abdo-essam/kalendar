@@ -23,25 +23,21 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Today
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -51,11 +47,24 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import kotlinx.coroutines.CoroutineScope
@@ -68,7 +77,36 @@ import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 
 private const val JUMP_PICKER_MONTH_COLUMNS = 4
-private const val JUMP_PICKER_CLICK_LABEL = "Open the month and year picker"
+private const val JUMP_PICKER_MONTH_ABBREVIATION_LENGTH = 3
+private val JUMP_PICKER_PADDING = 8.dp
+private val JUMP_PICKER_MONTH_WIDTH = 72.dp
+private val JUMP_PICKER_MONTH_HEIGHT = 40.dp
+
+/**
+ * The touch target every header control keeps, whatever [KalendarDimensions.headerIconSlotWidth] is
+ * set to. Shrinking a button below this is an accessibility failure, not a style choice, so the slot
+ * width raises the target but never lowers it.
+ */
+private val MIN_TOUCH_TARGET = 48.dp
+
+private val ICON_SIZE = 24.dp
+private val ICON_STROKE_WIDTH = 2.dp
+
+private const val CHEVRON_TIP_FRACTION = 0.375f
+private const val CHEVRON_BASE_FRACTION = 0.625f
+private const val CHEVRON_TOP_FRACTION = 0.27f
+private const val CHEVRON_BOTTOM_FRACTION = 0.73f
+private const val CHEVRON_MID_FRACTION = 0.5f
+
+private const val TODAY_LEFT_FRACTION = 0.125f
+private const val TODAY_RIGHT_FRACTION = 0.875f
+private const val TODAY_TOP_FRACTION = 0.167f
+private const val TODAY_BOTTOM_FRACTION = 0.917f
+private const val TODAY_CORNER_FRACTION = 0.125f
+private const val TODAY_BAR_BOTTOM_FRACTION = 0.333f
+private const val TODAY_DOT_CENTER_X_FRACTION = 0.396f
+private const val TODAY_DOT_CENTER_Y_FRACTION = 0.521f
+private const val TODAY_DOT_RADIUS_FRACTION = 0.104f
 
 /**
  * [KalendarHeaderScope] over a pager-backed [KalendarViewState] — the state behind [KalendarWeek],
@@ -223,6 +261,14 @@ public object KalendarHeaderDefaults {
      * @param showJumpPicker Whether tapping the title opens the month/year jump picker.
      * @param monthNameFormatter Formats the month names inside the jump picker. See
      *   [KalendarViewConfig.monthNameFormatter].
+     * @param previousIcon The glyph inside the previous-page button. Defaults to a chevron drawn
+     *   with Compose Foundation in [KalendarColors.headerContent], mirrored in RTL. The button
+     *   around it — its touch target, its click, and its accessibility label — belongs to the
+     *   header, so a replacement only draws.
+     * @param nextIcon The glyph inside the next-page button. Defaults to [previousIcon]'s chevron
+     *   pointing the other way.
+     * @param todayIcon The glyph inside the today button. Defaults to a calendar page drawn with
+     *   Compose Foundation in [KalendarColors.headerContent].
      */
     @Composable
     public fun Header(
@@ -232,9 +278,13 @@ public object KalendarHeaderDefaults {
         showTodayButton: Boolean = true,
         showJumpPicker: Boolean = true,
         monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
+        previousIcon: @Composable () -> Unit = { KalendarChevronIcon(forward = false) },
+        nextIcon: @Composable () -> Unit = { KalendarChevronIcon(forward = true) },
+        todayIcon: @Composable () -> Unit = { KalendarTodayIcon() },
     ) {
         val colors = kalendarColors()
         val dimensions = kalendarDimensions()
+        val strings = kalendarStrings()
         var pickerOpen by remember { mutableStateOf(false) }
         // One slot is one [IconButton]'s touch target — deliberately tight (no extra gap padding)
         // since it is subtracted from the title's available width on narrow phones (~320.dp) too; a
@@ -253,15 +303,14 @@ public object KalendarHeaderDefaults {
                 contentAlignment = Alignment.Center,
             ) {
                 AnimatedHeaderTitle(title = scope.title) { animatedTitle ->
-                    Text(
+                    BasicText(
                         text = animatedTitle,
-                        style = kalendarTypography().headerTitle,
-                        color = colors.headerContent,
+                        style = kalendarTypography().headerTitle.copy(color = colors.headerContent),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = if (showJumpPicker) {
                             Modifier.clickable(
-                                onClickLabel = JUMP_PICKER_CLICK_LABEL,
+                                onClickLabel = strings.openJumpPicker,
                                 role = Role.Button,
                             ) { pickerOpen = true }
                         } else {
@@ -288,40 +337,30 @@ public object KalendarHeaderDefaults {
             }
 
             if (showNavigationArrows) {
-                IconButton(
+                HeaderIconButton(
+                    label = strings.previousPage,
                     enabled = scope.canScrollBackward,
                     onClick = scope::goToPreviousPage,
                     modifier = Modifier.align(Alignment.CenterStart),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        contentDescription = "Previous",
-                        tint = colors.headerContent,
-                    )
-                }
+                    content = previousIcon,
+                )
             }
 
             Row(modifier = Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
                 if (showTodayButton) {
-                    IconButton(onClick = scope::goToToday) {
-                        Icon(
-                            imageVector = Icons.Filled.Today,
-                            contentDescription = "Today",
-                            tint = colors.headerContent,
-                        )
-                    }
+                    HeaderIconButton(
+                        label = strings.today,
+                        onClick = scope::goToToday,
+                        content = todayIcon,
+                    )
                 }
                 if (showNavigationArrows) {
-                    IconButton(
+                    HeaderIconButton(
+                        label = strings.nextPage,
                         enabled = scope.canScrollForward,
                         onClick = scope::goToNextPage,
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = "Next",
-                            tint = colors.headerContent,
-                        )
-                    }
+                        content = nextIcon,
+                    )
                 }
             }
         }
@@ -364,23 +403,25 @@ public object KalendarHeaderDefaults {
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 AnimatedHeaderTitle(title = scope.title) { animatedTitle ->
-                    Text(
+                    BasicText(
                         text = animatedTitle,
-                        style = typography.headerTitle,
-                        color = colors.headerContent,
+                        style = typography.headerTitle.copy(color = colors.headerContent),
                     )
                 }
                 if (showTodayButton) {
-                    IconButton(onClick = scope::goToToday) {
-                        Icon(
-                            imageVector = Icons.Filled.Today,
-                            contentDescription = "Today",
-                            tint = colors.headerContent,
-                        )
-                    }
+                    HeaderIconButton(
+                        label = kalendarStrings().today,
+                        onClick = scope::goToToday,
+                        content = { KalendarTodayIcon() },
+                    )
                 }
             }
-            HorizontalDivider(color = colors.gridLine)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(dimensions.gridLineThickness)
+                    .background(colors.gridLine),
+            )
         }
     }
 
@@ -405,11 +446,12 @@ public object KalendarHeaderDefaults {
         modifier: Modifier = Modifier,
         formatter: (DayOfWeek) -> String = defaultDayOfWeekLabelFormatter,
     ) {
-        Text(
+        BasicText(
             text = formatter(dayOfWeek),
-            style = kalendarTypography().dayOfWeekLabel,
-            color = kalendarColors().dayLabelContent,
-            textAlign = TextAlign.Center,
+            style = kalendarTypography().dayOfWeekLabel.copy(
+                color = kalendarColors().dayLabelContent,
+                textAlign = TextAlign.Center,
+            ),
             modifier = modifier.fillMaxWidth(),
         )
     }
@@ -469,6 +511,10 @@ private fun AnimatedHeaderTitle(
 /**
  * The month/year jump popup opened by tapping the header title: a year stepper above a 4x3 grid
  * of month names; choosing a month closes the popup and scrolls the calendar to that month.
+ *
+ * The popup floats over the calendar, so it needs an opaque fill of its own —
+ * [KalendarColors.popupBackground], outlined with [KalendarColors.popupBorder] so it stays
+ * distinguishable from a background of a similar shade.
  */
 @Composable
 private fun JumpPicker(
@@ -477,46 +523,177 @@ private fun JumpPicker(
     onMonthSelected: (year: Int, month: Month) -> Unit,
 ) {
     val colors = kalendarColors()
+    val typography = kalendarTypography()
+    val shapes = kalendarShapes()
+    val strings = kalendarStrings()
     var year by remember { mutableIntStateOf(initialYear) }
-    Surface(
-        shape = kalendarShapes().popup,
-        tonalElevation = 3.dp,
-        shadowElevation = 6.dp,
+    Box(
+        modifier = Modifier
+            .clip(shapes.popup)
+            .background(colors.popupBackground)
+            .border(
+                width = kalendarDimensions().gridLineThickness,
+                color = colors.popupBorder,
+                shape = shapes.popup,
+            ),
     ) {
-        Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            modifier = Modifier.padding(JUMP_PICKER_PADDING),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { year-- }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        contentDescription = "Previous year",
-                        tint = colors.headerContent,
-                    )
-                }
-                Text(
-                    text = year.toString(),
-                    style = kalendarTypography().headerTitle,
-                    modifier = Modifier.padding(horizontal = 8.dp),
+                HeaderIconButton(
+                    label = strings.previousYear,
+                    onClick = { year-- },
+                    content = { KalendarChevronIcon(forward = false) },
                 )
-                IconButton(onClick = { year++ }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = "Next year",
-                        tint = colors.headerContent,
-                    )
-                }
+                BasicText(
+                    text = year.toString(),
+                    style = typography.headerTitle.copy(color = colors.headerContent),
+                    modifier = Modifier.padding(horizontal = JUMP_PICKER_PADDING),
+                )
+                HeaderIconButton(
+                    label = strings.nextYear,
+                    onClick = { year++ },
+                    content = { KalendarChevronIcon(forward = true) },
+                )
             }
             Month.entries.chunked(JUMP_PICKER_MONTH_COLUMNS).forEach { rowMonths ->
                 Row {
                     rowMonths.forEach { month ->
-                        TextButton(
-                            onClick = { onMonthSelected(year, month) },
-                            modifier = Modifier.width(72.dp),
+                        Box(
+                            modifier = Modifier
+                                .width(JUMP_PICKER_MONTH_WIDTH)
+                                .height(JUMP_PICKER_MONTH_HEIGHT)
+                                .clickable(role = Role.Button) { onMonthSelected(year, month) },
+                            contentAlignment = Alignment.Center,
                         ) {
-                            Text(text = monthNameFormatter(month).take(3))
+                            BasicText(
+                                text = monthNameFormatter(month).take(JUMP_PICKER_MONTH_ABBREVIATION_LENGTH),
+                                style = typography.monthLabel.copy(color = colors.headerContent),
+                            )
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * One header control: a [MIN_TOUCH_TARGET]-or-larger square carrying the click, the [Role.Button]
+ * role and the accessibility label, with [content] centered inside it.
+ *
+ * The label lives here rather than on the glyph so that a caller-supplied icon slot stays
+ * accessible without having to know anything about semantics.
+ */
+@Composable
+private fun HeaderIconButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .sizeIn(minWidth = MIN_TOUCH_TARGET, minHeight = MIN_TOUCH_TARGET)
+            .size(kalendarDimensions().headerIconSlotWidth)
+            .semantics { contentDescription = label }
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
+    }
+}
+
+/**
+ * The built-in navigation chevron, drawn as two strokes in [KalendarColors.headerContent] so the
+ * library needs no icon dependency.
+ *
+ * [forward] is a reading-order direction, not a screen direction: a forward chevron points right
+ * in LTR and left in RTL, which is why the glyph is drawn pointing left and mirrored from
+ * [LocalLayoutDirection] rather than baked into a fixed path.
+ */
+@Composable
+private fun KalendarChevronIcon(forward: Boolean) {
+    val tint = kalendarColors().headerContent
+    val pointsRight = forward == (LocalLayoutDirection.current == LayoutDirection.Ltr)
+    Canvas(
+        modifier = Modifier
+            .size(ICON_SIZE)
+            .scale(
+                scaleX = if (pointsRight) -1f else 1f,
+                scaleY = 1f,
+            ),
+    ) {
+        val baseX = size.width * CHEVRON_BASE_FRACTION
+        val tipX = size.width * CHEVRON_TIP_FRACTION
+        val midY = size.height * CHEVRON_MID_FRACTION
+        val strokeWidth = ICON_STROKE_WIDTH.toPx()
+        drawLine(
+            color = tint,
+            start = Offset(x = baseX, y = size.height * CHEVRON_TOP_FRACTION),
+            end = Offset(x = tipX, y = midY),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round,
+        )
+        drawLine(
+            color = tint,
+            start = Offset(x = tipX, y = midY),
+            end = Offset(x = baseX, y = size.height * CHEVRON_BOTTOM_FRACTION),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round,
+        )
+    }
+}
+
+/**
+ * The built-in today glyph, drawn in [KalendarColors.headerContent] as a calendar page — an
+ * outlined rounded rectangle, a filled header bar across its top, and a dot marking a date — so the
+ * library needs no icon dependency. It is direction-neutral and therefore never mirrored.
+ */
+@Composable
+private fun KalendarTodayIcon() {
+    val tint = kalendarColors().headerContent
+    Canvas(modifier = Modifier.size(ICON_SIZE)) {
+        val left = size.width * TODAY_LEFT_FRACTION
+        val right = size.width * TODAY_RIGHT_FRACTION
+        val top = size.height * TODAY_TOP_FRACTION
+        val bottom = size.height * TODAY_BOTTOM_FRACTION
+        val corner = CornerRadius(size.width * TODAY_CORNER_FRACTION)
+        val strokeWidth = ICON_STROKE_WIDTH.toPx()
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(x = left, y = top),
+            size = Size(width = right - left, height = bottom - top),
+            cornerRadius = corner,
+            style = Stroke(width = strokeWidth),
+        )
+        drawPath(
+            path = Path().apply {
+                addRoundRect(
+                    RoundRect(
+                        left = left,
+                        top = top,
+                        right = right,
+                        bottom = size.height * TODAY_BAR_BOTTOM_FRACTION,
+                        topLeftCornerRadius = corner,
+                        topRightCornerRadius = corner,
+                        bottomLeftCornerRadius = CornerRadius.Zero,
+                        bottomRightCornerRadius = CornerRadius.Zero,
+                    ),
+                )
+            },
+            color = tint,
+        )
+        drawCircle(
+            color = tint,
+            radius = size.width * TODAY_DOT_RADIUS_FRACTION,
+            center = Offset(
+                x = size.width * TODAY_DOT_CENTER_X_FRACTION,
+                y = size.height * TODAY_DOT_CENTER_Y_FRACTION,
+            ),
+        )
     }
 }

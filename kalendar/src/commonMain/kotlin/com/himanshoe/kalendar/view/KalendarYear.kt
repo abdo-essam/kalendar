@@ -23,8 +23,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -128,9 +128,9 @@ public fun KalendarYear(
                         monthGridDates(monthStart = monthStart, startDayOfWeek = state.startDayOfWeek)
                     }
                     Column {
-                        Text(
+                        BasicText(
                             text = config.monthNameFormatter(monthStart.month),
-                            style = kalendarTypography().monthLabel,
+                            style = kalendarTypography().monthLabel.copy(color = colors.headerContent),
                             modifier = Modifier.padding(dimensions.sectionPadding),
                         )
                         KalendarStaticGrid(

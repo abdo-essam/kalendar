@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,10 +31,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -346,9 +345,9 @@ public object KalendarScheduleDefaults {
                 .background(accent.copy(alpha = backgroundAlpha)),
         ) {
             Box(modifier = Modifier.width(dimensions.eventBlockAccentWidth).fillMaxSize().background(accent))
-            Text(
+            BasicText(
                 text = scope.event.eventName,
-                style = kalendarTypography().eventLabel,
+                style = kalendarTypography().eventLabel.copy(color = colors.dayContent),
                 maxLines = EVENT_LABEL_MAX_LINES,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(dimensions.eventBlockPadding),
@@ -370,9 +369,9 @@ public object KalendarScheduleDefaults {
     public fun AllDayChip(event: KalendarEvent, modifier: Modifier = Modifier, prefix: String? = null) {
         val colors = kalendarColors()
         val accent = event.eventColor ?: colors.eventIndicator
-        Text(
+        BasicText(
             text = prefix?.let { "$it · ${event.eventName}" } ?: event.eventName,
-            style = kalendarTypography().eventLabel,
+            style = kalendarTypography().eventLabel.copy(color = colors.dayContent),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = modifier
@@ -393,10 +392,9 @@ public object KalendarScheduleDefaults {
      */
     @Composable
     public fun HourLabel(hour: Int, formatter: (Int) -> String, modifier: Modifier = Modifier) {
-        Text(
+        BasicText(
             text = formatter(hour),
-            style = kalendarTypography().hourLabel,
-            color = kalendarColors().dayLabelContent,
+            style = kalendarTypography().hourLabel.copy(color = kalendarColors().dayLabelContent),
             modifier = modifier,
         )
     }
@@ -424,15 +422,15 @@ public object KalendarScheduleDefaults {
             modifier = modifier.padding(vertical = WEEK_DAY_HEADER_PADDING),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
+            BasicText(
                 text = dayOfWeekLabelFormatter(date.dayOfWeek),
-                style = typography.dayOfWeekLabel,
-                color = colors.dayLabelContent,
+                style = typography.dayOfWeekLabel.copy(color = colors.dayLabelContent),
             )
-            Text(
+            BasicText(
                 text = date.dayOfMonth.toString(),
-                style = typography.weekDayNumber,
-                color = if (isToday) colors.todayContent else colors.dayContent,
+                style = typography.weekDayNumber.copy(
+                    color = if (isToday) colors.todayContent else colors.dayContent,
+                ),
             )
         }
     }
@@ -446,12 +444,35 @@ public object KalendarScheduleDefaults {
      */
     @Composable
     public fun NowIndicator(modifier: Modifier = Modifier) {
-        HorizontalDivider(
-            thickness = kalendarDimensions().nowIndicatorThickness,
-            color = kalendarColors().nowIndicator,
-            modifier = modifier,
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(kalendarDimensions().nowIndicatorThickness)
+                .background(kalendarColors().nowIndicator),
         )
     }
+}
+
+/** The hour lines and separators the Schedule views rule across the grid. */
+@Composable
+private fun ScheduleGridLine(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(kalendarDimensions().gridLineThickness)
+            .background(kalendarColors().gridLine),
+    )
+}
+
+/** [ScheduleGridLine]'s vertical twin, separating one day column from the next. */
+@Composable
+private fun ScheduleColumnDivider(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .width(kalendarDimensions().gridLineThickness)
+            .background(kalendarColors().gridLine),
+    )
 }
 
 private const val EVENT_LABEL_MAX_LINES = 2
@@ -483,7 +504,6 @@ private fun ScheduleWeekPage(
     }
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
-    val colors = kalendarColors()
     val dimensions = kalendarDimensions()
 
     LaunchedEffect(weekStart) {
@@ -506,10 +526,7 @@ private fun ScheduleWeekPage(
                 chipContent = allDayEventContent,
             )
         }
-        HorizontalDivider(
-            thickness = dimensions.gridLineThickness,
-            color = colors.gridLine,
-        )
+        ScheduleGridLine()
         Row(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState)) {
             HourGutter(hourHeight = hourHeight, hourLabel = hourLabel)
             days.forEach { day ->
@@ -518,10 +535,7 @@ private fun ScheduleWeekPage(
                 }
                 Box(modifier = Modifier.weight(1f).height(hourHeight * HOURS_PER_DAY)) {
                     HourLines(hourHeight = hourHeight)
-                    VerticalDivider(
-                        thickness = dimensions.gridLineThickness,
-                        color = colors.gridLine,
-                    )
+                    ScheduleColumnDivider()
                     ScheduleBlockLayout(
                         blocks = blocks,
                         hourHeight = hourHeight,
@@ -580,8 +594,6 @@ private fun SchedulePage(
     val blocks = remember(dayEvents, day) { scheduleBlocks(events = dayEvents, date = day) }
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
-    val colors = kalendarColors()
-    val dimensions = kalendarDimensions()
 
     LaunchedEffect(day) {
         scrollState.scrollTo(with(density) { (hourHeight * config.scheduleInitialScrollHour).roundToPx() })
@@ -594,10 +606,7 @@ private fun SchedulePage(
                 onEventClick = onEventClick,
                 chipContent = allDayEventContent,
             )
-            HorizontalDivider(
-                thickness = dimensions.gridLineThickness,
-                color = colors.gridLine,
-            )
+            ScheduleGridLine()
         }
         Row(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState)) {
             HourGutter(hourHeight = hourHeight, hourLabel = hourLabel)
@@ -654,14 +663,10 @@ private fun HourGutter(hourHeight: Dp, hourLabel: @Composable (Int) -> Unit) {
 
 @Composable
 private fun HourLines(hourHeight: Dp) {
-    val gridLineColor = kalendarColors().gridLine
     val gridLineThickness = kalendarDimensions().gridLineThickness
     Column(modifier = Modifier.fillMaxSize()) {
         repeat(HOURS_PER_DAY) {
-            HorizontalDivider(
-                thickness = gridLineThickness,
-                color = gridLineColor,
-            )
+            ScheduleGridLine()
             Box(modifier = Modifier.height(hourHeight - gridLineThickness))
         }
     }

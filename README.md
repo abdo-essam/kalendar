@@ -45,14 +45,14 @@ settings the first time.) The same deployment also publishes the Dokka API refer
 
 ## Standalone views (recommended)
 
-- **[KalendarMonth](doc/Month.md)**: full month grid, arrow-click and swipe navigation together.
-- **[KalendarWeek](doc/Week.md)**: single week row, arrow-click and swipe navigation together.
-- **[KalendarYear](doc/Year.md)**: 12-month year overview, arrow-click and swipe navigation together.
-- **[KalendarTimeline](doc/Timeline.md)**: continuous, boundless vertical scroll through every month — no paging.
-- **[KalendarSchedule](doc/Schedule.md)**: hourly time grid for a single day — duration-sized event blocks, overlap packing, and a now-indicator.
-- **[KalendarScheduleWeek](doc/Schedule.md#week-variant)**: the 7-day variant — day columns sharing one hour gutter.
+- **[KalendarMonth](docs/views/month.md)**: full month grid, arrow-click and swipe navigation together.
+- **[KalendarWeek](docs/views/week.md)**: single week row, arrow-click and swipe navigation together.
+- **[KalendarYear](docs/views/year.md)**: 12-month year overview, arrow-click and swipe navigation together.
+- **[KalendarTimeline](docs/views/timeline.md)**: continuous, boundless vertical scroll through every month — no paging.
+- **[KalendarSchedule](docs/views/schedule.md)**: hourly time grid for a single day — duration-sized event blocks, overlap packing, and a now-indicator.
+- **[KalendarScheduleWeek](docs/views/schedule-week.md)**: the 7-day variant — day columns sharing one hour gutter.
 
-All views are restylable via **[KalendarTheme](doc/Theme.md)** colour tokens — no Material dependency required in your app's design system.
+All views are restylable via **[KalendarTheme](docs/theming.md)** colour tokens — no Material dependency required in your app's design system.
 
 These are called directly (`KalendarMonth(...)`, not `Kalendar(type = ...)`). They use the event
 model from `kalendar-foundation` (`KalendarEvent`/`BasicKalendarEvent`), which `kalendar`
@@ -62,12 +62,12 @@ docs for usage.
 ## Kalendar(type = ...)
 
 The only remaining [`KalendarType`](kalendar/src/commonMain/kotlin/com/himanshoe/kalendar/KalendarType.kt)
-is **[Agenda](doc/Agenda.md)** — a scrollable event list grouped by date. Month/week/year grids are
+is **[Agenda](docs/views/agenda.md)** — a scrollable event list grouped by date. Month/week/year grids are
 the standalone views above, not `KalendarType` values.
 
 ## Device calendar sync
 
-**[kalendar-sync](doc/Sync.md)**: reads, writes, and exports events from the device's real calendar
+**[kalendar-sync](docs/sync.md)**: reads, writes, and exports events from the device's real calendar
 (Android `CalendarContract`, iOS EventKit, a file-backed `.ics` provider on Desktop) — no
 third-party account required. Includes RFC 5545 recurrence and iCal import/export, and is
 independent of `kalendar`/`kalendar-foundation`.
@@ -130,7 +130,7 @@ sourceSets {
 
 ## 📖Documentation
 
-You can find it here: [Kalendar Documentation](doc/)
+You can find it here: [Kalendar Documentation](https://hi-manshu.github.io/Kalendar/)
 
 
 

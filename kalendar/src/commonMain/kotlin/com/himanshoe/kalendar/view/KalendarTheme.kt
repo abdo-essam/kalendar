@@ -71,6 +71,10 @@ import androidx.compose.ui.unit.sp
  * @property nowIndicator The current-time line on [KalendarSchedule].
  * @property gridLine Hour lines and separators on [KalendarSchedule].
  * @property dragGhostBackground Fill of the drop-target ghost while dragging an event.
+ * @property popupBackground Fill behind the month/year jump picker. It has to be opaque, since the
+ *   picker floats over the calendar.
+ * @property popupBorder The jump picker's hairline outline, which separates it from the calendar
+ *   underneath. Set it to [Color.Transparent] to drop the outline.
  * @property disabledContentAlpha Opacity applied to a day cell that
  *   [KalendarViewConfig.disabledDates] rejected, and to adjacent-month dates.
  * @property eventBlockAlpha Opacity of an event block's fill, applied over the event's accent
@@ -92,6 +96,8 @@ public class KalendarColors(
     public val nowIndicator: Color,
     public val gridLine: Color,
     public val dragGhostBackground: Color,
+    public val popupBackground: Color,
+    public val popupBorder: Color,
     public val disabledContentAlpha: Float = DEFAULT_DISABLED_ALPHA,
     public val eventBlockAlpha: Float = DEFAULT_EVENT_BLOCK_ALPHA,
     public val eventBlockDraggingAlpha: Float = DEFAULT_EVENT_BLOCK_DRAGGING_ALPHA,
@@ -111,6 +117,8 @@ public class KalendarColors(
         nowIndicator: Color = this.nowIndicator,
         gridLine: Color = this.gridLine,
         dragGhostBackground: Color = this.dragGhostBackground,
+        popupBackground: Color = this.popupBackground,
+        popupBorder: Color = this.popupBorder,
         disabledContentAlpha: Float = this.disabledContentAlpha,
         eventBlockAlpha: Float = this.eventBlockAlpha,
         eventBlockDraggingAlpha: Float = this.eventBlockDraggingAlpha,
@@ -127,6 +135,8 @@ public class KalendarColors(
         nowIndicator = nowIndicator,
         gridLine = gridLine,
         dragGhostBackground = dragGhostBackground,
+        popupBackground = popupBackground,
+        popupBorder = popupBorder,
         disabledContentAlpha = disabledContentAlpha,
         eventBlockAlpha = eventBlockAlpha,
         eventBlockDraggingAlpha = eventBlockDraggingAlpha,
@@ -148,6 +158,8 @@ public class KalendarColors(
         if (nowIndicator != other.nowIndicator) return false
         if (gridLine != other.gridLine) return false
         if (dragGhostBackground != other.dragGhostBackground) return false
+        if (popupBackground != other.popupBackground) return false
+        if (popupBorder != other.popupBorder) return false
         if (disabledContentAlpha != other.disabledContentAlpha) return false
         if (eventBlockAlpha != other.eventBlockAlpha) return false
         if (eventBlockDraggingAlpha != other.eventBlockDraggingAlpha) return false
@@ -167,6 +179,8 @@ public class KalendarColors(
         result = 31 * result + nowIndicator.hashCode()
         result = 31 * result + gridLine.hashCode()
         result = 31 * result + dragGhostBackground.hashCode()
+        result = 31 * result + popupBackground.hashCode()
+        result = 31 * result + popupBorder.hashCode()
         result = 31 * result + disabledContentAlpha.hashCode()
         result = 31 * result + eventBlockAlpha.hashCode()
         result = 31 * result + eventBlockDraggingAlpha.hashCode()
@@ -186,6 +200,8 @@ public class KalendarColors(
         "nowIndicator=$nowIndicator, " +
         "gridLine=$gridLine, " +
         "dragGhostBackground=$dragGhostBackground, " +
+        "popupBackground=$popupBackground, " +
+        "popupBorder=$popupBorder, " +
         "disabledContentAlpha=$disabledContentAlpha, " +
         "eventBlockAlpha=$eventBlockAlpha, " +
         "eventBlockDraggingAlpha=$eventBlockDraggingAlpha, " +
@@ -633,6 +649,11 @@ public class KalendarAnimations(
 /**
  * Defaults for [KalendarTheme].
  *
+ * This is the only place in Kalendar that reads Material at all, and it reads it to *derive token
+ * values*, never to render: every calendar view draws with Compose Foundation, so an app with its
+ * own design system — or no Material 3 at all — gets a calendar whose appearance is decided
+ * entirely by the tokens on [KalendarThemeTokens].
+ *
  * Three palettes are available, and which one you want depends on your app:
  *
  * - [colors] (the default) derives from the ambient [MaterialTheme.colorScheme], so a Material 3
@@ -678,6 +699,8 @@ public object KalendarThemeDefaults {
         nowIndicator = scheme.error,
         gridLine = scheme.outlineVariant,
         dragGhostBackground = scheme.secondaryContainer,
+        popupBackground = scheme.surfaceContainerHigh,
+        popupBorder = scheme.outlineVariant,
     )
 
     /**
@@ -711,6 +734,8 @@ public object KalendarThemeDefaults {
         nowIndicator = Color(0xFFB3261E),
         gridLine = Color(0xFFCAC4D0),
         dragGhostBackground = Color(0xFFE8DEF8),
+        popupBackground = Color(0xFFECE6F0),
+        popupBorder = Color(0xFFCAC4D0),
     )
 
     /** Kalendar's built-in dark palette. Material-free, so it works in any Compose app. */
@@ -727,6 +752,8 @@ public object KalendarThemeDefaults {
         nowIndicator = Color(0xFFF2B8B5),
         gridLine = Color(0xFF49454F),
         dragGhostBackground = Color(0xFF4A4458),
+        popupBackground = Color(0xFF2B2930),
+        popupBorder = Color(0xFF49454F),
     )
 
     /** [KalendarTypography] resolved from the ambient [MaterialTheme.typography]. */

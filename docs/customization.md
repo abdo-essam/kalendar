@@ -1,0 +1,471 @@
+# Customization
+
+[Theming](theming.md) changes what the built-in rendering *looks* like. Customization replaces the
+rendering itself.
+
+Every view is built from **slots**: composable parameters that default to a built-in rendering and
+can be swapped for your own. The view keeps the parts that are hard — measurement, positioning,
+paging, gestures, accessibility plumbing — and hands you the part that is yours: what to draw.
+
+> Kalendar reads Material only to derive default token values. No Material widget renders the
+> calendar, so an app with its own design system controls rendering completely, through
+> [tokens](theming.md) and the slots on this page.
+
+## What is replaceable, where
+
+| Slot | Week | Month | Year | Timeline | Schedule | ScheduleWeek |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| `dayContent` | yes | yes | yes | yes | no | no |
+| `header` | yes | yes | yes | yes | no | no |
+| `dayOfWeekLabel` | yes | yes | yes | yes | no | no |
+| `eventContent` | no | no | no | no | yes | yes |
+| `allDayEventContent` | no | no | no | no | yes | yes |
+| `hourLabel` | no | no | no | no | yes | yes |
+| `nowIndicator` | no | no | no | no | yes | yes |
+| `dayHeader` | no | no | no | no | no | yes |
+
+The two default-rendering objects are `KalendarHeaderDefaults` (the chrome around a date grid) and
+`KalendarScheduleDefaults` (everything inside a time grid). Every slot defaults to one of their
+functions, which also makes them the thing to reach for when you want to keep the built-in look and
+only add to it.
+
+## Custom day cells
+
+`dayContent` replaces the built-in day cell entirely on the four date-grid views. It receives a
+`KalendarDayScope` describing the date being rendered.
+
+### `KalendarDayScope`
+
+| Property | Type | Description |
+|---|---|---|
+| `date` | `LocalDate` | The date this cell represents. |
+| `isSelected` | `Boolean` | Whether `date` is in the calendar's `selectedDates`. |
+| `isToday` | `Boolean` | Whether `date` is today, in the system time zone. |
+| `isDisabled` | `Boolean` | Whether `date` matched `KalendarViewConfig.disabledDates`. On the month-grid views this is also `true` for adjacent-month dates. |
+| `events` | `List<KalendarEvent>` | The events occurring on `date`, multi-day spans included. |
+
+It is delivered as a scope object rather than positional lambda parameters so that future fields can
+be added without breaking every existing call site.
+
+```kotlin
+KalendarMonth(
+    selectedDate = today,
+    dayContent = { scope ->
+        Box(
+            modifier = Modifier
+                .aspectRatio(1f)
+                .padding(2.dp)
+                .clip(CircleShape)
+                .background(
+                    if (scope.isSelected) KalendarTheme.colors.selectionBackground else Color.Transparent
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = scope.date.dayOfMonth.toString(),
+                color = when {
+                    scope.isSelected -> KalendarTheme.colors.onSelectionBackground
+                    scope.isToday -> KalendarTheme.colors.todayContent
+                    else -> KalendarTheme.colors.dayContent
+                },
+            )
+        }
+    },
+)
+```
+
+### Keep custom cells accessible
+
+A custom `dayContent` replaces the built-in cell — **including its accessibility and its click
+handling**. `Modifier.kalendarDaySemantics()` gives both back:
+
+```kotlin
+import com.himanshoe.kalendar.view.kalendarDaySemantics
+
+KalendarMonth(
+    selectedDate = today,
+    onDateClick = { date, _ -> select(date) },
+    dayContent = { scope ->
+        MyDayCell(
+            day = scope.date.dayOfMonth,
+            modifier = Modifier.kalendarDaySemantics(
+                scope = scope,
+                onClick = { select(scope.date) },
+            ),
+        )
+    },
+)
+```
+
+Applied to your cell's outermost modifier, it adds:
+
+- a screen-reader `contentDescription` built from the date, plus
+  `KalendarStrings.todaySuffix` when the date is today and `KalendarStrings.hasEventsSuffix` when it
+  has events — for example `"August 12, 2026, today, has events"`;
+- the `selected` semantic state, from `scope.isSelected`;
+- `Role.Button`, so assistive technology announces the cell correctly;
+- a click that is **ignored when `scope.isDisabled` is `true`**.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `scope` | `KalendarDayScope` | — | The cell's state, as handed to the slot. |
+| `onClick` | `() -> Unit` | — | Called when the cell is tapped and the date is not disabled. |
+| `monthNameFormatter` | `(Month) -> String` | English month names | Formats the month name inside the announcement. Pass `KalendarViewConfig.monthNameFormatter` to match a localized calendar. |
+| `interactionSource` | `MutableInteractionSource?` | `null` | Supply one when you want to observe press state yourself. |
+
+> **Warning:** because the announcements come from `KalendarStrings`, a cell using
+> `kalendarDaySemantics` stays localizable through the same [theme](theming.md) mechanism as the
+> built-in one. A hand-rolled `contentDescription` does not.
+
+> **Note:** `dayContent` does **not** disable the sliding selection indicator. The indicator is drawn
+> behind the cell, so a custom cell keeps that animation. If you draw your own opaque selection fill,
+> set `KalendarViewConfig(showSelectionIndicator = false)` to avoid drawing it twice.
+
+### Reusing the built-in cell
+
+`KalendarDayCellDefaults.Cell` is the exact composable the views fall back to, so you can wrap it
+rather than reimplement it:
+
+```kotlin
+KalendarMonth(
+    selectedDate = today,
+    dayContent = { scope ->
+        Box {
+            KalendarDayCellDefaults.Cell(
+                scope = scope,
+                onClick = { select(scope.date) },
+            )
+            if (scope.date in holidays) {
+                HolidayBadge(modifier = Modifier.align(Alignment.TopEnd))
+            }
+        }
+    },
+)
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `scope` | `KalendarDayScope` | — | The cell's state. |
+| `onClick` | `() -> Unit` | — | Called when the cell is tapped and the date is not disabled. |
+| `modifier` | `Modifier` | `Modifier` | Applied to the cell. |
+| `showSelectionBackground` | `Boolean` | `true` | Whether this cell draws its own selection fill. The views pass `false` when the sliding indicator is already drawing it. |
+| `monthNameFormatter` | `(Month) -> String` | English month names | Used for the accessibility description. |
+| `maxEventIndicators` | `Int` | `3` | Dots drawn before the remainder collapses into `+N`. The views pass `KalendarViewConfig.eventIndicatorCap`. |
+
+## The header slot
+
+`header` replaces the navigation chrome above a date grid on
+[Week](views/week.md), [Month](views/month.md), [Year](views/year.md), and
+[Timeline](views/timeline.md). It receives a `KalendarHeaderScope` that carries the formatted title
+and the navigation callbacks, so your own chrome keeps working arrows, today button, and jump
+behaviour.
+
+### `KalendarHeaderScope`
+
+| Member | Type | Description |
+|---|---|---|
+| `title` | `String` | The title the built-in header would show, already formatted — e.g. `"August 2026"`. |
+| `visibleDate` | `LocalDate` | The start date of the page currently on screen. |
+| `canScrollBackward` | `Boolean` | Whether a previous page exists within the calendar's `minDate` bound. |
+| `canScrollForward` | `Boolean` | Whether a next page exists within the calendar's `maxDate` bound. |
+| `goToPreviousPage()` | `Unit` | Animates to the previous week / month / year / day. A no-op when `canScrollBackward` is `false`. |
+| `goToNextPage()` | `Unit` | Animates to the next page. A no-op when `canScrollForward` is `false`. |
+| `goToToday()` | `Unit` | Animates back to the page containing today, clamped to the bounds. |
+| `goTo(date)` | `Unit` | Animates to the page containing `date`, clamped to the bounds. |
+
+The navigation functions are plain (non-suspending) calls — each launches the underlying `suspend`
+animation on a scope the view owns — so a header slot can navigate straight from an `onClick`
+without managing a coroutine scope of its own.
+
+It is an interface rather than a data class, so later releases can add information to it without
+breaking every existing `header` lambda.
+
+```kotlin
+KalendarMonth(
+    selectedDate = today,
+    header = { scope ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MyIconButton(
+                icon = MyIcons.ChevronLeft,
+                enabled = scope.canScrollBackward,
+                onClick = scope::goToPreviousPage,
+            )
+            Text(text = scope.title, modifier = Modifier.weight(1f), style = MyTheme.type.heading)
+            MyIconButton(
+                icon = MyIcons.ChevronRight,
+                enabled = scope.canScrollForward,
+                onClick = scope::goToNextPage,
+            )
+            MyTextButton(text = "Today", onClick = scope::goToToday)
+        }
+    },
+)
+```
+
+On [`KalendarTimeline`](views/timeline.md) the same interface is mapped onto months, since a
+timeline has no pages — see that page for the details, and note that a timeline header must paint an
+opaque background of its own.
+
+### Reusing the built-in header
+
+`KalendarHeaderDefaults.Header` is what the slot defaults to, so calling it with different arguments
+changes only what you asked to change:
+
+```kotlin
+KalendarMonth(
+    selectedDate = today,
+    // Keep the built-in header, but without the jump picker.
+    header = { scope -> KalendarHeaderDefaults.Header(scope = scope, showJumpPicker = false) },
+)
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `scope` | `KalendarHeaderScope` | — | Inside a `header` slot, the value the slot was handed. |
+| `modifier` | `Modifier` | `Modifier` | Applied to the header's outermost container. |
+| `showNavigationArrows` | `Boolean` | `true` | Whether to draw the previous/next buttons. Each disables itself when the matching `canScrollBackward` / `canScrollForward` is `false`. |
+| `showTodayButton` | `Boolean` | `true` | Whether to draw the today button. |
+| `showJumpPicker` | `Boolean` | `true` | Whether tapping the title opens the month/year jump picker. |
+| `monthNameFormatter` | `(Month) -> String` | English month names | Formats the month names inside the jump picker. |
+| `previousIcon` | `@Composable () -> Unit` | A Foundation-drawn chevron | The glyph inside the previous-page button. |
+| `nextIcon` | `@Composable () -> Unit` | The same chevron, reversed | The glyph inside the next-page button. |
+| `todayIcon` | `@Composable () -> Unit` | A Foundation-drawn calendar page | The glyph inside the today button. |
+
+The last four default to values the view derives from [`KalendarViewConfig`](configuration.md).
+
+`Header` also works in [`KalendarTimeline`](views/timeline.md)'s `header` slot — every control drives
+the `scope` rather than any particular state type — if you would rather have arrows there than the
+default `TimelineHeader`.
+
+### Swapping just one icon
+
+This is the smallest version of bringing your own design system, and it does **not** require
+replacing the `header` slot:
+
+```kotlin
+KalendarMonth(
+    selectedDate = today,
+    header = { scope ->
+        KalendarHeaderDefaults.Header(
+            scope = scope,
+            previousIcon = { Image(painterResource(Res.drawable.chevron_left), contentDescription = null) },
+            nextIcon = { Image(painterResource(Res.drawable.chevron_right), contentDescription = null) },
+            todayIcon = { Image(painterResource(Res.drawable.today), contentDescription = null) },
+        )
+    },
+)
+```
+
+The slot is a plain `@Composable () -> Unit`, so anything composes: a Foundation `Image` as above, a
+Material `Icon`, your own design system's icon component, or a `Canvas` drawing the glyph by hand.
+
+> **Note:** the slot draws the **glyph only**. The button around it — its touch target, its click
+> handler, and its accessibility label from [`KalendarStrings`](localization.md) — belongs to the
+> header. So pass `contentDescription = null` on your icon: labelling it again would make a screen
+> reader announce the control twice.
+
+Two consequences worth knowing:
+
+- **The default icons are private.** There is no `KalendarChevronIcon` you can call, so an icon slot
+  is all-or-nothing per icon — you supply a complete replacement rather than restyling the built-in
+  one. The defaults are drawn with Compose Foundation and tinted `KalendarColors.headerContent`.
+- **The default chevrons mirror under RTL** automatically. A replacement is your own composable, so
+  mirroring it in a right-to-left layout is your responsibility.
+
+Sizing still comes from the theme: `KalendarDimensions.headerIconSlotWidth` reserves the space each
+button occupies, and the title's available width is computed from it — so an unusually wide custom
+icon should be paired with a wider slot rather than left to overlap the title.
+
+`KalendarHeaderDefaults.TimelineHeader` is the timeline's separate default — a leading-aligned
+title, no arrows, an optional today button, and a `background: Brush?` for the opaque fill the
+overlay needs.
+
+## The day-of-week label slot
+
+`dayOfWeekLabel` replaces the *content* of each weekday column header. The grid still measures and
+places one label per column, so a replacement stays aligned with the day cells below it.
+
+```kotlin
+KalendarMonth(
+    selectedDate = today,
+    dayOfWeekLabel = { dayOfWeek ->
+        Text(
+            text = dayOfWeek.name.take(2),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    },
+)
+```
+
+To keep the built-in styling and change only the text, call the default with your own formatter:
+
+```kotlin
+KalendarMonth(
+    selectedDate = today,
+    dayOfWeekLabel = { dayOfWeek ->
+        KalendarHeaderDefaults.DayOfWeekLabel(
+            dayOfWeek = dayOfWeek,
+            formatter = { it.name.take(2) },
+        )
+    },
+)
+```
+
+For a locale-aware label, set
+[`KalendarViewConfig.dayOfWeekLabelFormatter`](localization.md) instead — no slot needed.
+
+## Schedule content slots
+
+The two Schedule views expose a slot for every piece they draw. The grid keeps layout, clicks, and
+drag-to-reschedule, so custom content never loses them.
+
+### `eventContent`
+
+Draws one timed event block. It is given a box already positioned and sized for the event's duration
+and its share of any overlap, so an implementation only draws — it never positions.
+
+`KalendarScheduleEventScope`:
+
+| Property | Type | Description |
+|---|---|---|
+| `event` | `KalendarEvent` | The event being rendered. |
+| `start` | `LocalDateTime` | The event's start, clamped to the rendered day when it began earlier. |
+| `end` | `LocalDateTime` | The event's end, clamped to the rendered day when it runs past midnight. |
+| `durationMinutes` | `Int` | How many minutes of the rendered day this block covers, after clamping. |
+| `isDragging` | `Boolean` | Whether the user is currently dragging or resizing this block. |
+| `overlapColumn` | `Int` | Zero-based column among events that overlap this one. `0` when nothing overlaps. |
+| `overlapColumns` | `Int` | How many events share this block's span, including itself. `1` when nothing overlaps. |
+
+```kotlin
+KalendarSchedule(
+    selectedDate = today,
+    events = events,
+    eventContent = { scope ->
+        MyEventCard(
+            title = scope.event.eventName,
+            subtitle = "${scope.start.time} – ${scope.end.time}",
+            dimmed = scope.isDragging,
+        )
+    },
+)
+```
+
+`durationMinutes` and `overlapColumns` are there so you can adapt density — a short block or a
+crowded column has no room for a subtitle:
+
+```kotlin
+eventContent = { scope ->
+    if (scope.durationMinutes >= 45 && scope.overlapColumns == 1) {
+        MyRichEventCard(scope)
+    } else {
+        KalendarScheduleDefaults.EventBlock(scope = scope)
+    }
+}
+```
+
+### `allDayEventContent`
+
+Draws one chip in the all-day row above the grid. It receives just the `KalendarEvent`; the row
+applies `onEventClick` for you.
+
+On [`KalendarScheduleWeek`](views/schedule-week.md) all seven days share one row, so the default
+prefixes each chip with its day of month. A replacement slot does not get that prefix
+automatically — pass it yourself if you want it:
+
+```kotlin
+KalendarScheduleWeek(
+    selectedDate = today,
+    events = events,
+    allDayEventContent = { event ->
+        KalendarScheduleDefaults.AllDayChip(
+            event = event,
+            prefix = event.date.dayOfMonth.toString(),
+        )
+    },
+)
+```
+
+### `hourLabel`
+
+Draws one hour-gutter label, given the hour as `0..23`. The gutter aligns it to the top of its hour
+row and is `KalendarDimensions.hourGutterWidth` wide.
+
+```kotlin
+KalendarSchedule(
+    selectedDate = today,
+    hourLabel = { hour -> Text(text = twelveHourLabel(hour), style = MyTheme.type.caption) },
+)
+```
+
+For a plain format change, set
+[`KalendarViewConfig.hourLabelFormatter`](localization.md) instead and keep the built-in styling.
+
+### `nowIndicator`
+
+Draws the current-time marker. The grid decides whether the day is today and owns the marker's
+vertical offset, so the slot renders the marker alone:
+
+```kotlin
+KalendarSchedule(
+    selectedDate = today,
+    nowIndicator = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(BrandRed))
+            Box(modifier = Modifier.weight(1f).height(2.dp).background(BrandRed))
+        }
+    },
+)
+```
+
+### `dayHeader`
+
+`KalendarScheduleWeek` only. Draws one day column's header, given the column's date and whether it
+is today. It is stretched to the column's width.
+
+```kotlin
+KalendarScheduleWeek(
+    selectedDate = today,
+    dayHeader = { date, isToday ->
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = date.dayOfWeek.name.take(3))
+            Text(
+                text = date.dayOfMonth.toString(),
+                color = if (isToday) BrandAccent else Color.Unspecified,
+            )
+        }
+    },
+)
+```
+
+### `KalendarScheduleDefaults`
+
+Every Schedule slot defaults to one of these, and all of them draw only — the grid owns positioning,
+clicks, and drag-to-reschedule.
+
+| Function | Signature |
+|---|---|
+| `EventBlock` | `(scope: KalendarScheduleEventScope, modifier: Modifier = Modifier)` |
+| `AllDayChip` | `(event: KalendarEvent, modifier: Modifier = Modifier, prefix: String? = null)` |
+| `HourLabel` | `(hour: Int, formatter: (Int) -> String, modifier: Modifier = Modifier)` |
+| `WeekDayHeader` | `(date: LocalDate, isToday: Boolean, dayOfWeekLabelFormatter: (DayOfWeek) -> String, modifier: Modifier = Modifier)` |
+| `NowIndicator` | `(modifier: Modifier = Modifier)` |
+
+Falling back to one of them for the cases you do not render specially is the intended pattern — it
+keeps a custom slot consistent with the rest of the calendar.
+
+## Choosing between a token, a config value, and a slot
+
+Reach for the cheapest thing that works:
+
+| You want to change | Use |
+|---|---|
+| A colour, size, corner, or motion spec | A [token](theming.md) |
+| A date, month, or hour **format** | A [`KalendarViewConfig` formatter](localization.md) |
+| A word or announcement | [`KalendarStrings`](localization.md) |
+| Whether a built-in control appears at all | A [`KalendarViewConfig` flag](configuration.md) |
+| The structure of what is drawn | A slot on this page |
+
+A slot is the most powerful option and the most work — it opts you out of every future improvement
+to that piece of the rendering. Prefer tokens and config until they genuinely cannot express what
+you need.
