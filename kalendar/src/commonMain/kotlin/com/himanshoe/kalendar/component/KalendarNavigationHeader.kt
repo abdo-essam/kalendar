@@ -16,13 +16,8 @@
 
 package com.himanshoe.kalendar.component
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,8 +34,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +59,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
@@ -72,6 +70,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastMap
 import androidx.compose.ui.util.fastMaxOfOrNull
@@ -107,6 +106,20 @@ private val JUMP_PICKER_MONTH_HEIGHT = 40.dp
  * width raises the target but never lowers it.
  */
 private val MIN_TOUCH_TARGET = 48.dp
+
+/**
+ * How far the header title may shrink, as a fraction of [KalendarTypography.headerTitle]'s size,
+ * before it ellipsizes instead.
+ *
+ * The title is centred, which means it can only ever have the header's width minus twice the wider
+ * action cluster — there is no centre that clears both sides on any other budget. On a narrow phone
+ * beside three icon slots that is under a third of the header. Shrinking a little is what keeps the
+ * month name whole *and* centred, rather than making them alternatives.
+ */
+private const val HEADER_TITLE_MIN_FONT_SCALE = 0.55f
+
+/** Granularity of the header title's fit search. */
+private val HEADER_TITLE_FONT_STEP = 0.5.sp
 
 private val ICON_SIZE = 24.dp
 private val ICON_STROKE_WIDTH = 2.dp
@@ -350,11 +363,17 @@ public object KalendarHeaderDefaults {
                 },
                 title = {
                     AnimatedHeaderTitle(title = scope.title) { animatedTitle ->
+                        val titleStyle = kalendarTypography().headerTitle
                         BasicText(
                             text = animatedTitle,
-                            style = kalendarTypography().headerTitle.copy(color = colors.headerContent),
+                            style = titleStyle.copy(color = colors.headerContent),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                            autoSize = TextAutoSize.StepBased(
+                                minFontSize = titleStyle.fontSize * HEADER_TITLE_MIN_FONT_SCALE,
+                                maxFontSize = titleStyle.fontSize,
+                                stepSize = HEADER_TITLE_FONT_STEP,
+                            ),
                             modifier = if (showJumpPicker) {
                                 Modifier.clickable(
                                     onClickLabel = strings.openJumpPicker,
@@ -555,23 +574,30 @@ internal fun KalendarHeaderLayout(
         val leadingWidth = leadingPlaceables.fastMaxOfOrNull { it.width } ?: 0
         val trailingWidth = trailingPlaceables.fastMaxOfOrNull { it.width } ?: 0
         val sideReserved = maxOf(leadingWidth, trailingWidth)
-
-        // Reserving the wider cluster on both sides is what holds the title still, but it costs
-        // twice the wider cluster. Once the clusters are wide enough that nothing is left, a
-        // centered title would be a title of zero width — so fall back to the real gap between
-        // them. Off-centre and legible beats centred and invisible, and a header this crowded has
-        // no centre that clears both sides anyway.
-        val symmetricTitleWidth = constraints.maxWidth - sideReserved * 2
-        val fitsCentered = !constraints.hasBoundedWidth || symmetricTitleWidth > 0
         val gapWidth = (constraints.maxWidth - leadingWidth - trailingWidth).coerceAtLeast(0)
 
+        // Measured against the whole gap first, so what comes back is the title's natural width
+        // rather than a width already squeezed by a reservation it may not need. Deciding before
+        // measuring is what truncated "2026" to an ellipsis on a phone-width year view: one icon
+        // slot leads and two trail, so reserving the wider side twice left 38dp of a 230dp header
+        // for a title that wanted barely more than that.
         val titleConstraints = when {
             !constraints.hasBoundedWidth -> childConstraints
-            fitsCentered -> childConstraints.copy(maxWidth = symmetricTitleWidth)
+            constraints.maxWidth - sideReserved * 2 > 0 ->
+                childConstraints.copy(maxWidth = constraints.maxWidth - sideReserved * 2)
             else -> childConstraints.copy(maxWidth = gapWidth)
         }
         val titlePlaceables = titleMeasurables.fastMap { it.measure(titleConstraints) }
         val titleWidth = titlePlaceables.fastMaxOfOrNull { it.width } ?: 0
+
+        // Reserving the wider cluster on both sides is what holds the title still as actions come
+        // and go, and it is worth a little unused width — but only while the title still fits in
+        // what is left. Past that, centring would either ellipsize a title that had room or, once
+        // the clusters grow past half the header, render one of zero width. The gap is the honest
+        // fallback: off-centre and whole beats centred and cut, and a header this crowded has no
+        // centre that clears both sides anyway.
+        val symmetricTitleWidth = constraints.maxWidth - sideReserved * 2
+        val fitsCentered = !constraints.hasBoundedWidth || symmetricTitleWidth > 0
 
         // A header given no width to divide cannot reserve a share of it, so it wraps its children
         // instead. Every built-in caller passes fillMaxWidth and takes the bounded branch.
@@ -608,18 +634,28 @@ private fun AnimatedHeaderTitle(
     content: @Composable (title: String) -> Unit,
 ) {
     val animations = kalendarAnimations()
-    AnimatedContent(
-        targetState = title,
-        transitionSpec = {
-            if (animations.enabled) {
-                val duration = animations.titleTransitionMillis
-                fadeIn(tween(duration)) togetherWith fadeOut(tween(duration))
-            } else {
-                EnterTransition.None togetherWith ExitTransition.None
-            }
-        },
-    ) { animatedTitle ->
-        content(animatedTitle)
+    if (!animations.enabled) {
+        content(title)
+        return
+    }
+
+    // One title on screen at a time, faded out and back in, rather than an AnimatedContent
+    // cross-fade. AnimatedContent composes the outgoing and incoming titles together and sizes
+    // itself to hold both, and that sizing is what stops the title auto-shrinking to the width the
+    // header actually offers it: measured at 240dp, the title rendered at full size and ellipsized
+    // to "August 2..." instead of shrinking the little it needed to fit. Fading a single text keeps
+    // the header's constraints reaching it untouched.
+    var shown by remember { mutableStateOf(title) }
+    val alpha = remember { Animatable(1f) }
+    val halfDuration = animations.titleTransitionMillis / 2
+    LaunchedEffect(title) {
+        if (shown == title) return@LaunchedEffect
+        alpha.animateTo(0f, tween(halfDuration))
+        shown = title
+        alpha.animateTo(1f, tween(halfDuration))
+    }
+    Box(modifier = Modifier.graphicsLayer { this.alpha = alpha.value }) {
+        content(shown)
     }
 }
 

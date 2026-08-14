@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -52,12 +53,18 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.fastForEach
+import androidx.compose.ui.util.fastMap
+import androidx.compose.ui.util.fastMaxOfOrNull
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.himanshoe.kalendar.DEFAULT_EVENT_INDICATOR_CAP
@@ -101,6 +108,20 @@ private val OVERFLOW_POPUP_MAX_HEIGHT = 240.dp
 
 /** Inset above and below [KalendarDayCellDefaults.OverflowPopup]'s rows. */
 private val OVERFLOW_POPUP_PADDING = 4.dp
+
+/**
+ * How far the day number is allowed to shrink, as a fraction of
+ * [KalendarTypography.dayNumber]'s size, before a cell too narrow for it clips instead.
+ *
+ * A calendar's cells are sized by their container, not by their content — twelve month grids in a
+ * year view make cells a few dp across — so a fixed font size guarantees that some layout somewhere
+ * renders "1" where it means "16". Shrinking to fit is the only behaviour that stays correct at
+ * every size and every accessibility font scale.
+ */
+private const val DAY_NUMBER_MIN_FONT_SCALE = 0.5f
+
+/** Granularity of the day number's fit search. Finer than this buys nothing a reader can see. */
+private val DAY_NUMBER_FONT_STEP = 0.5.sp
 
 /**
  * The [KalendarDayOverflowScope] [KalendarDayCellDefaults.Cell] hands its `overflowPopup` slot.
@@ -377,27 +398,37 @@ public object KalendarDayCellDefaults {
                     interactionSource = interactionSource,
                 ),
         ) {
-            BasicText(
-                text = scope.date.day.toString(),
-                style = textStyle.copy(color = textColor),
-            )
-
-            // Indicators hang off the bottom of the cell rather than sitting under the number in a
-            // shared Column. In a Column the number is centred against *number plus indicators*, so
-            // its height moved with the event count: measured off the golden, one dot lifted the
-            // number 3px and a full set with an overflow label lifted it 10px, leaving a single
-            // week's numbers on three different baselines. With animations on it was worse — the
-            // number visibly slid upward as the dots faded in. Anchoring here decouples the two, so
-            // every number in the grid shares one baseline no matter what the day holds.
             val hasEvents = scope.events.isNotEmpty()
             val onOverflowClick = if (showOverflowPopup && hiddenEventCount > 0) {
                 { overflowOpen = true }
             } else {
                 null
             }
-            Box(modifier = Modifier.align(Alignment.BottomCenter)) {
-                if (animations.enabled) {
-                    AnimatedVisibility(visible = hasEvents) {
+            KalendarDayCellLayout(
+                indicatorStripHeight = dimensions.eventIndicatorStripHeight,
+                dayNumber = {
+                    BasicText(
+                        text = scope.date.day.toString(),
+                        style = textStyle.copy(color = textColor),
+                        maxLines = 1,
+                        autoSize = TextAutoSize.StepBased(
+                            minFontSize = textStyle.fontSize * DAY_NUMBER_MIN_FONT_SCALE,
+                            maxFontSize = textStyle.fontSize,
+                            stepSize = DAY_NUMBER_FONT_STEP,
+                        ),
+                    )
+                },
+                indicators = {
+                    if (animations.enabled) {
+                        AnimatedVisibility(visible = hasEvents) {
+                            EventIndicatorRow(
+                                scope = scope,
+                                maxEventIndicators = maxEventIndicators,
+                                textColor = textColor,
+                                onOverflowClick = onOverflowClick,
+                            )
+                        }
+                    } else if (hasEvents) {
                         EventIndicatorRow(
                             scope = scope,
                             maxEventIndicators = maxEventIndicators,
@@ -405,15 +436,8 @@ public object KalendarDayCellDefaults {
                             onOverflowClick = onOverflowClick,
                         )
                     }
-                } else if (hasEvents) {
-                    EventIndicatorRow(
-                        scope = scope,
-                        maxEventIndicators = maxEventIndicators,
-                        textColor = textColor,
-                        onOverflowClick = onOverflowClick,
-                    )
-                }
-            }
+                },
+            )
 
             if (overflowOpen) {
                 val overflowScope = remember(scope.date, scope.events, hiddenEventCount, onEventClick) {
@@ -539,6 +563,77 @@ private fun OverflowEventRow(
  * the cell around it: a screen reader reaches the date first and the "show all events" button after,
  * rather than hearing "+2" spliced into the date announcement.
  */
+/**
+ * Places a day cell's number and its event indicators so neither can crowd the other.
+ *
+ * [indicatorStripHeight] is reserved along the bottom edge whether or not this particular day has
+ * indicators, and the number is centred in what is left. Reserving unconditionally is the whole
+ * point: stacking the two in a centred [Column] centres the number against *number plus
+ * indicators*, so it rises as the day fills up — measured at 3px for one dot and 10px for a full
+ * set with an overflow label, which left a single week's numbers sitting at three different heights
+ * and, with animation enabled, visibly sliding upward as the dots faded in.
+ *
+ * A cell too short to hold both drops the indicators instead of overlapping them. That case is real
+ * rather than defensive: a year view draws twelve month grids at once, and its cells are a fraction
+ * the height of a month view's. A day number drawn over by dots is unreadable, whereas a missing
+ * dot on a very small cell costs only detail the cell had no room to carry.
+ *
+ * @param indicatorStripHeight Space reserved for indicators, from
+ *   [KalendarDimensions.eventIndicatorStripHeight].
+ * @param dayNumber The day number, centred in the remaining height.
+ * @param indicators The indicator row, bottom-aligned within the reserved strip.
+ */
+@Composable
+private fun KalendarDayCellLayout(
+    indicatorStripHeight: Dp,
+    dayNumber: @Composable () -> Unit,
+    indicators: @Composable () -> Unit,
+) {
+    Layout(contents = listOf(dayNumber, indicators)) { (numberMeasurables, indicatorMeasurables), constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val stripPx = indicatorStripHeight.roundToPx()
+
+        // The number yields to the strip rather than the strip yielding to the number: the number
+        // auto-sizes, so squeezing its band shrinks the glyph, whereas dropping the strip loses
+        // information outright. Only when the band left over would be narrower than the strip
+        // itself — a year view's cells, where the number would end up smaller than its own dots —
+        // is the strip abandoned and the whole cell given back to the number.
+        val boundedHeight = constraints.hasBoundedHeight
+        val indicatorsFit = boundedHeight && constraints.maxHeight - stripPx >= stripPx
+        val numberBand = when {
+            !boundedHeight -> loose.maxHeight
+            indicatorsFit -> constraints.maxHeight - stripPx
+            else -> constraints.maxHeight
+        }
+
+        val numberPlaceables = numberMeasurables.fastMap { it.measure(loose.copy(maxHeight = numberBand)) }
+        val numberHeight = numberPlaceables.fastMaxOfOrNull { it.height } ?: 0
+        val numberWidth = numberPlaceables.fastMaxOfOrNull { it.width } ?: 0
+
+        val indicatorPlaceables = indicatorMeasurables.fastMap {
+            it.measure(loose.copy(maxHeight = if (indicatorsFit) stripPx else 0))
+        }
+        val height = if (boundedHeight) constraints.maxHeight else numberHeight + stripPx
+        val width = if (constraints.hasBoundedWidth) {
+            constraints.maxWidth
+        } else {
+            maxOf(numberWidth, indicatorPlaceables.fastMaxOfOrNull { it.width } ?: 0)
+        }
+        val band = if (indicatorsFit || !boundedHeight) height - stripPx else height
+
+        layout(width, height) {
+            numberPlaceables.fastForEach {
+                it.place((width - it.width) / 2, (band - it.height) / 2)
+            }
+            if (indicatorsFit || !boundedHeight) {
+                indicatorPlaceables.fastForEach {
+                    it.place((width - it.width) / 2, height - it.height)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun EventIndicatorRow(
     scope: KalendarDayScope,

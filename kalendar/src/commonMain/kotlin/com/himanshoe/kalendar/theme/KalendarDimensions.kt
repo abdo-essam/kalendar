@@ -47,6 +47,10 @@ import com.himanshoe.kalendar.KalendarYear
  *   value above `1f` gives short, wide cells.
  * @property eventIndicatorSize Diameter of one event dot below a day number.
  * @property eventIndicatorSpacing Gap between adjacent event dots.
+ * @property eventIndicatorStripHeight Vertical space reserved beneath the day number for event
+ *   indicators. It is reserved whether or not a given day has any, so that every day number in a
+ *   grid shares one baseline instead of rising as its day fills up. A cell too short to afford both
+ *   the number and this strip drops the indicators rather than drawing them over the number.
  * @property eventIndicatorBottomPadding Inset between the row of event dots and the bottom edge
  *   of the day cell. The dots are anchored to the cell rather than stacked under the number,
  *   so that the day number's baseline does not move with the event count.
@@ -93,7 +97,8 @@ public class KalendarDimensions(
     public val dayCellAspectRatio: Float = 1f,
     public val eventIndicatorSize: Dp = 4.dp,
     public val eventIndicatorSpacing: Dp = 2.dp,
-    public val eventIndicatorBottomPadding: Dp = 3.dp,
+    public val eventIndicatorBottomPadding: Dp = 2.dp,
+    public val eventIndicatorStripHeight: Dp = 14.dp,
     public val headerPadding: PaddingValues = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
     public val headerIconSlotWidth: Dp = 48.dp,
     public val headerContentSpacing: Dp = 8.dp,
@@ -126,6 +131,7 @@ public class KalendarDimensions(
         eventIndicatorSize: Dp = this.eventIndicatorSize,
         eventIndicatorSpacing: Dp = this.eventIndicatorSpacing,
         eventIndicatorBottomPadding: Dp = this.eventIndicatorBottomPadding,
+        eventIndicatorStripHeight: Dp = this.eventIndicatorStripHeight,
         headerPadding: PaddingValues = this.headerPadding,
         headerIconSlotWidth: Dp = this.headerIconSlotWidth,
         headerContentSpacing: Dp = this.headerContentSpacing,
@@ -155,6 +161,7 @@ public class KalendarDimensions(
         eventIndicatorSize = eventIndicatorSize,
         eventIndicatorSpacing = eventIndicatorSpacing,
         eventIndicatorBottomPadding = eventIndicatorBottomPadding,
+        eventIndicatorStripHeight = eventIndicatorStripHeight,
         headerPadding = headerPadding,
         headerIconSlotWidth = headerIconSlotWidth,
         headerContentSpacing = headerContentSpacing,
@@ -189,6 +196,7 @@ public class KalendarDimensions(
         if (eventIndicatorSize != other.eventIndicatorSize) return false
         if (eventIndicatorSpacing != other.eventIndicatorSpacing) return false
         if (eventIndicatorBottomPadding != other.eventIndicatorBottomPadding) return false
+        if (eventIndicatorStripHeight != other.eventIndicatorStripHeight) return false
         if (headerPadding != other.headerPadding) return false
         if (headerIconSlotWidth != other.headerIconSlotWidth) return false
         if (headerContentSpacing != other.headerContentSpacing) return false
@@ -221,6 +229,7 @@ public class KalendarDimensions(
         result = 31 * result + eventIndicatorSize.hashCode()
         result = 31 * result + eventIndicatorSpacing.hashCode()
         result = 31 * result + eventIndicatorBottomPadding.hashCode()
+        result = 31 * result + eventIndicatorStripHeight.hashCode()
         result = 31 * result + headerPadding.hashCode()
         result = 31 * result + headerIconSlotWidth.hashCode()
         result = 31 * result + headerContentSpacing.hashCode()
@@ -253,6 +262,7 @@ public class KalendarDimensions(
         "eventIndicatorSize=$eventIndicatorSize, " +
         "eventIndicatorSpacing=$eventIndicatorSpacing, " +
         "eventIndicatorBottomPadding=$eventIndicatorBottomPadding, " +
+        "eventIndicatorStripHeight=$eventIndicatorStripHeight, " +
         "headerPadding=$headerPadding, " +
         "headerIconSlotWidth=$headerIconSlotWidth, " +
         "headerContentSpacing=$headerContentSpacing, " +
