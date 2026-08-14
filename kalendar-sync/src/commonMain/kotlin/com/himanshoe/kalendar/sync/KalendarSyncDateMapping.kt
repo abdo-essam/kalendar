@@ -28,6 +28,31 @@ import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
 /**
+ * Returns `true` when an event occupying [eventStart]..[eventEndInclusive] **overlaps** the closed
+ * range [[rangeStart], [rangeEnd]] — that is, `eventStart <= rangeEnd && eventEnd >= rangeStart`.
+ *
+ * This is the canonical range predicate for the whole module. Filtering on the start date alone
+ * drops any multi-day event that begins before the window, so a span from August 28th to
+ * September 5th would vanish from a September query; the symmetric end-date-only filter drops the
+ * same span from an August query. Both get a window wholly *inside* a long event wrong.
+ *
+ * [eventEndInclusive] is the **inclusive** last date the event occupies, matching
+ * [KalendarSyncEvent.endDate]; `null` means a single-day event, so the end falls back to
+ * [eventStart]. Callers holding an exclusive next-midnight end (the all-day storage convention on
+ * Android and in `.ics`) should convert it with [allDayInclusiveEndDate] first. An end earlier
+ * than the start is treated as a single-day event rather than as an empty interval.
+ */
+internal fun overlapsRange(
+    eventStart: LocalDate,
+    eventEndInclusive: LocalDate?,
+    rangeStart: LocalDate,
+    rangeEnd: LocalDate,
+): Boolean {
+    val eventEnd = (eventEndInclusive ?: eventStart).coerceAtLeast(eventStart)
+    return eventStart <= rangeEnd && eventEnd >= rangeStart
+}
+
+/**
  * Epoch millis of UTC midnight on [date] — the `DTSTART` basis Android's `CalendarContract`
  * requires for all-day events. Storing local midnight instead shifts the event by one day in any
  * zone with a non-zero UTC offset, because the provider expands all-day instances in UTC.

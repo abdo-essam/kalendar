@@ -63,11 +63,21 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
     }
 
     /**
-     * Returns one-off events whose start falls inside the window, plus every recurring series
-     * template whose series starts on or before the window end — a recurring row's `DTSTART` is
-     * the series start, so a window-only filter would hide any series created earlier. Callers
-     * materialise the occurrences that actually fall inside the window by expanding returned
-     * templates with [expandOccurrences].
+     * Returns one-off events that **overlap** the window, plus every recurring series template
+     * whose series starts on or before the window end — a recurring row's `DTSTART` is the series
+     * start, so a window-only filter would hide any series created earlier. Callers materialise
+     * the occurrences that actually fall inside the window by expanding returned templates with
+     * [expandOccurrences].
+     *
+     * The one-off clause is the SQL form of [overlapsRange]: `DTSTART <= windowEnd` paired with
+     * `DTEND > windowStart`. It queries [CalendarContract.Events] rather than
+     * [CalendarContract.Instances] because this provider deliberately returns unexpanded series
+     * templates; `Instances` would expand them, which is [expandOccurrences]'s job. `DTEND` is
+     * exclusive in `CalendarContract` — an all-day event ending on the 31st stores the next
+     * midnight — so the comparison is strict, and rows with no usable `DTEND` (null, or a
+     * degenerate value at or before `DTSTART`) fall back to the start-in-window test, matching
+     * [overlapsRange]'s `eventEnd` fallback. Recurring rows legitimately carry a null `DTEND` and
+     * are covered by the second clause instead.
      */
     override suspend fun fetchEvents(
         startDate: LocalDate,
@@ -91,12 +101,14 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                     CalendarContract.Events.DURATION,
                     CalendarContract.Events.EXDATE,
                 )
-                val selection =
-                    "((${CalendarContract.Events.DTSTART} >= ? AND ${CalendarContract.Events.DTSTART} <= ?) " +
-                        "OR (${CalendarContract.Events.RRULE} IS NOT NULL " +
-                        "AND ${CalendarContract.Events.DTSTART} <= ?)) " +
-                        "AND ${CalendarContract.Events.DELETED} != 1"
-                val selectionArgs = arrayOf(startMillis.toString(), endMillis.toString(), endMillis.toString())
+                val selection = overlapSelection()
+                val selectionArgs = arrayOf(
+                    endMillis.toString(),
+                    startMillis.toString(),
+                    startMillis.toString(),
+                    endMillis.toString(),
+                    endMillis.toString(),
+                )
 
                 val events = mutableListOf<KalendarSyncEvent>()
                 context.contentResolver.query(
@@ -113,6 +125,26 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
                 KalendarSyncResult.Success(events)
             }.getOrElse { KalendarSyncResult.Error("Failed to fetch events", it) }
         }
+    }
+
+    /**
+     * Builds the `fetchEvents` selection. Placeholders bind, in order: window end, window start,
+     * window start, window end, window end.
+     *
+     * The first branch is a one-off event with a usable exclusive `DTEND` — it overlaps when it
+     * starts at or before the window end and ends strictly after the window start. The second
+     * covers rows whose `DTEND` is missing or degenerate, where the end collapses onto the start.
+     * The third keeps every recurring template that could still produce an occurrence in the
+     * window, since a series row's `DTSTART` is the series start rather than any occurrence.
+     */
+    private fun overlapSelection(): String {
+        val dtStart = CalendarContract.Events.DTSTART
+        val dtEnd = CalendarContract.Events.DTEND
+        val overlapsWithEnd = "($dtEnd IS NOT NULL AND $dtEnd > $dtStart AND $dtStart <= ? AND $dtEnd > ?)"
+        val startsInWindow = "(($dtEnd IS NULL OR $dtEnd <= $dtStart) AND $dtStart >= ? AND $dtStart <= ?)"
+        val recurringTemplate = "(${CalendarContract.Events.RRULE} IS NOT NULL AND $dtStart <= ?)"
+        return "($overlapsWithEnd OR $startsInWindow OR $recurringTemplate) " +
+            "AND ${CalendarContract.Events.DELETED} != 1"
     }
 
     /** Maps the [cursor]'s current row to a [KalendarSyncEvent], interpreting instants in [timeZone]. */

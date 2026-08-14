@@ -179,6 +179,101 @@ class KalendarRecurrenceExpanderTest {
     }
 
     @Test
+    fun expandOccurrences_nonRecurringSpanOverlappingRangeStart_isReturned() {
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 8, 28),
+            endDate = LocalDate(2026, 9, 5),
+            eventName = "Conference",
+        )
+        val occurrences = event.expandOccurrences(
+            rangeStart = LocalDate(2026, 9, 1),
+            rangeEnd = LocalDate(2026, 9, 30),
+        )
+        assertEquals(listOf(LocalDate(2026, 8, 28)), occurrences.map { it.date })
+    }
+
+    @Test
+    fun expandOccurrences_nonRecurringSpanEnclosingRange_isReturned() {
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 8, 1),
+            endDate = LocalDate(2026, 8, 14),
+            eventName = "Sabbatical",
+        )
+        val occurrences = event.expandOccurrences(
+            rangeStart = LocalDate(2026, 8, 5),
+            rangeEnd = LocalDate(2026, 8, 11),
+        )
+        assertEquals(listOf(LocalDate(2026, 8, 1)), occurrences.map { it.date })
+    }
+
+    @Test
+    fun expandOccurrences_recurringSpanStartingBeforeRange_returnsOverlappingOccurrence() {
+        // A 3-day monthly event starting on the 30th spans into the next month; a query for
+        // September must see the occurrence that began on August 30th.
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 6, 30),
+            endDate = LocalDate(2026, 7, 2),
+            eventName = "Month-end close",
+            recurrenceRule = KalendarRule(frequency = KalendarRecurrenceFrequency.MONTHLY),
+        )
+        val occurrences = event.expandOccurrences(
+            rangeStart = LocalDate(2026, 9, 1),
+            rangeEnd = LocalDate(2026, 9, 29),
+        )
+        assertEquals(listOf(LocalDate(2026, 8, 30)), occurrences.map { it.date })
+        assertEquals(listOf(LocalDate(2026, 9, 1)), occurrences.map { it.endDate })
+    }
+
+    @Test
+    fun expandOccurrences_spanEndingBeforeRangeStart_isNotReturned() {
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 8, 1),
+            endDate = LocalDate(2026, 8, 3),
+            eventName = "Short trip",
+        )
+        assertTrue(
+            event.expandOccurrences(
+                rangeStart = LocalDate(2026, 8, 4),
+                rangeEnd = LocalDate(2026, 8, 31),
+            ).isEmpty(),
+        )
+    }
+
+    @Test
+    fun expandOccurrences_spanOverlapDoesNotResurrectExhaustedCount() {
+        // COUNT=3 spans Jan 1-3 (each 2 days long); the series is over well before February,
+        // so no span may leak into a February window.
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 1),
+            endDate = LocalDate(2026, 1, 2),
+            eventName = "Limited",
+            recurrenceRule = KalendarRule(frequency = KalendarRecurrenceFrequency.DAILY, count = 3),
+        )
+        assertTrue(
+            event.expandOccurrences(
+                rangeStart = LocalDate(2026, 2, 1),
+                rangeEnd = LocalDate(2026, 2, 28),
+            ).isEmpty(),
+        )
+    }
+
+    @Test
+    fun expandOccurrences_spanOverlapPreservesCountConsumedBeforeRangeStart() {
+        // COUNT=5 from Jan 1, each occurrence 1 day long: a Jan 3 window start must still see
+        // exactly the remaining three, not a restarted count.
+        val event = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 1),
+            eventName = "Limited",
+            recurrenceRule = KalendarRule(frequency = KalendarRecurrenceFrequency.DAILY, count = 5),
+        )
+        val occurrences = event.expandOccurrences(
+            rangeStart = LocalDate(2026, 1, 3),
+            rangeEnd = LocalDate(2026, 1, 31),
+        )
+        assertEquals(3, occurrences.size)
+    }
+
+    @Test
     fun expandOccurrences_count_stopsAfterNOccurrences() {
         val event = BasicKalendarSyncEvent(
             date = LocalDate(2026, 1, 1),

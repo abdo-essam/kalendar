@@ -25,8 +25,8 @@ import java.io.File
  *
  * When [icsFilePath] is provided:
  * - [KalendarSyncProvider.hasPermission] returns `true` immediately (file-based, no OS permission).
- * - [KalendarSyncProvider.fetchEvents] reads and parses the file, returning events whose
- *   date falls within the requested range.
+ * - [KalendarSyncProvider.fetchEvents] reads and parses the file, returning every event that
+ *   overlaps the requested range.
  * - [KalendarSyncProvider.insertEvent] appends a new event and rewrites the file.
  * - [KalendarSyncProvider.updateEvent] replaces the event matching [eventId] and rewrites the file.
  * - [KalendarSyncProvider.deleteEvent] removes the event matching [eventId] and rewrites the file.
@@ -61,6 +61,10 @@ private class DesktopKalendarSync(private val icsFilePath: String?) : KalendarSy
         )
     }
 
+    /**
+     * Returns every event in the file that **overlaps** [[startDate], [endDate]], including
+     * multi-day events that begin before the window or end after it — see [overlapsRange].
+     */
     override suspend fun fetchEvents(
         startDate: LocalDate,
         endDate: LocalDate,
@@ -68,8 +72,15 @@ private class DesktopKalendarSync(private val icsFilePath: String?) : KalendarSy
     ): KalendarSyncResult<List<KalendarSyncEvent>> {
         val path = icsFilePath ?: return KalendarSyncResult.NotSupported
         return runCatching {
-            val events = readAllEvents(path)
-            KalendarSyncResult.Success(events.filter { it.date in startDate..endDate })
+            val events = readAllEvents(path).filter {
+                overlapsRange(
+                    eventStart = it.date,
+                    eventEndInclusive = it.endDate,
+                    rangeStart = startDate,
+                    rangeEnd = endDate,
+                )
+            }
+            KalendarSyncResult.Success(events)
         }.getOrElse { KalendarSyncResult.Error("Failed to read ICS file: ${it.message}", it) }
     }
 

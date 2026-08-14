@@ -21,7 +21,9 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class KalendarSyncDateMappingTest {
 
@@ -94,6 +96,126 @@ class KalendarSyncDateMappingTest {
             allDayInclusiveEndDate(
                 startDate = LocalDate(2026, 7, 1),
                 endDateTime = LocalDateTime(date = LocalDate(2026, 7, 1), time = LocalTime(23, 59, 59)),
+            ),
+        )
+    }
+
+    @Test
+    fun overlapsRange_eventStartingInsideRange_overlaps() {
+        assertTrue(
+            overlapsRange(
+                eventStart = LocalDate(2026, 8, 28),
+                eventEndInclusive = LocalDate(2026, 9, 5),
+                rangeStart = LocalDate(2026, 8, 1),
+                rangeEnd = LocalDate(2026, 8, 31),
+            ),
+        )
+    }
+
+    @Test
+    fun overlapsRange_eventEndingInsideRange_overlaps() {
+        assertTrue(
+            overlapsRange(
+                eventStart = LocalDate(2026, 8, 28),
+                eventEndInclusive = LocalDate(2026, 9, 5),
+                rangeStart = LocalDate(2026, 9, 1),
+                rangeEnd = LocalDate(2026, 9, 30),
+            ),
+        )
+    }
+
+    @Test
+    fun overlapsRange_rangeFullyInsideEvent_overlaps() {
+        assertTrue(
+            overlapsRange(
+                eventStart = LocalDate(2026, 8, 1),
+                eventEndInclusive = LocalDate(2026, 8, 14),
+                rangeStart = LocalDate(2026, 8, 5),
+                rangeEnd = LocalDate(2026, 8, 11),
+            ),
+        )
+    }
+
+    @Test
+    fun overlapsRange_eventFullyInsideRange_overlaps() {
+        assertTrue(
+            overlapsRange(
+                eventStart = LocalDate(2026, 8, 10),
+                eventEndInclusive = LocalDate(2026, 8, 12),
+                rangeStart = LocalDate(2026, 8, 1),
+                rangeEnd = LocalDate(2026, 8, 31),
+            ),
+        )
+    }
+
+    @Test
+    fun overlapsRange_singleDayEventAtEitherRangeEdge_overlaps() {
+        assertTrue(
+            overlapsRange(
+                eventStart = LocalDate(2026, 8, 1),
+                eventEndInclusive = null,
+                rangeStart = LocalDate(2026, 8, 1),
+                rangeEnd = LocalDate(2026, 8, 31),
+            ),
+        )
+        assertTrue(
+            overlapsRange(
+                eventStart = LocalDate(2026, 8, 31),
+                eventEndInclusive = null,
+                rangeStart = LocalDate(2026, 8, 1),
+                rangeEnd = LocalDate(2026, 8, 31),
+            ),
+        )
+    }
+
+    @Test
+    fun overlapsRange_spanTouchingOnlyRangeEdge_overlaps() {
+        assertTrue(
+            overlapsRange(
+                eventStart = LocalDate(2026, 7, 20),
+                eventEndInclusive = LocalDate(2026, 8, 1),
+                rangeStart = LocalDate(2026, 8, 1),
+                rangeEnd = LocalDate(2026, 8, 31),
+            ),
+        )
+        assertTrue(
+            overlapsRange(
+                eventStart = LocalDate(2026, 8, 31),
+                eventEndInclusive = LocalDate(2026, 9, 10),
+                rangeStart = LocalDate(2026, 8, 1),
+                rangeEnd = LocalDate(2026, 8, 31),
+            ),
+        )
+    }
+
+    @Test
+    fun overlapsRange_eventEntirelyOutsideRange_doesNotOverlap() {
+        assertFalse(
+            overlapsRange(
+                eventStart = LocalDate(2026, 7, 1),
+                eventEndInclusive = LocalDate(2026, 7, 31),
+                rangeStart = LocalDate(2026, 8, 1),
+                rangeEnd = LocalDate(2026, 8, 31),
+            ),
+        )
+        assertFalse(
+            overlapsRange(
+                eventStart = LocalDate(2026, 9, 1),
+                eventEndInclusive = null,
+                rangeStart = LocalDate(2026, 8, 1),
+                rangeEnd = LocalDate(2026, 8, 31),
+            ),
+        )
+    }
+
+    @Test
+    fun overlapsRange_endBeforeStart_fallsBackToSingleDaySemantics() {
+        assertTrue(
+            overlapsRange(
+                eventStart = LocalDate(2026, 8, 15),
+                eventEndInclusive = LocalDate(2026, 8, 10),
+                rangeStart = LocalDate(2026, 8, 15),
+                rangeEnd = LocalDate(2026, 8, 15),
             ),
         )
     }

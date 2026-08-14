@@ -32,8 +32,12 @@ private const val MONTHS_PER_YEAR = 12
  * Supports all four [KalendarRecurrenceFrequency] values and the BYDAY, BYMONTHDAY, and BYMONTH
  * filters from RFC 5545. Both UNTIL and COUNT termination conditions are honoured.
  *
+ * - An occurrence is included when it **overlaps** the range, not merely when it starts inside it:
+ *   a multi-day occurrence beginning before [rangeStart] but reaching into the window is returned,
+ *   still carrying its original [KalendarSyncEvent.date]. Callers can therefore page window by
+ *   window without spans dropping out at the seams.
  * - Events without a [KalendarRule] are treated as single-occurrence: `this` is returned in a
- *   one-element list when its date is within the range, or an empty list otherwise.
+ *   one-element list when it overlaps the range, or an empty list otherwise.
  * - Each generated occurrence is a copy of the receiver with [KalendarSyncEvent.date] replaced by
  *   the occurrence date and [KalendarSyncEvent.id] cleared; [KalendarSyncEvent.endDate], if set,
  *   shifts by the same number of days so multi-day spans are preserved on every occurrence.
@@ -74,8 +78,9 @@ public fun KalendarSyncEvent.expandOccurrences(
     rangeStart: LocalDate,
     rangeEnd: LocalDate,
 ): List<KalendarSyncEvent> {
+    val spanDays = endDate?.let { daysBetween(date, it) }?.coerceAtLeast(0) ?: 0
     val rule = recurrenceRule
-        ?: return if (date in rangeStart..rangeEnd) listOf(this) else emptyList()
+        ?: return if (overlapsWindow(date, spanDays, rangeStart, rangeEnd)) listOf(this) else emptyList()
 
     val occurrences = mutableListOf<KalendarSyncEvent>()
     var occurrenceCount = 0
@@ -83,7 +88,7 @@ public fun KalendarSyncEvent.expandOccurrences(
 
     while (withinBounds(rule, occurrenceCount, current, rangeEnd)) {
         if (current.matchesFilters(rule = rule, seriesStart = date) && current.alignsWithInterval(rule, date)) {
-            if (current >= rangeStart && current !in exceptionDates) {
+            if (overlapsWindow(current, spanDays, rangeStart, rangeEnd) && current !in exceptionDates) {
                 occurrences += copyWithDate(current)
             }
             occurrenceCount++
@@ -92,6 +97,28 @@ public fun KalendarSyncEvent.expandOccurrences(
     }
     return occurrences
 }
+
+/**
+ * Returns `true` when an occurrence starting on [occurrenceStart] and lasting [spanDays] further
+ * days overlaps [[rangeStart], [rangeEnd]].
+ *
+ * This is the emit filter, deliberately separate from [withinBounds]'s loop bound: an occurrence
+ * that starts before [rangeStart] but whose multi-day span reaches into the window must still be
+ * emitted, which a bare `occurrenceStart >= rangeStart` guard would drop. Occurrences are still
+ * enumerated — and [KalendarRule.count] still consumed — from the series start, so widening what
+ * is *emitted* never resurrects a series whose count was exhausted before the window.
+ */
+private fun overlapsWindow(
+    occurrenceStart: LocalDate,
+    spanDays: Int,
+    rangeStart: LocalDate,
+    rangeEnd: LocalDate,
+): Boolean = overlapsRange(
+    eventStart = occurrenceStart,
+    eventEndInclusive = occurrenceStart.plus(spanDays, DateTimeUnit.DAY),
+    rangeStart = rangeStart,
+    rangeEnd = rangeEnd,
+)
 
 private fun withinBounds(rule: KalendarRule, count: Int, current: LocalDate, rangeEnd: LocalDate): Boolean =
     (rule.count == null || count < rule.count) &&

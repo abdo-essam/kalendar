@@ -53,8 +53,18 @@ public interface KalendarSyncProvider {
     public suspend fun hasPermission(): Boolean
 
     /**
-     * Returns all events from the device calendar whose date falls within
-     * [[startDate], [endDate]] (both inclusive).
+     * Returns all events from the device calendar that **overlap** [[startDate], [endDate]]
+     * (both inclusive).
+     *
+     * Overlap, not containment: a multi-day event is returned by every window it touches, so an
+     * event running from August 28th to September 5th comes back from a query for August *and*
+     * from a query for September, and from a query for any window inside it. Consumers paging
+     * month by month therefore see such an event on every page it spans, rather than only on the
+     * page containing its first day. Returned events keep their real
+     * [KalendarSyncEvent.date]/[KalendarSyncEvent.endDate] — they are not clipped to the window.
+     *
+     * Recurring series are returned as unexpanded templates carrying a
+     * [KalendarSyncEvent.recurrenceRule]; materialise their occurrences with [expandOccurrences].
      *
      * @param timeZone The time zone used to interpret [startDate] and [endDate] when converting
      *   to native calendar query parameters. Defaults to the device's current system time zone.
