@@ -26,6 +26,9 @@ const val REPO_URL = "https://github.com/hi-manshu/Kalendar"
 /** The Wasm playground, assembled in beside the docs by `assembleSite`. */
 const val PLAYGROUND_URL = "playground/index.html"
 
+/** The landing page's primary call to action — reading docs beats poking a demo. */
+const val GET_STARTED_URL = "getting-started.html"
+
 /** Where recurring sponsorship goes. Verified live against the author's GitHub profile. */
 const val SPONSORS_URL = "https://github.com/sponsors/hi-manshu"
 

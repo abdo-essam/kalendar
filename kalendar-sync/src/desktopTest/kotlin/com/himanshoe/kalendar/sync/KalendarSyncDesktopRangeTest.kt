@@ -127,4 +127,38 @@ class KalendarSyncDesktopRangeTest {
         assertIs<KalendarSyncResult.Success<List<KalendarSyncEvent>>>(august)
         assertTrue(august.data.isEmpty())
     }
+
+    @Test
+    fun fetchEvents_recurringSeriesStartingBeforeWindow_isStillReturned() = runBlocking {
+        val sync = KalendarSync(icsFilePath = tempIcsPath())
+        sync.insertEvent(
+            BasicKalendarSyncEvent(
+                date = LocalDate(2026, 1, 5),
+                eventName = "Weekly standup",
+                recurrenceRule = KalendarRule(frequency = KalendarRecurrenceFrequency.WEEKLY),
+            ),
+        )
+
+        // The stored template is the only row that exists, so dropping it for falling outside
+        // the window would hide every occurrence inside it. Android already keeps these.
+        val march = sync.fetchEvents(LocalDate(2026, 3, 1), LocalDate(2026, 3, 31))
+        assertIs<KalendarSyncResult.Success<List<KalendarSyncEvent>>>(march)
+        assertEquals("Weekly standup", march.data.single().eventName)
+    }
+
+    @Test
+    fun fetchEvents_recurringSeriesStartingAfterWindow_isNotReturned() = runBlocking {
+        val sync = KalendarSync(icsFilePath = tempIcsPath())
+        sync.insertEvent(
+            BasicKalendarSyncEvent(
+                date = LocalDate(2026, 6, 1),
+                eventName = "Future series",
+                recurrenceRule = KalendarRule(frequency = KalendarRecurrenceFrequency.WEEKLY),
+            ),
+        )
+
+        val march = sync.fetchEvents(LocalDate(2026, 3, 1), LocalDate(2026, 3, 31))
+        assertIs<KalendarSyncResult.Success<List<KalendarSyncEvent>>>(march)
+        assertTrue(march.data.isEmpty(), "a series starting after the window must not be returned")
+    }
 }

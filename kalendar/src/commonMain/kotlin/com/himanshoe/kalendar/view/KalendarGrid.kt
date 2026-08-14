@@ -51,11 +51,18 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
+
+/**
+ * Test tag on the sliding selection indicator, so a test can assert it is never placed at the
+ * origin. A one-frame flash there is invisible to the golden tests, which render after layout.
+ */
+internal const val SELECTION_INDICATOR_TAG = "KalendarSelectionIndicator"
 
 /**
  * Fresh 7-column grid engine backing [KalendarWeek] and [KalendarMonth].
@@ -117,6 +124,16 @@ internal fun KalendarGrid(
     val targetSize = targetCoordinates?.size ?: IntSize.Zero
 
     val indicatorOffset = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
+
+    /**
+     * Whether [indicatorOffset] has been given a real cell position yet.
+     *
+     * Until it has, the indicator is drawn straight at `targetPosition` rather than at the
+     * animator's value, which still reads [Offset.Zero] on that first frame — drawing the
+     * animator's value flashed the indicator in the top-left corner. Gating the whole indicator
+     * on this flag instead would be worse: the flag is set from a `LaunchedEffect`, so a
+     * single-pass render would omit the indicator altogether.
+     */
     var hasSnappedIndicator by remember { mutableStateOf(false) }
     val indicatorSpec: AnimationSpec<Offset> = remember(animations) {
         if (animations.enabled) {
@@ -198,11 +215,17 @@ internal fun KalendarGrid(
         if (targetPosition != null) {
             Box(
                 modifier = Modifier
-                    .offset { IntOffset(indicatorOffset.value.x.toInt(), indicatorOffset.value.y.toInt()) }
+                    .offset {
+                        val drawn = if (hasSnappedIndicator) indicatorOffset.value else targetPosition
+                        IntOffset(drawn.x.toInt(), drawn.y.toInt())
+                    }
                     .layout { measurable, _ ->
                         val placeable = measurable.measure(Constraints.fixed(targetSize.width, targetSize.height))
                         layout(placeable.width, placeable.height) { placeable.place(0, 0) }
                     }
+                    // After the offset, so the tagged node reports where the indicator actually
+                    // lands rather than where it would sit unoffset.
+                    .testTag(SELECTION_INDICATOR_TAG)
                     .padding(dimensions.dayCellPadding)
                     .clip(shapes.dayCell)
                     .background(colors.selectionBackground),

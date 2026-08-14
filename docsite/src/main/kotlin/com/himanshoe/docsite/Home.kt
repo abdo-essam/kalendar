@@ -73,7 +73,8 @@ private fun renderHero(
     <h1 class="hero-title">${escapeText(title)}</h1>
     <p class="hero-tagline">${tagline ?: escapeText(SITE_TAGLINE)}</p>
     <div class="hero-actions">
-      <a class="btn btn--primary" href="$PLAYGROUND_URL">Open the playground</a>
+      <a class="btn btn--primary" href="$GET_STARTED_URL">Get started</a>
+      <a class="btn" href="$PLAYGROUND_URL">Open the playground</a>
       <a class="btn" href="$REPO_URL" rel="noopener">View on GitHub</a>
     </div>
     ${renderSupport()}

@@ -64,6 +64,13 @@ private class DesktopKalendarSync(private val icsFilePath: String?) : KalendarSy
     /**
      * Returns every event in the file that **overlaps** [[startDate], [endDate]], including
      * multi-day events that begin before the window or end after it — see [overlapsRange].
+     *
+     * Recurring events are also returned whenever the series *starts* on or before [endDate],
+     * even if the stored template itself falls outside the window: the template is the only row
+     * that exists, so dropping it would hide every occurrence in the window. This matches the
+     * Android provider, which keeps such rows with `RRULE IS NOT NULL AND DTSTART <= windowEnd`.
+     * As on Android, templates come back unexpanded — call
+     * [expandOccurrences][com.himanshoe.kalendar.sync.expandOccurrences] to materialise them.
      */
     override suspend fun fetchEvents(
         startDate: LocalDate,
@@ -72,13 +79,14 @@ private class DesktopKalendarSync(private val icsFilePath: String?) : KalendarSy
     ): KalendarSyncResult<List<KalendarSyncEvent>> {
         val path = icsFilePath ?: return KalendarSyncResult.NotSupported
         return runCatching {
-            val events = readAllEvents(path).filter {
-                overlapsRange(
-                    eventStart = it.date,
-                    eventEndInclusive = it.endDate,
+            val events = readAllEvents(path).filter { event ->
+                val overlaps = overlapsRange(
+                    eventStart = event.date,
+                    eventEndInclusive = event.endDate,
                     rangeStart = startDate,
                     rangeEnd = endDate,
                 )
+                overlaps || (event.recurrenceRule != null && event.date <= endDate)
             }
             KalendarSyncResult.Success(events)
         }.getOrElse { KalendarSyncResult.Error("Failed to read ICS file: ${it.message}", it) }
