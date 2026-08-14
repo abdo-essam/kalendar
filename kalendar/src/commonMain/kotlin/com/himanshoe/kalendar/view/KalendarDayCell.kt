@@ -65,13 +65,122 @@ import kotlinx.datetime.Month
  * @property events The events occurring on [date].
  */
 @Immutable
-public data class KalendarDayScope(
-    val date: LocalDate,
-    val isSelected: Boolean,
-    val isToday: Boolean,
-    val isDisabled: Boolean,
-    val events: List<KalendarEvent>,
-)
+public class KalendarDayScope(
+    public val date: LocalDate,
+    public val isSelected: Boolean,
+    public val isToday: Boolean,
+    public val isDisabled: Boolean,
+    public val events: List<KalendarEvent>,
+) {
+
+    /** Returns a duplicate of this scope with only the fields passed here replaced. */
+    public fun copy(
+        date: LocalDate = this.date,
+        isSelected: Boolean = this.isSelected,
+        isToday: Boolean = this.isToday,
+        isDisabled: Boolean = this.isDisabled,
+        events: List<KalendarEvent> = this.events,
+    ): KalendarDayScope = KalendarDayScope(
+        date = date,
+        isSelected = isSelected,
+        isToday = isToday,
+        isDisabled = isDisabled,
+        events = events,
+    )
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is KalendarDayScope) return false
+        if (date != other.date) return false
+        if (isSelected != other.isSelected) return false
+        if (isToday != other.isToday) return false
+        if (isDisabled != other.isDisabled) return false
+        if (events != other.events) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = date.hashCode()
+        result = 31 * result + isSelected.hashCode()
+        result = 31 * result + isToday.hashCode()
+        result = 31 * result + isDisabled.hashCode()
+        result = 31 * result + events.hashCode()
+        return result
+    }
+
+    override fun toString(): String = "KalendarDayScope(" +
+        "date=$date, " +
+        "isSelected=$isSelected, " +
+        "isToday=$isToday, " +
+        "isDisabled=$isDisabled, " +
+        "events=$events" +
+        ")"
+}
+
+/**
+ * Makes a day cell accessible and clickable: a screen-reader description built from the date plus
+ * [KalendarStrings.todaySuffix]/[KalendarStrings.hasEventsSuffix], the `selected` state, a
+ * [Role.Button] role, and a click that is ignored when the date is disabled.
+ *
+ * A custom `dayContent` replaces the built-in cell entirely, which would otherwise mean replacing
+ * its accessibility too. Apply this to your own cell's outermost modifier and it stays accessible
+ * — and localizable, since the announcements come from [KalendarStrings]:
+ *
+ * ```kotlin
+ * KalendarMonth(
+ *     selectedDate = today,
+ *     onDateClick = { date, _ -> select(date) },
+ *     dayContent = { scope ->
+ *         MyDayCell(
+ *             day = scope.date.dayOfMonth,
+ *             modifier = Modifier.kalendarDaySemantics(
+ *                 scope = scope,
+ *                 onClick = { select(scope.date) },
+ *             ),
+ *         )
+ *     },
+ * )
+ * ```
+ *
+ * @param scope The cell's state, as handed to the `dayContent` slot.
+ * @param onClick Called when the cell is tapped and [KalendarDayScope.isDisabled] is `false`.
+ * @param monthNameFormatter Formats the month name inside the announcement. Defaults to the same
+ *   English formatter the views use; pass [KalendarViewConfig.monthNameFormatter] to match a
+ *   localized calendar.
+ * @param interactionSource Interaction source for the click, when you want to observe press state.
+ */
+@Composable
+public fun Modifier.kalendarDaySemantics(
+    scope: KalendarDayScope,
+    onClick: () -> Unit,
+    monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
+    interactionSource: MutableInteractionSource? = null,
+): Modifier {
+    val strings = kalendarStrings()
+    val description = remember(scope.date, scope.isToday, scope.events.isNotEmpty(), strings) {
+        buildString {
+            append(strings.dayAccessibilityLabel(scope.date, monthNameFormatter(scope.date.month)))
+            if (scope.isToday) {
+                append(strings.todaySuffix)
+            }
+            if (scope.events.isNotEmpty()) {
+                append(strings.hasEventsSuffix)
+            }
+        }
+    }
+    return this
+        .semantics {
+            this.contentDescription = description
+            this.selected = scope.isSelected
+        }
+        .clickable(
+            enabled = !scope.isDisabled,
+            interactionSource = interactionSource,
+            indication = null,
+            role = Role.Button,
+            onClick = onClick,
+        )
+}
 
 /**
  * Renders one grid cell for [KalendarMonth], [KalendarYear], and [KalendarTimeline]: the real day
@@ -192,18 +301,6 @@ public object KalendarDayCellDefaults {
             animationSpec = scaleSpec,
             label = "KalendarDayCellPressScale",
         )
-        val contentDescription = remember(scope.date, scope.isToday, scope.events.isNotEmpty()) {
-            buildString {
-                append(scope.date.toAccessibleDescription(monthNameFormatter))
-                if (scope.isToday) {
-                    append(", today")
-                }
-                if (scope.events.isNotEmpty()) {
-                    append(", has events")
-                }
-            }
-        }
-
         Box(
             contentAlignment = Alignment.Center,
             modifier = modifier
@@ -219,16 +316,11 @@ public object KalendarDayCellDefaults {
                 .padding(dimensions.dayCellPadding)
                 .clip(shapes.dayCell)
                 .background(background)
-                .semantics {
-                    this.contentDescription = contentDescription
-                    this.selected = scope.isSelected
-                }
-                .clickable(
-                    enabled = !scope.isDisabled,
-                    interactionSource = interactionSource,
-                    indication = null,
-                    role = Role.Button,
+                .kalendarDaySemantics(
+                    scope = scope,
                     onClick = onClick,
+                    monthNameFormatter = monthNameFormatter,
+                    interactionSource = interactionSource,
                 ),
         ) {
             Column(
@@ -304,7 +396,3 @@ private fun EventIndicatorRow(
         }
     }
 }
-
-/** Formats this date for screen readers, e.g. "August 12, 2026". */
-private fun LocalDate.toAccessibleDescription(monthNameFormatter: (Month) -> String): String =
-    "${monthNameFormatter(month)} $dayOfMonth, $year"

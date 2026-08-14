@@ -39,6 +39,11 @@ import kotlinx.datetime.Month
  *   date. Defaults to `true`.
  * @param showJumpPicker Whether tapping the header title opens a month/year jump picker that
  *   scrolls straight to the chosen month. Defaults to `true`.
+ * @param showSelectionIndicator Whether a single shared indicator slides between selected day
+ *   cells instead of each cell drawing its own selection fill. Applies to [KalendarWeek] and
+ *   [KalendarMonth], and only while exactly one date is selected — there is nothing to slide
+ *   between for multi-select or range selection. Works with a custom `dayContent` too: the
+ *   indicator is drawn behind the cell, so your own cell keeps the animation. Defaults to `true`.
  * @param monthNameFormatter Formats a month name for titles, headers, and accessibility
  *   descriptions. kotlinx-datetime has no locale-aware formatting, so this defaults to plain
  *   English (e.g. "August") — pass a formatter backed by a platform date API (`java.time`,
@@ -58,19 +63,20 @@ import kotlinx.datetime.Month
  *   something a plain colour can't express, such as a gradient.
  */
 @Immutable
-public data class KalendarViewConfig(
-    val disabledDates: (LocalDate) -> Boolean = { false },
-    val showNavigationArrows: Boolean = true,
-    val showAdjacentMonthDates: Boolean = true,
-    val showTodayButton: Boolean = true,
-    val showJumpPicker: Boolean = true,
-    val monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
-    val dayOfWeekLabelFormatter: (DayOfWeek) -> String = defaultDayOfWeekLabelFormatter,
-    val hourLabelFormatter: (Int) -> String = defaultHourLabelFormatter,
-    val scheduleInitialScrollHour: Int = DEFAULT_SCHEDULE_SCROLL_HOUR,
-    val scheduleDragSnapMinutes: Int = DEFAULT_SCHEDULE_SNAP_MINUTES,
-    val eventIndicatorCap: Int = DEFAULT_EVENT_INDICATOR_CAP,
-    val background: Brush? = null,
+public class KalendarViewConfig(
+    public val disabledDates: (LocalDate) -> Boolean = { false },
+    public val showNavigationArrows: Boolean = true,
+    public val showAdjacentMonthDates: Boolean = true,
+    public val showTodayButton: Boolean = true,
+    public val showJumpPicker: Boolean = true,
+    public val showSelectionIndicator: Boolean = true,
+    public val monthNameFormatter: (Month) -> String = defaultMonthNameFormatter,
+    public val dayOfWeekLabelFormatter: (DayOfWeek) -> String = defaultDayOfWeekLabelFormatter,
+    public val hourLabelFormatter: (Int) -> String = defaultHourLabelFormatter,
+    public val scheduleInitialScrollHour: Int = DEFAULT_SCHEDULE_SCROLL_HOUR,
+    public val scheduleDragSnapMinutes: Int = DEFAULT_SCHEDULE_SNAP_MINUTES,
+    public val eventIndicatorCap: Int = DEFAULT_EVENT_INDICATOR_CAP,
+    public val background: Brush? = null,
 ) {
     init {
         require(scheduleInitialScrollHour in 0 until HOURS_PER_DAY) {
@@ -83,6 +89,93 @@ public data class KalendarViewConfig(
             "eventIndicatorCap must be >= 1, was $eventIndicatorCap"
         }
     }
+
+    /**
+     * Returns a duplicate of this config with only the options passed here replaced. The same
+     * validation the constructor performs applies to the result.
+     */
+    public fun copy(
+        disabledDates: (LocalDate) -> Boolean = this.disabledDates,
+        showNavigationArrows: Boolean = this.showNavigationArrows,
+        showAdjacentMonthDates: Boolean = this.showAdjacentMonthDates,
+        showTodayButton: Boolean = this.showTodayButton,
+        showJumpPicker: Boolean = this.showJumpPicker,
+        showSelectionIndicator: Boolean = this.showSelectionIndicator,
+        monthNameFormatter: (Month) -> String = this.monthNameFormatter,
+        dayOfWeekLabelFormatter: (DayOfWeek) -> String = this.dayOfWeekLabelFormatter,
+        hourLabelFormatter: (Int) -> String = this.hourLabelFormatter,
+        scheduleInitialScrollHour: Int = this.scheduleInitialScrollHour,
+        scheduleDragSnapMinutes: Int = this.scheduleDragSnapMinutes,
+        eventIndicatorCap: Int = this.eventIndicatorCap,
+        background: Brush? = this.background,
+    ): KalendarViewConfig = KalendarViewConfig(
+        disabledDates = disabledDates,
+        showNavigationArrows = showNavigationArrows,
+        showAdjacentMonthDates = showAdjacentMonthDates,
+        showTodayButton = showTodayButton,
+        showJumpPicker = showJumpPicker,
+        showSelectionIndicator = showSelectionIndicator,
+        monthNameFormatter = monthNameFormatter,
+        dayOfWeekLabelFormatter = dayOfWeekLabelFormatter,
+        hourLabelFormatter = hourLabelFormatter,
+        scheduleInitialScrollHour = scheduleInitialScrollHour,
+        scheduleDragSnapMinutes = scheduleDragSnapMinutes,
+        eventIndicatorCap = eventIndicatorCap,
+        background = background,
+    )
+
+    @Suppress("CyclomaticComplexMethod")
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is KalendarViewConfig) return false
+        if (disabledDates != other.disabledDates) return false
+        if (showNavigationArrows != other.showNavigationArrows) return false
+        if (showAdjacentMonthDates != other.showAdjacentMonthDates) return false
+        if (showTodayButton != other.showTodayButton) return false
+        if (showJumpPicker != other.showJumpPicker) return false
+        if (showSelectionIndicator != other.showSelectionIndicator) return false
+        if (monthNameFormatter != other.monthNameFormatter) return false
+        if (dayOfWeekLabelFormatter != other.dayOfWeekLabelFormatter) return false
+        if (hourLabelFormatter != other.hourLabelFormatter) return false
+        if (scheduleInitialScrollHour != other.scheduleInitialScrollHour) return false
+        if (scheduleDragSnapMinutes != other.scheduleDragSnapMinutes) return false
+        if (eventIndicatorCap != other.eventIndicatorCap) return false
+        if (background != other.background) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = disabledDates.hashCode()
+        result = 31 * result + showNavigationArrows.hashCode()
+        result = 31 * result + showAdjacentMonthDates.hashCode()
+        result = 31 * result + showTodayButton.hashCode()
+        result = 31 * result + showJumpPicker.hashCode()
+        result = 31 * result + showSelectionIndicator.hashCode()
+        result = 31 * result + monthNameFormatter.hashCode()
+        result = 31 * result + dayOfWeekLabelFormatter.hashCode()
+        result = 31 * result + hourLabelFormatter.hashCode()
+        result = 31 * result + scheduleInitialScrollHour.hashCode()
+        result = 31 * result + scheduleDragSnapMinutes.hashCode()
+        result = 31 * result + eventIndicatorCap.hashCode()
+        result = 31 * result + background.hashCode()
+        return result
+    }
+
+    override fun toString(): String = "KalendarViewConfig(" +
+        "disabledDates=$disabledDates, " +
+        "showNavigationArrows=$showNavigationArrows, " +
+        "showAdjacentMonthDates=$showAdjacentMonthDates, " +
+        "showTodayButton=$showTodayButton, " +
+        "showJumpPicker=$showJumpPicker, " +
+        "showSelectionIndicator=$showSelectionIndicator, " +
+        "monthNameFormatter=$monthNameFormatter, " +
+        "dayOfWeekLabelFormatter=$dayOfWeekLabelFormatter, " +
+        "hourLabelFormatter=$hourLabelFormatter, " +
+        "scheduleInitialScrollHour=$scheduleInitialScrollHour, " +
+        "scheduleDragSnapMinutes=$scheduleDragSnapMinutes, " +
+        "eventIndicatorCap=$eventIndicatorCap, " +
+        "background=${background ?: "null"}" +
+        ")"
 }
 
 internal const val DEFAULT_SCHEDULE_SCROLL_HOUR = 7

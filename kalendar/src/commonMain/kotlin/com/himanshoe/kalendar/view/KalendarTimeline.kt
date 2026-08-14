@@ -16,37 +16,21 @@
 
 package com.himanshoe.kalendar.view
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Today
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
-import kotlinx.coroutines.launch
+import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 
 /**
@@ -90,6 +74,15 @@ import kotlinx.datetime.LocalDate
  * @param onDateClick Called when a non-disabled date is tapped, with the events on that date.
  * @param config Shared visual/behavioural settings — disabled dates, background, today button.
  *   Arrow visibility and the jump picker have no effect (see above).
+ * @param header Replaces the sticky overlay pinned above the scrolling months. Receives a
+ *   [KalendarHeaderScope] whose page vocabulary is mapped onto months, since a timeline has no
+ *   pages: `canScrollBackward`/`canScrollForward` are always `true` (the scroll itself is clamped
+ *   to `minDate`/`maxDate`), and `goToPreviousPage`/`goToNextPage` scroll one month back/forward
+ *   from the topmost visible month. Defaults to [KalendarHeaderDefaults.TimelineHeader] driven by
+ *   [config].
+ * @param dayOfWeekLabel Replaces the content of each weekday column header, on every month grid.
+ *   The grid still places one per column, so a replacement stays aligned with the day cells.
+ *   Defaults to [KalendarHeaderDefaults.DayOfWeekLabel] formatted by [config].
  * @param dayContent Replaces the default day-cell rendering. Receives a [KalendarDayScope]
  *   describing the date being rendered.
  */
@@ -102,15 +95,26 @@ public fun KalendarTimeline(
     selectedDates: Set<LocalDate> = setOf(selectedDate),
     onDateClick: (date: LocalDate, events: List<KalendarEvent>) -> Unit = { _, _ -> },
     config: KalendarViewConfig = KalendarViewConfig(),
+    header: @Composable (KalendarHeaderScope) -> Unit = { headerScope ->
+        KalendarHeaderDefaults.TimelineHeader(
+            scope = headerScope,
+            showTodayButton = config.showTodayButton,
+            background = config.background,
+        )
+    },
+    dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
+        KalendarHeaderDefaults.DayOfWeekLabel(
+            dayOfWeek = dayOfWeek,
+            formatter = config.dayOfWeekLabelFormatter,
+        )
+    },
     dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
 ) {
     val colors = kalendarColors()
     val typography = kalendarTypography()
     val dimensions = kalendarDimensions()
-    val animations = kalendarAnimations()
     val today = remember { todayInSystemTimeZone() }
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
-    val scope = rememberCoroutineScope()
     val background = config.background ?: SolidColor(colors.background)
 
     Box(modifier = modifier) {
@@ -132,7 +136,7 @@ public fun KalendarTimeline(
                     KalendarStaticGrid(
                         dates = dates,
                         startDayOfWeek = state.startDayOfWeek,
-                        dayLabelFormatter = config.dayOfWeekLabelFormatter,
+                        dayOfWeekLabel = dayOfWeekLabel,
                     ) { date ->
                         val dateEvents = eventsByDate[date] ?: emptyList()
                         val isCurrentMonth = date.month == monthStart.month
@@ -158,45 +162,10 @@ public fun KalendarTimeline(
         }
 
         Column(modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(background)
-                    .padding(dimensions.sectionPadding),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                val stickyTitle = remember(state.visibleDate) {
-                    monthTitle(state.visibleDate, config.monthNameFormatter)
-                }
-                AnimatedContent(
-                    targetState = stickyTitle,
-                    transitionSpec = {
-                        if (animations.enabled) {
-                            val duration = animations.titleTransitionMillis
-                            fadeIn(tween(duration)) togetherWith fadeOut(tween(duration))
-                        } else {
-                            EnterTransition.None togetherWith ExitTransition.None
-                        }
-                    },
-                ) { animatedTitle ->
-                    Text(
-                        text = animatedTitle,
-                        style = typography.headerTitle,
-                        color = colors.headerContent,
-                    )
-                }
-                if (config.showTodayButton) {
-                    IconButton(onClick = { scope.launch { state.scrollToToday() } }) {
-                        Icon(
-                            imageVector = Icons.Filled.Today,
-                            contentDescription = "Today",
-                            tint = colors.headerContent,
-                        )
-                    }
-                }
+            val stickyTitle = remember(state.visibleDate) {
+                monthTitle(state.visibleDate, config.monthNameFormatter)
             }
-            HorizontalDivider(color = colors.gridLine)
+            header(rememberKalendarTimelineHeaderScope(state = state, title = stickyTitle))
         }
     }
 }

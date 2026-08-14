@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
+import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
 
@@ -68,6 +69,13 @@ import kotlinx.datetime.Month
  *   recompositions rather than building a fresh [Set] every time.
  * @param onDateClick Called when a non-disabled date is tapped, with the events on that date.
  * @param config Shared visual/behavioural settings — disabled dates, arrow visibility, background.
+ * @param header Replaces the navigation header above the year's months. Receives a
+ *   [KalendarHeaderScope] carrying the formatted title and the navigation callbacks, so your own
+ *   chrome keeps working arrows and today button. Defaults to [KalendarHeaderDefaults.Header]
+ *   driven by [config].
+ * @param dayOfWeekLabel Replaces the content of each weekday column header, on every month grid.
+ *   The grid still places one per column, so a replacement stays aligned with the day cells.
+ *   Defaults to [KalendarHeaderDefaults.DayOfWeekLabel] formatted by [config].
  * @param dayContent Replaces the default day-cell rendering. Receives a [KalendarDayScope]
  *   describing the date being rendered.
  */
@@ -80,6 +88,21 @@ public fun KalendarYear(
     selectedDates: Set<LocalDate> = setOf(selectedDate),
     onDateClick: (date: LocalDate, events: List<KalendarEvent>) -> Unit = { _, _ -> },
     config: KalendarViewConfig = KalendarViewConfig(),
+    header: @Composable (KalendarHeaderScope) -> Unit = { headerScope ->
+        KalendarHeaderDefaults.Header(
+            scope = headerScope,
+            showNavigationArrows = config.showNavigationArrows,
+            showTodayButton = config.showTodayButton,
+            showJumpPicker = config.showJumpPicker,
+            monthNameFormatter = config.monthNameFormatter,
+        )
+    },
+    dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
+        KalendarHeaderDefaults.DayOfWeekLabel(
+            dayOfWeek = dayOfWeek,
+            formatter = config.dayOfWeekLabelFormatter,
+        )
+    },
     dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
 ) {
     val colors = kalendarColors()
@@ -88,14 +111,8 @@ public fun KalendarYear(
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
 
     Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
-        KalendarNavigationHeader(
-            title = remember(state.visibleDate) { state.visibleDate.year.toString() },
-            state = state,
-            showArrows = config.showNavigationArrows,
-            showTodayButton = config.showTodayButton,
-            showJumpPicker = config.showJumpPicker,
-            monthNameFormatter = config.monthNameFormatter,
-        )
+        val title = remember(state.visibleDate) { state.visibleDate.year.toString() }
+        header(rememberKalendarHeaderScope(state = state, title = title))
         HorizontalPager(
             state = state.pagerState,
             modifier = Modifier.fillMaxWidth(),
@@ -120,7 +137,7 @@ public fun KalendarYear(
                             dates = dates,
                             startDayOfWeek = state.startDayOfWeek,
                             modifier = Modifier.padding(horizontal = 8.dp),
-                            dayLabelFormatter = config.dayOfWeekLabelFormatter,
+                            dayOfWeekLabel = dayOfWeekLabel,
                         ) { date ->
                             val dateEvents = eventsByDate[date] ?: emptyList()
                             val isCurrentMonth = date.month == month

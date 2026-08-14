@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.SolidColor
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
 import kotlinx.datetime.plus
@@ -68,6 +69,12 @@ import kotlinx.datetime.plus
  *   [KalendarSelectionState.onRangeDrag]/[KalendarSelectionState.onRangeDragEnd].
  * @param onDateRangeSelectEnd Called once when a drag started by [onDateRangeSelect] ends.
  * @param config Shared visual/behavioural settings — disabled dates, arrow visibility, background.
+ * @param header Replaces the navigation header above the week row. Receives a [KalendarHeaderScope]
+ *   carrying the formatted title and the navigation callbacks, so your own chrome keeps working
+ *   arrows and today button. Defaults to [KalendarHeaderDefaults.Header] driven by [config].
+ * @param dayOfWeekLabel Replaces the content of each weekday column header. The grid still places
+ *   one per column, so a replacement stays aligned with the day cells. Defaults to
+ *   [KalendarHeaderDefaults.DayOfWeekLabel] formatted by [config].
  * @param dayContent Replaces the default day-cell rendering. Receives a [KalendarDayScope]
  *   describing the date being rendered.
  */
@@ -82,22 +89,31 @@ public fun KalendarWeek(
     onDateRangeSelect: ((start: LocalDate, current: LocalDate) -> Unit)? = null,
     onDateRangeSelectEnd: (() -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
+    header: @Composable (KalendarHeaderScope) -> Unit = { headerScope ->
+        KalendarHeaderDefaults.Header(
+            scope = headerScope,
+            showNavigationArrows = config.showNavigationArrows,
+            showTodayButton = config.showTodayButton,
+            showJumpPicker = config.showJumpPicker,
+            monthNameFormatter = config.monthNameFormatter,
+        )
+    },
+    dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
+        KalendarHeaderDefaults.DayOfWeekLabel(
+            dayOfWeek = dayOfWeek,
+            formatter = config.dayOfWeekLabelFormatter,
+        )
+    },
     dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
 ) {
     val colors = kalendarColors()
     val today = remember { todayInSystemTimeZone() }
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
-    val slidingSelection = if (dayContent == null) selectedDates.singleOrNull() else null
+    val slidingSelection = if (config.showSelectionIndicator) selectedDates.singleOrNull() else null
 
     Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
-        KalendarNavigationHeader(
-            title = remember(state.visibleDate) { weekTitle(state.visibleDate, config.monthNameFormatter) },
-            state = state,
-            showArrows = config.showNavigationArrows,
-            showTodayButton = config.showTodayButton,
-            showJumpPicker = config.showJumpPicker,
-            monthNameFormatter = config.monthNameFormatter,
-        )
+        val title = remember(state.visibleDate) { weekTitle(state.visibleDate, config.monthNameFormatter) }
+        header(rememberKalendarHeaderScope(state = state, title = title))
         HorizontalPager(
             state = state.pagerState,
             modifier = Modifier.fillMaxWidth(),
@@ -108,9 +124,9 @@ public fun KalendarWeek(
                 dates = dates,
                 startDayOfWeek = state.startDayOfWeek,
                 selectedDate = slidingSelection,
-                dayLabelFormatter = config.dayOfWeekLabelFormatter,
                 onDateRangeDrag = onDateRangeSelect,
                 onDateRangeDragEnd = onDateRangeSelectEnd,
+                dayOfWeekLabel = dayOfWeekLabel,
             ) { date ->
                 val dateEvents = eventsByDate[date] ?: emptyList()
                 val scope = KalendarDayScope(

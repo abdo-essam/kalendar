@@ -32,7 +32,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -51,7 +51,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -80,6 +79,10 @@ import kotlinx.datetime.LocalDate
  * highlight follows the cell under the pointer, and releasing over a different date calls
  * [onEventDrop] with (pressed date, drop date). Cells without events still fall through to
  * range selection.
+ *
+ * [dayOfWeekLabel] supplies the *content* of each weekday column header; the grid itself still
+ * measures and places one per column, in the same 7-column track as the day cells, so a replacement
+ * label can never knock the header row out of alignment with the dates below it.
  */
 @Composable
 internal fun KalendarGrid(
@@ -87,15 +90,16 @@ internal fun KalendarGrid(
     startDayOfWeek: DayOfWeek,
     selectedDate: LocalDate?,
     modifier: Modifier = Modifier,
-    dayLabelFormatter: (DayOfWeek) -> String = defaultDayOfWeekLabelFormatter,
     onDateRangeDrag: ((start: LocalDate, current: LocalDate) -> Unit)? = null,
     onDateRangeDragEnd: (() -> Unit)? = null,
     hasEvents: (LocalDate) -> Boolean = { false },
     onEventDrop: ((from: LocalDate, to: LocalDate) -> Unit)? = null,
+    dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
+        KalendarHeaderDefaults.DayOfWeekLabel(dayOfWeek = dayOfWeek)
+    },
     cell: @Composable (LocalDate) -> Unit,
 ) {
     val colors = kalendarColors()
-    val typography = kalendarTypography()
     val shapes = kalendarShapes()
     val dimensions = kalendarDimensions()
     val animations = kalendarAnimations()
@@ -230,13 +234,9 @@ internal fun KalendarGrid(
             userScrollEnabled = false,
         ) {
             items(labelDays) { day ->
-                Text(
-                    text = dayLabelFormatter(day),
-                    style = typography.dayOfWeekLabel,
-                    color = colors.dayLabelContent,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    dayOfWeekLabel(day)
+                }
             }
             items(items = dates, key = { it.toEpochDays() }) { date ->
                 Box(modifier = Modifier.onGloballyPositioned { cellCoordinates[date] = it }) {
@@ -271,29 +271,28 @@ private fun dateAtOffset(
  * [KalendarTimeline]'s `LazyColumn` items — where a nested `LazyVerticalGrid` would be measured
  * with an unbounded height and crash. A month grid is at most 42 cells, cheap enough to compose
  * eagerly.
+ *
+ * As in [KalendarGrid], [dayOfWeekLabel] supplies only the content of each weekday column header —
+ * this grid keeps the `weight(1f)` column placement, so alignment with the day cells is preserved.
  */
 @Composable
 internal fun KalendarStaticGrid(
     dates: List<LocalDate>,
     startDayOfWeek: DayOfWeek,
     modifier: Modifier = Modifier,
-    dayLabelFormatter: (DayOfWeek) -> String = defaultDayOfWeekLabelFormatter,
+    dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
+        KalendarHeaderDefaults.DayOfWeekLabel(dayOfWeek = dayOfWeek)
+    },
     cell: @Composable (LocalDate) -> Unit,
 ) {
     val labelDays = remember(startDayOfWeek) { daysOfWeekStartingAt(startDayOfWeek) }
-    val colors = kalendarColors()
-    val typography = kalendarTypography()
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth()) {
             labelDays.forEach { day ->
-                Text(
-                    text = dayLabelFormatter(day),
-                    style = typography.dayOfWeekLabel,
-                    color = colors.dayLabelContent,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f),
-                )
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    dayOfWeekLabel(day)
+                }
             }
         }
         dates.chunked(7).forEach { week ->

@@ -79,23 +79,119 @@ import androidx.compose.ui.unit.sp
  * @property dragGhostAlpha Opacity of [dragGhostBackground].
  */
 @Immutable
-public data class KalendarColors(
-    val background: Color,
-    val selectionBackground: Color,
-    val onSelectionBackground: Color,
-    val todayContent: Color,
-    val dayContent: Color,
-    val dayLabelContent: Color,
-    val headerContent: Color,
-    val eventIndicator: Color,
-    val nowIndicator: Color,
-    val gridLine: Color,
-    val dragGhostBackground: Color,
-    val disabledContentAlpha: Float = DEFAULT_DISABLED_ALPHA,
-    val eventBlockAlpha: Float = DEFAULT_EVENT_BLOCK_ALPHA,
-    val eventBlockDraggingAlpha: Float = DEFAULT_EVENT_BLOCK_DRAGGING_ALPHA,
-    val dragGhostAlpha: Float = DEFAULT_DRAG_GHOST_ALPHA,
-)
+@Suppress("LongParameterList")
+public class KalendarColors(
+    public val background: Color,
+    public val selectionBackground: Color,
+    public val onSelectionBackground: Color,
+    public val todayContent: Color,
+    public val dayContent: Color,
+    public val dayLabelContent: Color,
+    public val headerContent: Color,
+    public val eventIndicator: Color,
+    public val nowIndicator: Color,
+    public val gridLine: Color,
+    public val dragGhostBackground: Color,
+    public val disabledContentAlpha: Float = DEFAULT_DISABLED_ALPHA,
+    public val eventBlockAlpha: Float = DEFAULT_EVENT_BLOCK_ALPHA,
+    public val eventBlockDraggingAlpha: Float = DEFAULT_EVENT_BLOCK_DRAGGING_ALPHA,
+    public val dragGhostAlpha: Float = DEFAULT_DRAG_GHOST_ALPHA,
+) {
+
+    /** Returns a duplicate of these colours with only the tokens passed here replaced. */
+    public fun copy(
+        background: Color = this.background,
+        selectionBackground: Color = this.selectionBackground,
+        onSelectionBackground: Color = this.onSelectionBackground,
+        todayContent: Color = this.todayContent,
+        dayContent: Color = this.dayContent,
+        dayLabelContent: Color = this.dayLabelContent,
+        headerContent: Color = this.headerContent,
+        eventIndicator: Color = this.eventIndicator,
+        nowIndicator: Color = this.nowIndicator,
+        gridLine: Color = this.gridLine,
+        dragGhostBackground: Color = this.dragGhostBackground,
+        disabledContentAlpha: Float = this.disabledContentAlpha,
+        eventBlockAlpha: Float = this.eventBlockAlpha,
+        eventBlockDraggingAlpha: Float = this.eventBlockDraggingAlpha,
+        dragGhostAlpha: Float = this.dragGhostAlpha,
+    ): KalendarColors = KalendarColors(
+        background = background,
+        selectionBackground = selectionBackground,
+        onSelectionBackground = onSelectionBackground,
+        todayContent = todayContent,
+        dayContent = dayContent,
+        dayLabelContent = dayLabelContent,
+        headerContent = headerContent,
+        eventIndicator = eventIndicator,
+        nowIndicator = nowIndicator,
+        gridLine = gridLine,
+        dragGhostBackground = dragGhostBackground,
+        disabledContentAlpha = disabledContentAlpha,
+        eventBlockAlpha = eventBlockAlpha,
+        eventBlockDraggingAlpha = eventBlockDraggingAlpha,
+        dragGhostAlpha = dragGhostAlpha,
+    )
+
+    @Suppress("CyclomaticComplexMethod")
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is KalendarColors) return false
+        if (background != other.background) return false
+        if (selectionBackground != other.selectionBackground) return false
+        if (onSelectionBackground != other.onSelectionBackground) return false
+        if (todayContent != other.todayContent) return false
+        if (dayContent != other.dayContent) return false
+        if (dayLabelContent != other.dayLabelContent) return false
+        if (headerContent != other.headerContent) return false
+        if (eventIndicator != other.eventIndicator) return false
+        if (nowIndicator != other.nowIndicator) return false
+        if (gridLine != other.gridLine) return false
+        if (dragGhostBackground != other.dragGhostBackground) return false
+        if (disabledContentAlpha != other.disabledContentAlpha) return false
+        if (eventBlockAlpha != other.eventBlockAlpha) return false
+        if (eventBlockDraggingAlpha != other.eventBlockDraggingAlpha) return false
+        if (dragGhostAlpha != other.dragGhostAlpha) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = background.hashCode()
+        result = 31 * result + selectionBackground.hashCode()
+        result = 31 * result + onSelectionBackground.hashCode()
+        result = 31 * result + todayContent.hashCode()
+        result = 31 * result + dayContent.hashCode()
+        result = 31 * result + dayLabelContent.hashCode()
+        result = 31 * result + headerContent.hashCode()
+        result = 31 * result + eventIndicator.hashCode()
+        result = 31 * result + nowIndicator.hashCode()
+        result = 31 * result + gridLine.hashCode()
+        result = 31 * result + dragGhostBackground.hashCode()
+        result = 31 * result + disabledContentAlpha.hashCode()
+        result = 31 * result + eventBlockAlpha.hashCode()
+        result = 31 * result + eventBlockDraggingAlpha.hashCode()
+        result = 31 * result + dragGhostAlpha.hashCode()
+        return result
+    }
+
+    override fun toString(): String = "KalendarColors(" +
+        "background=$background, " +
+        "selectionBackground=$selectionBackground, " +
+        "onSelectionBackground=$onSelectionBackground, " +
+        "todayContent=$todayContent, " +
+        "dayContent=$dayContent, " +
+        "dayLabelContent=$dayLabelContent, " +
+        "headerContent=$headerContent, " +
+        "eventIndicator=$eventIndicator, " +
+        "nowIndicator=$nowIndicator, " +
+        "gridLine=$gridLine, " +
+        "dragGhostBackground=$dragGhostBackground, " +
+        "disabledContentAlpha=$disabledContentAlpha, " +
+        "eventBlockAlpha=$eventBlockAlpha, " +
+        "eventBlockDraggingAlpha=$eventBlockDraggingAlpha, " +
+        "dragGhostAlpha=$dragGhostAlpha" +
+        ")"
+}
 
 /**
  * Text styles for every piece of text a Kalendar view draws, replacing the built-in
@@ -129,17 +225,82 @@ public data class KalendarColors(
  * @property hourLabel The hour-gutter labels on the Schedule views.
  */
 @Immutable
-public data class KalendarTypography(
-    val headerTitle: TextStyle,
-    val monthLabel: TextStyle,
-    val dayOfWeekLabel: TextStyle,
-    val dayNumber: TextStyle,
-    val dayNumberEmphasized: TextStyle,
-    val weekDayNumber: TextStyle,
-    val eventLabel: TextStyle,
-    val eventOverflowLabel: TextStyle,
-    val hourLabel: TextStyle,
-)
+@Suppress("LongParameterList")
+public class KalendarTypography(
+    public val headerTitle: TextStyle,
+    public val monthLabel: TextStyle,
+    public val dayOfWeekLabel: TextStyle,
+    public val dayNumber: TextStyle,
+    public val dayNumberEmphasized: TextStyle,
+    public val weekDayNumber: TextStyle,
+    public val eventLabel: TextStyle,
+    public val eventOverflowLabel: TextStyle,
+    public val hourLabel: TextStyle,
+) {
+
+    /** Returns a duplicate of this type scale with only the styles passed here replaced. */
+    public fun copy(
+        headerTitle: TextStyle = this.headerTitle,
+        monthLabel: TextStyle = this.monthLabel,
+        dayOfWeekLabel: TextStyle = this.dayOfWeekLabel,
+        dayNumber: TextStyle = this.dayNumber,
+        dayNumberEmphasized: TextStyle = this.dayNumberEmphasized,
+        weekDayNumber: TextStyle = this.weekDayNumber,
+        eventLabel: TextStyle = this.eventLabel,
+        eventOverflowLabel: TextStyle = this.eventOverflowLabel,
+        hourLabel: TextStyle = this.hourLabel,
+    ): KalendarTypography = KalendarTypography(
+        headerTitle = headerTitle,
+        monthLabel = monthLabel,
+        dayOfWeekLabel = dayOfWeekLabel,
+        dayNumber = dayNumber,
+        dayNumberEmphasized = dayNumberEmphasized,
+        weekDayNumber = weekDayNumber,
+        eventLabel = eventLabel,
+        eventOverflowLabel = eventOverflowLabel,
+        hourLabel = hourLabel,
+    )
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is KalendarTypography) return false
+        if (headerTitle != other.headerTitle) return false
+        if (monthLabel != other.monthLabel) return false
+        if (dayOfWeekLabel != other.dayOfWeekLabel) return false
+        if (dayNumber != other.dayNumber) return false
+        if (dayNumberEmphasized != other.dayNumberEmphasized) return false
+        if (weekDayNumber != other.weekDayNumber) return false
+        if (eventLabel != other.eventLabel) return false
+        if (eventOverflowLabel != other.eventOverflowLabel) return false
+        if (hourLabel != other.hourLabel) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = headerTitle.hashCode()
+        result = 31 * result + monthLabel.hashCode()
+        result = 31 * result + dayOfWeekLabel.hashCode()
+        result = 31 * result + dayNumber.hashCode()
+        result = 31 * result + dayNumberEmphasized.hashCode()
+        result = 31 * result + weekDayNumber.hashCode()
+        result = 31 * result + eventLabel.hashCode()
+        result = 31 * result + eventOverflowLabel.hashCode()
+        result = 31 * result + hourLabel.hashCode()
+        return result
+    }
+
+    override fun toString(): String = "KalendarTypography(" +
+        "headerTitle=$headerTitle, " +
+        "monthLabel=$monthLabel, " +
+        "dayOfWeekLabel=$dayOfWeekLabel, " +
+        "dayNumber=$dayNumber, " +
+        "dayNumberEmphasized=$dayNumberEmphasized, " +
+        "weekDayNumber=$weekDayNumber, " +
+        "eventLabel=$eventLabel, " +
+        "eventOverflowLabel=$eventOverflowLabel, " +
+        "hourLabel=$hourLabel" +
+        ")"
+}
 
 /**
  * Shapes used by Kalendar views.
@@ -155,12 +316,51 @@ public data class KalendarTypography(
  * @property popup The month/year jump picker surface.
  */
 @Immutable
-public data class KalendarShapes(
-    val dayCell: Shape,
-    val eventIndicator: Shape,
-    val eventBlock: Shape,
-    val popup: Shape,
-)
+public class KalendarShapes(
+    public val dayCell: Shape,
+    public val eventIndicator: Shape,
+    public val eventBlock: Shape,
+    public val popup: Shape,
+) {
+
+    /** Returns a duplicate of these shapes with only the ones passed here replaced. */
+    public fun copy(
+        dayCell: Shape = this.dayCell,
+        eventIndicator: Shape = this.eventIndicator,
+        eventBlock: Shape = this.eventBlock,
+        popup: Shape = this.popup,
+    ): KalendarShapes = KalendarShapes(
+        dayCell = dayCell,
+        eventIndicator = eventIndicator,
+        eventBlock = eventBlock,
+        popup = popup,
+    )
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is KalendarShapes) return false
+        if (dayCell != other.dayCell) return false
+        if (eventIndicator != other.eventIndicator) return false
+        if (eventBlock != other.eventBlock) return false
+        if (popup != other.popup) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = dayCell.hashCode()
+        result = 31 * result + eventIndicator.hashCode()
+        result = 31 * result + eventBlock.hashCode()
+        result = 31 * result + popup.hashCode()
+        return result
+    }
+
+    override fun toString(): String = "KalendarShapes(" +
+        "dayCell=$dayCell, " +
+        "eventIndicator=$eventIndicator, " +
+        "eventBlock=$eventBlock, " +
+        "popup=$popup" +
+        ")"
+}
 
 /**
  * Sizing and spacing for every Kalendar view.
@@ -207,28 +407,148 @@ public data class KalendarShapes(
  *   sticky header, and [KalendarYear]'s month names.
  */
 @Immutable
-public data class KalendarDimensions(
-    val dayCellPadding: Dp = 2.dp,
-    val dayCellAspectRatio: Float = 1f,
-    val eventIndicatorSize: Dp = 4.dp,
-    val eventIndicatorSpacing: Dp = 2.dp,
-    val eventIndicatorTopPadding: Dp = 3.dp,
-    val headerPadding: PaddingValues = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-    val headerIconSlotWidth: Dp = 48.dp,
-    val hourHeight: Dp = 64.dp,
-    val hourGutterWidth: Dp = 48.dp,
-    val gridLineThickness: Dp = 1.dp,
-    val nowIndicatorThickness: Dp = 2.dp,
-    val eventBlockGap: Dp = 1.dp,
-    val eventBlockAccentWidth: Dp = 3.dp,
-    val eventBlockPadding: PaddingValues = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-    val eventBlockResizeHandleHeight: Dp = 12.dp,
-    val allDayRowPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-    val allDayChipSpacing: Dp = 4.dp,
-    val allDayChipPadding: PaddingValues = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-    val monthSpacing: Dp = 16.dp,
-    val sectionPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-)
+public class KalendarDimensions(
+    public val dayCellPadding: Dp = 2.dp,
+    public val dayCellAspectRatio: Float = 1f,
+    public val eventIndicatorSize: Dp = 4.dp,
+    public val eventIndicatorSpacing: Dp = 2.dp,
+    public val eventIndicatorTopPadding: Dp = 3.dp,
+    public val headerPadding: PaddingValues = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+    public val headerIconSlotWidth: Dp = 48.dp,
+    public val hourHeight: Dp = 64.dp,
+    public val hourGutterWidth: Dp = 48.dp,
+    public val gridLineThickness: Dp = 1.dp,
+    public val nowIndicatorThickness: Dp = 2.dp,
+    public val eventBlockGap: Dp = 1.dp,
+    public val eventBlockAccentWidth: Dp = 3.dp,
+    public val eventBlockPadding: PaddingValues = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+    public val eventBlockResizeHandleHeight: Dp = 12.dp,
+    public val allDayRowPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+    public val allDayChipSpacing: Dp = 4.dp,
+    public val allDayChipPadding: PaddingValues = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+    public val monthSpacing: Dp = 16.dp,
+    public val sectionPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+) {
+
+    /** Returns a duplicate of these dimensions with only the values passed here replaced. */
+    public fun copy(
+        dayCellPadding: Dp = this.dayCellPadding,
+        dayCellAspectRatio: Float = this.dayCellAspectRatio,
+        eventIndicatorSize: Dp = this.eventIndicatorSize,
+        eventIndicatorSpacing: Dp = this.eventIndicatorSpacing,
+        eventIndicatorTopPadding: Dp = this.eventIndicatorTopPadding,
+        headerPadding: PaddingValues = this.headerPadding,
+        headerIconSlotWidth: Dp = this.headerIconSlotWidth,
+        hourHeight: Dp = this.hourHeight,
+        hourGutterWidth: Dp = this.hourGutterWidth,
+        gridLineThickness: Dp = this.gridLineThickness,
+        nowIndicatorThickness: Dp = this.nowIndicatorThickness,
+        eventBlockGap: Dp = this.eventBlockGap,
+        eventBlockAccentWidth: Dp = this.eventBlockAccentWidth,
+        eventBlockPadding: PaddingValues = this.eventBlockPadding,
+        eventBlockResizeHandleHeight: Dp = this.eventBlockResizeHandleHeight,
+        allDayRowPadding: PaddingValues = this.allDayRowPadding,
+        allDayChipSpacing: Dp = this.allDayChipSpacing,
+        allDayChipPadding: PaddingValues = this.allDayChipPadding,
+        monthSpacing: Dp = this.monthSpacing,
+        sectionPadding: PaddingValues = this.sectionPadding,
+    ): KalendarDimensions = KalendarDimensions(
+        dayCellPadding = dayCellPadding,
+        dayCellAspectRatio = dayCellAspectRatio,
+        eventIndicatorSize = eventIndicatorSize,
+        eventIndicatorSpacing = eventIndicatorSpacing,
+        eventIndicatorTopPadding = eventIndicatorTopPadding,
+        headerPadding = headerPadding,
+        headerIconSlotWidth = headerIconSlotWidth,
+        hourHeight = hourHeight,
+        hourGutterWidth = hourGutterWidth,
+        gridLineThickness = gridLineThickness,
+        nowIndicatorThickness = nowIndicatorThickness,
+        eventBlockGap = eventBlockGap,
+        eventBlockAccentWidth = eventBlockAccentWidth,
+        eventBlockPadding = eventBlockPadding,
+        eventBlockResizeHandleHeight = eventBlockResizeHandleHeight,
+        allDayRowPadding = allDayRowPadding,
+        allDayChipSpacing = allDayChipSpacing,
+        allDayChipPadding = allDayChipPadding,
+        monthSpacing = monthSpacing,
+        sectionPadding = sectionPadding,
+    )
+
+    @Suppress("CyclomaticComplexMethod")
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is KalendarDimensions) return false
+        if (dayCellPadding != other.dayCellPadding) return false
+        if (dayCellAspectRatio != other.dayCellAspectRatio) return false
+        if (eventIndicatorSize != other.eventIndicatorSize) return false
+        if (eventIndicatorSpacing != other.eventIndicatorSpacing) return false
+        if (eventIndicatorTopPadding != other.eventIndicatorTopPadding) return false
+        if (headerPadding != other.headerPadding) return false
+        if (headerIconSlotWidth != other.headerIconSlotWidth) return false
+        if (hourHeight != other.hourHeight) return false
+        if (hourGutterWidth != other.hourGutterWidth) return false
+        if (gridLineThickness != other.gridLineThickness) return false
+        if (nowIndicatorThickness != other.nowIndicatorThickness) return false
+        if (eventBlockGap != other.eventBlockGap) return false
+        if (eventBlockAccentWidth != other.eventBlockAccentWidth) return false
+        if (eventBlockPadding != other.eventBlockPadding) return false
+        if (eventBlockResizeHandleHeight != other.eventBlockResizeHandleHeight) return false
+        if (allDayRowPadding != other.allDayRowPadding) return false
+        if (allDayChipSpacing != other.allDayChipSpacing) return false
+        if (allDayChipPadding != other.allDayChipPadding) return false
+        if (monthSpacing != other.monthSpacing) return false
+        if (sectionPadding != other.sectionPadding) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = dayCellPadding.hashCode()
+        result = 31 * result + dayCellAspectRatio.hashCode()
+        result = 31 * result + eventIndicatorSize.hashCode()
+        result = 31 * result + eventIndicatorSpacing.hashCode()
+        result = 31 * result + eventIndicatorTopPadding.hashCode()
+        result = 31 * result + headerPadding.hashCode()
+        result = 31 * result + headerIconSlotWidth.hashCode()
+        result = 31 * result + hourHeight.hashCode()
+        result = 31 * result + hourGutterWidth.hashCode()
+        result = 31 * result + gridLineThickness.hashCode()
+        result = 31 * result + nowIndicatorThickness.hashCode()
+        result = 31 * result + eventBlockGap.hashCode()
+        result = 31 * result + eventBlockAccentWidth.hashCode()
+        result = 31 * result + eventBlockPadding.hashCode()
+        result = 31 * result + eventBlockResizeHandleHeight.hashCode()
+        result = 31 * result + allDayRowPadding.hashCode()
+        result = 31 * result + allDayChipSpacing.hashCode()
+        result = 31 * result + allDayChipPadding.hashCode()
+        result = 31 * result + monthSpacing.hashCode()
+        result = 31 * result + sectionPadding.hashCode()
+        return result
+    }
+
+    override fun toString(): String = "KalendarDimensions(" +
+        "dayCellPadding=$dayCellPadding, " +
+        "dayCellAspectRatio=$dayCellAspectRatio, " +
+        "eventIndicatorSize=$eventIndicatorSize, " +
+        "eventIndicatorSpacing=$eventIndicatorSpacing, " +
+        "eventIndicatorTopPadding=$eventIndicatorTopPadding, " +
+        "headerPadding=$headerPadding, " +
+        "headerIconSlotWidth=$headerIconSlotWidth, " +
+        "hourHeight=$hourHeight, " +
+        "hourGutterWidth=$hourGutterWidth, " +
+        "gridLineThickness=$gridLineThickness, " +
+        "nowIndicatorThickness=$nowIndicatorThickness, " +
+        "eventBlockGap=$eventBlockGap, " +
+        "eventBlockAccentWidth=$eventBlockAccentWidth, " +
+        "eventBlockPadding=$eventBlockPadding, " +
+        "eventBlockResizeHandleHeight=$eventBlockResizeHandleHeight, " +
+        "allDayRowPadding=$allDayRowPadding, " +
+        "allDayChipSpacing=$allDayChipSpacing, " +
+        "allDayChipPadding=$allDayChipPadding, " +
+        "monthSpacing=$monthSpacing, " +
+        "sectionPadding=$sectionPadding" +
+        ")"
+}
 
 /**
  * Motion settings for every Kalendar view.
@@ -249,17 +569,66 @@ public data class KalendarDimensions(
  * @property titleTransitionMillis Duration of the header/sticky-title crossfade.
  */
 @Immutable
-public data class KalendarAnimations(
-    val enabled: Boolean = true,
-    val selectionColorSpec: AnimationSpec<Color> = spring(),
-    val selectionIndicatorSpec: AnimationSpec<Offset> = spring(
+public class KalendarAnimations(
+    public val enabled: Boolean = true,
+    public val selectionColorSpec: AnimationSpec<Color> = spring(),
+    public val selectionIndicatorSpec: AnimationSpec<Offset> = spring(
         dampingRatio = Spring.DampingRatioNoBouncy,
         stiffness = Spring.StiffnessHigh,
     ),
-    val pressScale: Float = DEFAULT_PRESS_SCALE,
-    val pressScaleSpec: AnimationSpec<Float> = spring(),
-    val titleTransitionMillis: Int = DEFAULT_TITLE_TRANSITION_MS,
-)
+    public val pressScale: Float = DEFAULT_PRESS_SCALE,
+    public val pressScaleSpec: AnimationSpec<Float> = spring(),
+    public val titleTransitionMillis: Int = DEFAULT_TITLE_TRANSITION_MS,
+) {
+
+    /** Returns a duplicate of these motion settings with only the values passed here replaced. */
+    public fun copy(
+        enabled: Boolean = this.enabled,
+        selectionColorSpec: AnimationSpec<Color> = this.selectionColorSpec,
+        selectionIndicatorSpec: AnimationSpec<Offset> = this.selectionIndicatorSpec,
+        pressScale: Float = this.pressScale,
+        pressScaleSpec: AnimationSpec<Float> = this.pressScaleSpec,
+        titleTransitionMillis: Int = this.titleTransitionMillis,
+    ): KalendarAnimations = KalendarAnimations(
+        enabled = enabled,
+        selectionColorSpec = selectionColorSpec,
+        selectionIndicatorSpec = selectionIndicatorSpec,
+        pressScale = pressScale,
+        pressScaleSpec = pressScaleSpec,
+        titleTransitionMillis = titleTransitionMillis,
+    )
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is KalendarAnimations) return false
+        if (enabled != other.enabled) return false
+        if (selectionColorSpec != other.selectionColorSpec) return false
+        if (selectionIndicatorSpec != other.selectionIndicatorSpec) return false
+        if (pressScale != other.pressScale) return false
+        if (pressScaleSpec != other.pressScaleSpec) return false
+        if (titleTransitionMillis != other.titleTransitionMillis) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = enabled.hashCode()
+        result = 31 * result + selectionColorSpec.hashCode()
+        result = 31 * result + selectionIndicatorSpec.hashCode()
+        result = 31 * result + pressScale.hashCode()
+        result = 31 * result + pressScaleSpec.hashCode()
+        result = 31 * result + titleTransitionMillis.hashCode()
+        return result
+    }
+
+    override fun toString(): String = "KalendarAnimations(" +
+        "enabled=$enabled, " +
+        "selectionColorSpec=$selectionColorSpec, " +
+        "selectionIndicatorSpec=$selectionIndicatorSpec, " +
+        "pressScale=$pressScale, " +
+        "pressScaleSpec=$pressScaleSpec, " +
+        "titleTransitionMillis=$titleTransitionMillis" +
+        ")"
+}
 
 /**
  * Defaults for [KalendarTheme].
@@ -421,14 +790,63 @@ private const val DEFAULT_TITLE_TRANSITION_MS = 150
  * @property strings Localizable text and accessibility labels. See [KalendarStrings].
  */
 @Immutable
-public data class KalendarThemeTokens(
-    val colors: KalendarColors,
-    val typography: KalendarTypography,
-    val shapes: KalendarShapes,
-    val dimensions: KalendarDimensions,
-    val animations: KalendarAnimations,
-    val strings: KalendarStrings,
-)
+public class KalendarThemeTokens(
+    public val colors: KalendarColors,
+    public val typography: KalendarTypography,
+    public val shapes: KalendarShapes,
+    public val dimensions: KalendarDimensions,
+    public val animations: KalendarAnimations,
+    public val strings: KalendarStrings,
+) {
+
+    /** Returns a duplicate of this token set with only the token sets passed here replaced. */
+    public fun copy(
+        colors: KalendarColors = this.colors,
+        typography: KalendarTypography = this.typography,
+        shapes: KalendarShapes = this.shapes,
+        dimensions: KalendarDimensions = this.dimensions,
+        animations: KalendarAnimations = this.animations,
+        strings: KalendarStrings = this.strings,
+    ): KalendarThemeTokens = KalendarThemeTokens(
+        colors = colors,
+        typography = typography,
+        shapes = shapes,
+        dimensions = dimensions,
+        animations = animations,
+        strings = strings,
+    )
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is KalendarThemeTokens) return false
+        if (colors != other.colors) return false
+        if (typography != other.typography) return false
+        if (shapes != other.shapes) return false
+        if (dimensions != other.dimensions) return false
+        if (animations != other.animations) return false
+        if (strings != other.strings) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = colors.hashCode()
+        result = 31 * result + typography.hashCode()
+        result = 31 * result + shapes.hashCode()
+        result = 31 * result + dimensions.hashCode()
+        result = 31 * result + animations.hashCode()
+        result = 31 * result + strings.hashCode()
+        return result
+    }
+
+    override fun toString(): String = "KalendarThemeTokens(" +
+        "colors=$colors, " +
+        "typography=$typography, " +
+        "shapes=$shapes, " +
+        "dimensions=$dimensions, " +
+        "animations=$animations, " +
+        "strings=$strings" +
+        ")"
+}
 
 internal val LocalKalendarTokens = staticCompositionLocalOf<KalendarThemeTokens?> { null }
 

@@ -62,18 +62,87 @@ import kotlinx.datetime.LocalDate
  *   appended to whatever this returns.
  */
 @Immutable
-public data class KalendarStrings(
-    val previousPage: String = "Previous",
-    val nextPage: String = "Next",
-    val today: String = "Today",
-    val previousYear: String = "Previous year",
-    val nextYear: String = "Next year",
-    val openJumpPicker: String = "Choose month and year",
-    val todaySuffix: String = ", today",
-    val hasEventsSuffix: String = ", has events",
-    val eventOverflowLabel: (hiddenEventCount: Int) -> String = { "+$it" },
-    val dayAccessibilityLabel: (date: LocalDate, monthName: String) -> String = defaultDayAccessibilityLabel,
-)
+public class KalendarStrings(
+    public val previousPage: String = "Previous",
+    public val nextPage: String = "Next",
+    public val today: String = "Today",
+    public val previousYear: String = "Previous year",
+    public val nextYear: String = "Next year",
+    public val openJumpPicker: String = "Choose month and year",
+    public val todaySuffix: String = ", today",
+    public val hasEventsSuffix: String = ", has events",
+    public val eventOverflowLabel: (hiddenEventCount: Int) -> String = { "+$it" },
+    public val dayAccessibilityLabel: (date: LocalDate, monthName: String) -> String = defaultDayAccessibilityLabel,
+) {
+
+    /** Returns a duplicate of these strings with only the ones passed here replaced. */
+    public fun copy(
+        previousPage: String = this.previousPage,
+        nextPage: String = this.nextPage,
+        today: String = this.today,
+        previousYear: String = this.previousYear,
+        nextYear: String = this.nextYear,
+        openJumpPicker: String = this.openJumpPicker,
+        todaySuffix: String = this.todaySuffix,
+        hasEventsSuffix: String = this.hasEventsSuffix,
+        eventOverflowLabel: (hiddenEventCount: Int) -> String = this.eventOverflowLabel,
+        dayAccessibilityLabel: (date: LocalDate, monthName: String) -> String = this.dayAccessibilityLabel,
+    ): KalendarStrings = KalendarStrings(
+        previousPage = previousPage,
+        nextPage = nextPage,
+        today = today,
+        previousYear = previousYear,
+        nextYear = nextYear,
+        openJumpPicker = openJumpPicker,
+        todaySuffix = todaySuffix,
+        hasEventsSuffix = hasEventsSuffix,
+        eventOverflowLabel = eventOverflowLabel,
+        dayAccessibilityLabel = dayAccessibilityLabel,
+    )
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is KalendarStrings) return false
+        if (previousPage != other.previousPage) return false
+        if (nextPage != other.nextPage) return false
+        if (today != other.today) return false
+        if (previousYear != other.previousYear) return false
+        if (nextYear != other.nextYear) return false
+        if (openJumpPicker != other.openJumpPicker) return false
+        if (todaySuffix != other.todaySuffix) return false
+        if (hasEventsSuffix != other.hasEventsSuffix) return false
+        if (eventOverflowLabel != other.eventOverflowLabel) return false
+        if (dayAccessibilityLabel != other.dayAccessibilityLabel) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = previousPage.hashCode()
+        result = 31 * result + nextPage.hashCode()
+        result = 31 * result + today.hashCode()
+        result = 31 * result + previousYear.hashCode()
+        result = 31 * result + nextYear.hashCode()
+        result = 31 * result + openJumpPicker.hashCode()
+        result = 31 * result + todaySuffix.hashCode()
+        result = 31 * result + hasEventsSuffix.hashCode()
+        result = 31 * result + eventOverflowLabel.hashCode()
+        result = 31 * result + dayAccessibilityLabel.hashCode()
+        return result
+    }
+
+    override fun toString(): String = "KalendarStrings(" +
+        "previousPage=$previousPage, " +
+        "nextPage=$nextPage, " +
+        "today=$today, " +
+        "previousYear=$previousYear, " +
+        "nextYear=$nextYear, " +
+        "openJumpPicker=$openJumpPicker, " +
+        "todaySuffix=$todaySuffix, " +
+        "hasEventsSuffix=$hasEventsSuffix, " +
+        "eventOverflowLabel=$eventOverflowLabel, " +
+        "dayAccessibilityLabel=$dayAccessibilityLabel" +
+        ")"
+}
 
 private val defaultDayAccessibilityLabel: (LocalDate, String) -> String =
     { date, monthName -> "$monthName ${date.dayOfMonth}, ${date.year}" }

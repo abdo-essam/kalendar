@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
+import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 
 /**
@@ -70,6 +71,12 @@ import kotlinx.datetime.LocalDate
  *   date to complete the move. Dates without events fall through to [onDateRangeSelect]'s range
  *   behaviour, so both can be enabled together.
  * @param config Shared visual/behavioural settings — disabled dates, arrow visibility, background.
+ * @param header Replaces the navigation header above the grid. Receives a [KalendarHeaderScope]
+ *   carrying the formatted title and the navigation callbacks, so your own chrome keeps working
+ *   arrows and today button. Defaults to [KalendarHeaderDefaults.Header] driven by [config].
+ * @param dayOfWeekLabel Replaces the content of each weekday column header. The grid still places
+ *   one per column, so a replacement stays aligned with the day cells. Defaults to
+ *   [KalendarHeaderDefaults.DayOfWeekLabel] formatted by [config].
  * @param dayContent Replaces the default day-cell rendering. Receives a [KalendarDayScope]
  *   describing the date being rendered.
  */
@@ -85,12 +92,27 @@ public fun KalendarMonth(
     onDateRangeSelectEnd: (() -> Unit)? = null,
     onEventDrop: ((events: List<KalendarEvent>, newDate: LocalDate) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
+    header: @Composable (KalendarHeaderScope) -> Unit = { headerScope ->
+        KalendarHeaderDefaults.Header(
+            scope = headerScope,
+            showNavigationArrows = config.showNavigationArrows,
+            showTodayButton = config.showTodayButton,
+            showJumpPicker = config.showJumpPicker,
+            monthNameFormatter = config.monthNameFormatter,
+        )
+    },
+    dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
+        KalendarHeaderDefaults.DayOfWeekLabel(
+            dayOfWeek = dayOfWeek,
+            formatter = config.dayOfWeekLabelFormatter,
+        )
+    },
     dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
 ) {
     val colors = kalendarColors()
     val today = remember { todayInSystemTimeZone() }
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
-    val slidingSelection = if (dayContent == null) selectedDates.singleOrNull() else null
+    val slidingSelection = if (config.showSelectionIndicator) selectedDates.singleOrNull() else null
     val gridEventDrop: ((LocalDate, LocalDate) -> Unit)? = if (onEventDrop == null) {
         null
     } else {
@@ -98,14 +120,8 @@ public fun KalendarMonth(
     }
 
     Column(modifier = modifier.background(config.background ?: SolidColor(colors.background))) {
-        KalendarNavigationHeader(
-            title = remember(state.visibleDate) { monthTitle(state.visibleDate, config.monthNameFormatter) },
-            state = state,
-            showArrows = config.showNavigationArrows,
-            showTodayButton = config.showTodayButton,
-            showJumpPicker = config.showJumpPicker,
-            monthNameFormatter = config.monthNameFormatter,
-        )
+        val title = remember(state.visibleDate) { monthTitle(state.visibleDate, config.monthNameFormatter) }
+        header(rememberKalendarHeaderScope(state = state, title = title))
         HorizontalPager(
             state = state.pagerState,
             modifier = Modifier.fillMaxWidth(),
@@ -118,11 +134,11 @@ public fun KalendarMonth(
                 dates = dates,
                 startDayOfWeek = state.startDayOfWeek,
                 selectedDate = slidingSelection,
-                dayLabelFormatter = config.dayOfWeekLabelFormatter,
                 onDateRangeDrag = onDateRangeSelect,
                 onDateRangeDragEnd = onDateRangeSelectEnd,
                 hasEvents = { date -> eventsByDate[date]?.isNotEmpty() == true },
                 onEventDrop = gridEventDrop,
+                dayOfWeekLabel = dayOfWeekLabel,
             ) { date ->
                 val dateEvents = eventsByDate[date] ?: emptyList()
                 val isCurrentMonth = date.month == monthStart.month
