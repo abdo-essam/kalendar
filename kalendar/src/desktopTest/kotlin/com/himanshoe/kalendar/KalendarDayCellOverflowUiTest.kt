@@ -81,7 +81,7 @@ class KalendarDayCellOverflowUiTest {
         events: List<KalendarEvent> = fourEvents,
         onClick: () -> Unit = {},
         onEventClick: (KalendarEvent) -> Unit = {},
-        overflowPopup: (@Composable (KalendarDayOverflowScope) -> Unit)? = null,
+        overflowPopup: (@Composable (KalendarDayOverflowScope<*>) -> Unit)? = null,
     ) {
         rule.setContent {
             KalendarTheme(animations = KalendarAnimations(enabled = false)) {

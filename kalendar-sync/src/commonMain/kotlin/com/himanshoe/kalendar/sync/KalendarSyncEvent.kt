@@ -224,17 +224,20 @@ public class BasicKalendarSyncEvent(
 
 /**
  * Rebuilds any [KalendarSyncEvent] as a [BasicKalendarSyncEvent], optionally replacing the
- * identity and span fields the callers of this function need to change.
+ * identity, span, and recurrence fields the callers of this function need to change.
  *
  * Every field of the source event is carried across in exactly one place, so a property added to
  * [KalendarSyncEvent] later cannot be silently dropped by one of the several call sites that
  * re-materialise events — the device providers when they stamp a new id onto an event they are
- * persisting, and the recurrence expander when it materialises an occurrence.
+ * persisting, the recurrence expander when it materialises an occurrence, and the scoped
+ * recurrence edits when they detach an occurrence or split a series.
  */
 internal fun KalendarSyncEvent.copyAsBasic(
     id: String? = this.id,
     date: LocalDate = this.date,
     endDate: LocalDate? = this.endDate,
+    recurrenceRule: KalendarRule? = this.recurrenceRule,
+    exceptionDates: List<LocalDate> = this.exceptionDates,
 ): BasicKalendarSyncEvent = BasicKalendarSyncEvent(
     id = id,
     date = date,

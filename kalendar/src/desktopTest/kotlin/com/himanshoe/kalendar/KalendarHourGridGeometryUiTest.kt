@@ -61,7 +61,7 @@ class KalendarHourGridGeometryUiTest {
     )
 
     /** Fills its slot, so the measured node is the block the grid positioned. */
-    private val blockProbe: @Composable (KalendarScheduleEventScope) -> Unit = { scope ->
+    private val blockProbe: @Composable (KalendarScheduleEventScope<*>) -> Unit = { scope ->
         Box(modifier = Modifier.fillMaxSize().testTag(scope.event.eventName))
     }
 

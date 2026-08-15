@@ -85,7 +85,7 @@ internal fun PlaygroundCalendar(
         } else {
             null
         }
-        val dayContent: (@Composable (KalendarDayScope) -> Unit)? = if (config.customCell) {
+        val dayContent: (@Composable (KalendarDayScope<KalendarEvent>) -> Unit)? = if (config.customCell) {
             { scope -> BrandDayCell(scope = scope, onClick = { selection.onDateClick(scope.date) }) }
         } else {
             null

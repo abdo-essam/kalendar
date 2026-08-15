@@ -41,6 +41,11 @@ public final class com/himanshoe/kalendar/sync/KalendarPermissionDeniedException
 	public fun <init> (Ljava/lang/String;)V
 }
 
+public final class com/himanshoe/kalendar/sync/KalendarRecurrenceEditKt {
+	public static final fun deleteOccurrence (Lcom/himanshoe/kalendar/sync/KalendarSyncEvent;Lkotlinx/datetime/LocalDate;Lcom/himanshoe/kalendar/sync/KalendarRecurrenceScope;)Lcom/himanshoe/kalendar/sync/KalendarSeriesChange;
+	public static final fun editOccurrence (Lcom/himanshoe/kalendar/sync/KalendarSyncEvent;Lkotlinx/datetime/LocalDate;Lcom/himanshoe/kalendar/sync/KalendarSyncEvent;Lcom/himanshoe/kalendar/sync/KalendarRecurrenceScope;)Lcom/himanshoe/kalendar/sync/KalendarSeriesChange;
+}
+
 public final class com/himanshoe/kalendar/sync/KalendarRecurrenceExpanderKt {
 	public static final fun expandOccurrences (Lcom/himanshoe/kalendar/sync/KalendarSyncEvent;Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;)Ljava/util/List;
 }
@@ -53,6 +58,15 @@ public final class com/himanshoe/kalendar/sync/KalendarRecurrenceFrequency : jav
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;
 	public static fun values ()[Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarRecurrenceScope : java/lang/Enum {
+	public static final field ENTIRE_SERIES Lcom/himanshoe/kalendar/sync/KalendarRecurrenceScope;
+	public static final field THIS_AND_FOLLOWING Lcom/himanshoe/kalendar/sync/KalendarRecurrenceScope;
+	public static final field THIS_OCCURRENCE Lcom/himanshoe/kalendar/sync/KalendarRecurrenceScope;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/himanshoe/kalendar/sync/KalendarRecurrenceScope;
+	public static fun values ()[Lcom/himanshoe/kalendar/sync/KalendarRecurrenceScope;
 }
 
 public final class com/himanshoe/kalendar/sync/KalendarReminder {
@@ -78,6 +92,15 @@ public final class com/himanshoe/kalendar/sync/KalendarRule {
 	public final fun getFrequency ()Lcom/himanshoe/kalendar/sync/KalendarRecurrenceFrequency;
 	public final fun getInterval ()I
 	public final fun getUntil ()Lkotlinx/datetime/LocalDate;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/sync/KalendarSeriesChange {
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDeletesSeries ()Z
+	public final fun getNewEvents ()Ljava/util/List;
+	public final fun getUpdatedSeries ()Lcom/himanshoe/kalendar/sync/KalendarSyncEvent;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }

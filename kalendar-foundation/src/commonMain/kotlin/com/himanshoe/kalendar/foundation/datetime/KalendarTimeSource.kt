@@ -17,28 +17,42 @@
 package com.himanshoe.kalendar.foundation.datetime
 
 import androidx.compose.runtime.Immutable
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
-import kotlinx.datetime.todayIn
 import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Instant
 
 /**
- * Where a calendar reads "now" from — the one seam between calendar logic and the wall clock.
+ * Where a calendar reads "now" from, **and which region's clock it reads it on** — the one seam
+ * between calendar logic and the world outside.
  *
- * Resolving today's date through a time source rather than calling [Clock.System] directly makes two
- * otherwise impossible things possible:
+ * Both halves matter. Resolving through a time source rather than calling [Clock.System] directly
+ * makes three otherwise impossible things possible:
  *
  * - **Deterministic tests.** Hand a fixed [Clock] and the calendar's idea of "today" stops moving,
  *   so a screenshot or an assertion about the highlighted cell holds forever.
  * - **A calendar that rolls over at midnight.** A caller that re-reads [today] when the day changes
- *   moves its highlight to the new day instead of keeping yesterday's.
+ *   moves its highlight to the new day instead of keeping yesterday's — and [untilNextDay] says
+ *   when that is, in this zone, on this date, however many hours that date happens to have.
+ * - **A calendar pinned to somewhere else.** A shift rota kept in the office's zone, or a schedule
+ *   being read from another country, highlights the office's today and draws the office's
+ *   now-indicator rather than the device's:
  *
  * ```kotlin
- * val system = KalendarTimeSource()
- * val startOfThisWeek = system.today().startOfWeek(DayOfWeek.MONDAY)
+ * val office = KalendarTimeSource(timeZone = TimeZone.of("Europe/Berlin"))
+ * office.today() // the date it is in Berlin, wherever the device is
+ * ```
  *
+ * Nothing here reads [Clock.System] or the device zone on its own, so a fixed instance is fully
+ * deterministic:
+ *
+ * ```kotlin
  * val fixed = KalendarTimeSource(
  *     timeZone = TimeZone.UTC,
  *     clock = object : Clock { override fun now() = Instant.parse("2026-03-10T09:00:00Z") },
@@ -50,8 +64,11 @@ import kotlin.time.Clock
  * or hold it in a view model. A fresh instance built inline every frame re-arms every rollover timer
  * that depends on it.
  *
- * @property timeZone The zone dates are resolved in. Defaults to the device's current zone, read
- *   once per instance.
+ * @property timeZone The zone every date and time here is resolved in. Defaults to the device's
+ *   current zone, **read once, when the instance is built**. That is the right reading for a
+ *   calendar pinned to a zone and the wrong one for a traveller, whose device zone changes under a
+ *   long-lived instance: rebuild the time source when the device zone changes, and every date
+ *   derived from it follows.
  * @property clock The instant source. Defaults to [Clock.System].
  */
 @Immutable
@@ -61,10 +78,34 @@ public class KalendarTimeSource(
 ) {
 
     /** The current date in [timeZone]. */
-    public fun today(): LocalDate = clock.todayIn(timeZone)
+    public fun today(): LocalDate = dateOf(clock.now())
 
     /** The current date and time in [timeZone]. */
-    public fun now(): LocalDateTime = clock.now().toLocalDateTime(timeZone)
+    public fun now(): LocalDateTime = timeOf(clock.now())
+
+    /**
+     * Which date [instant] falls on in [timeZone] — the answer that decides whether an event lands
+     * on this calendar's Tuesday or its Wednesday.
+     *
+     * ```kotlin
+     * val tokyo = KalendarTimeSource(timeZone = TimeZone.of("Asia/Tokyo"))
+     * tokyo.dateOf(Instant.parse("2026-01-15T23:00:00Z")) // 2026-01-16, already tomorrow there
+     * ```
+     */
+    public fun dateOf(instant: Instant): LocalDate = instant.dateIn(timeZone)
+
+    /** [instant] as a wall-clock date and time on this calendar's clock face. */
+    public fun timeOf(instant: Instant): LocalDateTime = instant.toLocalDateTime(timeZone)
+
+    /**
+     * How long until midnight opens the next date in [timeZone] — what a midnight rollover waits.
+     *
+     * It is the distance to the *next date's* midnight as [timeZone] places it, never a fixed 24
+     * hours minus the time of day: on the two days a year the clocks move, those two figures differ
+     * by an hour, and a rollover computed the other way fires an hour early or an hour late.
+     */
+    public fun untilNextDay(): Duration =
+        today().plus(1, DateTimeUnit.DAY).atStartOfDayIn(timeZone) - clock.now()
 
     /** Returns a duplicate of this time source with only the values passed here replaced. */
     public fun copy(

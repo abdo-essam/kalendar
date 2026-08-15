@@ -32,17 +32,20 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.dp
+import com.himanshoe.kalendar.component.KEYBOARD_FOCUS_RING_TAG
 import com.himanshoe.kalendar.component.KalendarDayCellDefaults
 import com.himanshoe.kalendar.foundation.datetime.KalendarTimeSource
 import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
@@ -121,7 +124,7 @@ private val PROBE_SIZE = 8.dp
  * optimised away by the compiler and can never be observed skipping, which would again turn the
  * assertions into tautologies.
  */
-private val DAY_PROBE: @Composable (KalendarDayScope) -> Unit = {
+private val DAY_PROBE: @Composable (KalendarDayScope<*>) -> Unit = {
     CELLS.count++
     Box(modifier = Modifier.size(PROBE_SIZE))
 }
@@ -146,7 +149,7 @@ private val HEADER_PROBE: @Composable (KalendarHeaderScope) -> Unit = {
  * resize edge. Contravariance makes the same probe serve
  * [KalendarResourceView]'s [KalendarResourceEventScope] slot.
  */
-private val BLOCK_PROBE: @Composable (KalendarScheduleEventScope) -> Unit = { scope ->
+private val BLOCK_PROBE: @Composable (KalendarScheduleEventScope<*>) -> Unit = { scope ->
     BLOCKS.count++
     Box(modifier = Modifier.fillMaxSize().testTag(scope.event.eventName))
 }
@@ -996,7 +999,7 @@ class KalendarDayCellRecompositionBenchmark {
      * One day's scope over a [CellBodyTallyingEvents] list, rebuilt per call so a selection change
      * genuinely re-offers the cell a different value.
      */
-    private fun dayCellScope(isSelected: Boolean): KalendarDayScope = KalendarDayScope(
+    private fun dayCellScope(isSelected: Boolean): KalendarDayScope<KalendarEvent> = KalendarDayScope(
         date = FIXTURE_DATE,
         isSelected = isSelected,
         isToday = false,
@@ -1019,4 +1022,94 @@ class KalendarDayCellRecompositionBenchmark {
             }
         }
     }
+}
+
+/**
+ * [KalendarRecompositionBenchmark.arrowKeyMovesFocusWithoutRecomposingAnyCell] for the two calendars
+ * whose grids live inside a scrolling container.
+ *
+ * A separate class from the budgets above only because there are already fourteen of those; the
+ * harness, the probes and the frozen clock are the file's and are shared verbatim.
+ *
+ * These two are the ones with somewhere new to go wrong. [KalendarMonth] draws its ring over a grid
+ * that cannot scroll, so a cell's position changes only when the whole grid is re-laid-out; a year's
+ * month column and a timeline's month list both move their cells under the ring continuously, and
+ * the ring has to follow. Following by *recomposing* would be the easy way to do it and would cost a
+ * month of cells per arrow press — so the position is tracked in a plain map written from
+ * `onGloballyPositioned`, read only from the ring's own layout lambdas, and this is what holds that
+ * line.
+ */
+@OptIn(ExperimentalTestApi::class)
+class KalendarScrollingKeyboardRecompositionBenchmark {
+
+    @get:Rule
+    val rule = createComposeRule()
+
+    @Test
+    fun arrowKeyMovesFocusWithoutRecomposingAnyCellInYear() {
+        assertArrowKeyRecomposesNoCell("KalendarYear") {
+            KalendarYear(selectedDate = FIXTURE_DATE, header = HEADER_PROBE, dayContent = DAY_PROBE)
+        }
+    }
+
+    @Test
+    fun arrowKeyMovesFocusWithoutRecomposingAnyCellInTimeline() {
+        assertArrowKeyRecomposesNoCell("KalendarTimeline") {
+            KalendarTimeline(selectedDate = FIXTURE_DATE, header = HEADER_PROBE, dayContent = DAY_PROBE)
+        }
+    }
+
+    /**
+     * Tabs into [view], presses one arrow, and asserts that no day cell composed on the way.
+     *
+     * The ring's bounds are read either side of the press as the vacuity guard, and it is not
+     * optional: a Tab that never reached the calendar, or an arrow the calendar ignored, would leave
+     * the cell count at zero and the assertion below would keep passing through any regression. The
+     * arrow used is a step *within* the visible month, which is the case that must cost nothing at
+     * all — one that crosses a month legitimately scrolls, and a scroll composes the cells it
+     * reveals.
+     */
+    private fun assertArrowKeyRecomposesNoCell(name: String, view: @Composable () -> Unit) {
+        CELLS.count = 0
+        HEADERS.count = 0
+        rule.setContent {
+            ProvideKalendarTimeSource(FROZEN_TIME_SOURCE) {
+                MaterialTheme(colorScheme = STABLE_SCHEME) {
+                    KalendarTheme(animations = STILL_ANIMATIONS) {
+                        view()
+                    }
+                }
+            }
+        }
+        rule.waitForIdle()
+        rule.onRoot().performKeyInput { pressKey(Key.Tab) }
+        rule.waitForIdle()
+        val ringOnEntry = focusRingBounds()
+
+        val before = CELLS.count
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
+        rule.waitForIdle()
+        val ringAfterArrow = focusRingBounds()
+
+        println("BENCH $name after arrow key: cellsBefore=$before cellsAfter=${CELLS.count}")
+        assertTrue(ringOnEntry.width > 0f, "Tab never focused $name, so this measurement proves nothing")
+        assertTrue(
+            ringAfterArrow.left > ringOnEntry.left,
+            "the arrow did not move $name's focus ring ($ringOnEntry to $ringAfterArrow), " +
+                "so this measurement proves nothing",
+        )
+        assertEquals(
+            0,
+            CELLS.count - before,
+            "an arrow press recomposed ${CELLS.count - before} of $name's day cells; the focused date " +
+                "is being read in a composable body instead of in a layout or semantics lambda",
+        )
+    }
+
+    /** The bounds of whichever focus ring is drawn, or [Rect.Zero] when none is. */
+    private fun focusRingBounds(): Rect = rule.onAllNodesWithTag(KEYBOARD_FOCUS_RING_TAG)
+        .fetchSemanticsNodes()
+        .map { it.boundsInRoot }
+        .firstOrNull { it.width > 0f }
+        ?: Rect.Zero
 }

@@ -44,14 +44,14 @@ fun Timeline() {
 | `selectedDate` | `LocalDate` | — | Default single-selection highlight, and the month initially at the top of the list when `state` is left at its default. Superseded by `selectedDates` when that is passed. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost container. |
 | `state` | `KalendarTimelineState` | `rememberKalendarTimelineState(selectedDate)` | Scroll state. Hoist it to read `visibleDate` or scroll from your own UI. |
-| `events` | `KalendarEvents` | `emptyList()` | Shown as indicator dots on day cells, and as span bars for multi-day events. |
+| `events` | `List<E>` | `emptyList()` | Shown as indicator dots on day cells, and as span bars for multi-day events. |
 | `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | The highlighted dates. Hoist your own set for multi-select or range. |
-| `onDateClick` | `(date: LocalDate, events: List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped, with that date's events. |
-| `onDayEventClick` | `((event: KalendarEvent) -> Unit)?` | `null` | Called when an individual event is tapped inside a day cell's `+N` overflow popover. |
+| `onDateClick` | `(date: LocalDate, events: List<E>) -> Unit` | no-op | Called when a non-disabled date is tapped, with that date's events. |
+| `onDayEventClick` | `((event: E) -> Unit)?` | `null` | Called when an individual event is tapped inside a day cell's `+N` overflow popover. |
 | `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Shared visual and behavioural settings. `showNavigationArrows` and `showJumpPicker` have no effect here. See [Configuration](../configuration.md). |
 | `header` | `@Composable (KalendarHeaderScope) -> Unit` | `KalendarHeaderDefaults.TimelineHeader` | Replaces the sticky overlay pinned above the scrolling months. See [The header scope on a timeline](#the-header-scope-on-a-timeline). |
 | `dayOfWeekLabel` | `@Composable (DayOfWeek) -> Unit` | `KalendarHeaderDefaults.DayOfWeekLabel` | Replaces the content of each weekday column header, on every month grid. |
-| `dayContent` | `(@Composable (scope: KalendarDayScope) -> Unit)?` | `null` | Replaces the built-in day cell entirely. See [Customization](../customization.md). |
+| `dayContent` | `(@Composable (scope: KalendarDayScope<E>) -> Unit)?` | `null` | Replaces the built-in day cell entirely. See [Customization](../customization.md). |
 
 Note the different `header` default: `KalendarHeaderDefaults.TimelineHeader`, not `Header`. The
 timeline's chrome is a different shape — a leading-aligned title, no arrows, and an opaque fill so

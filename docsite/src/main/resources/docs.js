@@ -173,6 +173,339 @@
     update();
   }
 
+  /*
+   * Search, entirely in the browser.
+   *
+   * The index is a JSON file generated with the site and fetched from the same origin the page came
+   * from — there is no service to call, nothing to keep running, and no query leaves the reader's
+   * machine. It is fetched the first time the box is opened rather than on load: most readers never
+   * search, and making every page carry the index so that some of them can is the trade that turns a
+   * fast documentation site into a slow one.
+   */
+  var RESULT_LIMIT = 24;
+  var SCORE_HEADING = 8;
+  var SCORE_HEADING_EXACT = 6;
+  var SCORE_TITLE = 3;
+  var SCORE_WORDS = 2;
+
+  function setUpSearch() {
+    var opener = document.querySelector('.search-open');
+    var overlay = document.getElementById('search');
+    if (!opener || !overlay) {
+      return;
+    }
+    var input = overlay.querySelector('.search-input');
+    var list = overlay.querySelector('.search-results');
+    var status = overlay.querySelector('.search-status');
+    var closer = overlay.querySelector('.search-close');
+    var scrim = overlay.querySelector('.search-scrim');
+    var root = opener.getAttribute('data-search-root') || '';
+    var source = opener.getAttribute('data-search-index');
+
+    var index = null;
+    var pending = false;
+    var shown = [];
+    var active = -1;
+    var restore = null;
+
+    function say(message) {
+      status.textContent = message;
+    }
+
+    function open() {
+      if (!overlay.hidden) {
+        return;
+      }
+      restore = document.activeElement;
+      overlay.hidden = false;
+      document.documentElement.classList.add('is-searching');
+      input.focus();
+      input.select();
+      load();
+    }
+
+    function close() {
+      if (overlay.hidden) {
+        return;
+      }
+      overlay.hidden = true;
+      document.documentElement.classList.remove('is-searching');
+      if (restore && restore.focus) {
+        restore.focus();
+      }
+    }
+
+    /*
+     * One fetch, once, and a readable failure if it does not arrive. A search box that silently does
+     * nothing is indistinguishable from a search box with no matches, so the difference is spelled
+     * out rather than left for the reader to guess at.
+     */
+    function load() {
+      if (index || pending) {
+        return;
+      }
+      pending = true;
+      say('Loading the index…');
+      fetch(source, { credentials: 'same-origin' })
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error(String(response.status));
+          }
+          return response.json();
+        })
+        .then(function (data) {
+          index = prepare(data);
+          pending = false;
+          run();
+        })
+        .catch(function () {
+          pending = false;
+          say('Search is unavailable — the index could not be loaded.');
+        });
+    }
+
+    /*
+     * Lowercased once here rather than on every keystroke of every query.
+     *
+     * Every searchable string is given a leading space, because `has` finds a word by the space in
+     * front of it and the first word of a heading has none. Without this, "drag" misses every one of
+     * the eight sections titled "Drag to…" — they still match on their prose, so nothing looks
+     * broken; the headings that are exactly what the reader asked for just quietly rank last.
+     */
+    function prepare(data) {
+      var pages = data.p.map(function (page) {
+        return { url: page[0], title: page[1], lower: ' ' + page[1].toLowerCase() };
+      });
+      var sections = data.s.map(function (item) {
+        return {
+          page: pages[item[0]],
+          heading: item[1],
+          lower: ' ' + item[1].toLowerCase(),
+          anchor: item[2],
+          snippet: item[3],
+          words: ' ' + item[4]
+        };
+      });
+      return { sections: sections, stop: ' ' + data.x + ' ' };
+    }
+
+    /* True when some word in `blob` starts with `term`; the leading space is the word boundary. */
+    function has(blob, term) {
+      return blob.indexOf(' ' + term) !== -1;
+    }
+
+    function terms(query) {
+      return query
+        .toLowerCase()
+        .split(/[^a-z0-9_]+/)
+        .filter(function (term) {
+          return term && index.stop.indexOf(' ' + term + ' ') === -1;
+        });
+    }
+
+    /*
+     * Every term has to be somewhere in the section, and where it is decides the score: a term in the
+     * heading is what the section is about, a term in its prose is only something it mentions.
+     */
+    function score(section, list) {
+      var total = 0;
+      for (var i = 0; i < list.length; i++) {
+        var term = list[i];
+        var points = 0;
+        if (has(section.lower, term)) {
+          points += SCORE_HEADING;
+        }
+        if (section.lower === ' ' + term) {
+          points += SCORE_HEADING_EXACT;
+        }
+        if (has(section.page.lower, term)) {
+          points += SCORE_TITLE;
+        }
+        if (has(section.words, term)) {
+          points += SCORE_WORDS;
+        }
+        if (!points) {
+          return 0;
+        }
+        total += points;
+      }
+      return total;
+    }
+
+    function run() {
+      var query = input.value.trim();
+      list.textContent = '';
+      shown = [];
+      active = -1;
+      if (!index) {
+        if (!pending && query) {
+          load();
+        }
+        return;
+      }
+      if (!query) {
+        say('Type to search. ' + index.sections.length + ' sections indexed.');
+        return;
+      }
+      var list_ = terms(query);
+      if (!list_.length) {
+        say('Nothing to search for yet.');
+        return;
+      }
+      var hits = [];
+      index.sections.forEach(function (section, position) {
+        var points = score(section, list_);
+        if (points) {
+          hits.push({ section: section, points: points, position: position });
+        }
+      });
+      hits.sort(function (a, b) {
+        return b.points - a.points || a.position - b.position;
+      });
+      shown = hits.slice(0, RESULT_LIMIT);
+      say(
+        hits.length
+          ? hits.length + (hits.length === 1 ? ' result' : ' results')
+          : 'No results for “' + query + '”.'
+      );
+      shown.forEach(function (hit, position) {
+        list.appendChild(result(hit.section, list_, position));
+      });
+      if (shown.length) {
+        select(0);
+      }
+    }
+
+    function result(section, list_, position) {
+      var item = document.createElement('li');
+      item.className = 'search-result';
+      item.setAttribute('role', 'option');
+      item.id = 'search-result-' + position;
+
+      var link = document.createElement('a');
+      link.href = root + section.page.url + (section.anchor ? '#' + section.anchor : '');
+
+      var crumb = document.createElement('span');
+      crumb.className = 'search-crumb';
+      crumb.textContent = section.page.title;
+
+      var heading = document.createElement('span');
+      heading.className = 'search-heading';
+      heading.appendChild(mark(section.heading, list_));
+
+      link.appendChild(crumb);
+      link.appendChild(heading);
+      if (section.snippet) {
+        var snippet = document.createElement('span');
+        snippet.className = 'search-snippet';
+        snippet.appendChild(mark(section.snippet, list_));
+        link.appendChild(snippet);
+      }
+      item.appendChild(link);
+      return item;
+    }
+
+    /*
+     * Highlights the matched words. Built out of text nodes rather than a string of HTML: the index
+     * is generated from the docs, but a search result is the one place on this site where the page
+     * assembles content around something a reader typed.
+     */
+    function mark(text, list_) {
+      var fragment = document.createDocumentFragment();
+      var pattern = new RegExp('\\b(' + list_.map(escapeRegExp).join('|') + ')', 'gi');
+      var last = 0;
+      var found;
+      while ((found = pattern.exec(text)) !== null) {
+        if (found.index > last) {
+          fragment.appendChild(document.createTextNode(text.slice(last, found.index)));
+        }
+        var hit = document.createElement('mark');
+        hit.textContent = found[0];
+        fragment.appendChild(hit);
+        last = found.index + found[0].length;
+        if (!found[0].length) {
+          pattern.lastIndex++;
+        }
+      }
+      fragment.appendChild(document.createTextNode(text.slice(last)));
+      return fragment;
+    }
+
+    function escapeRegExp(value) {
+      return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function select(next) {
+      var items = list.children;
+      if (!items.length) {
+        return;
+      }
+      active = (next + items.length) % items.length;
+      for (var i = 0; i < items.length; i++) {
+        var current = i === active;
+        items[i].classList.toggle('is-active', current);
+        items[i].setAttribute('aria-selected', String(current));
+        if (current) {
+          input.setAttribute('aria-activedescendant', items[i].id);
+          items[i].scrollIntoView({ block: 'nearest' });
+        }
+      }
+    }
+
+    opener.addEventListener('click', open);
+    if (closer) {
+      closer.addEventListener('click', close);
+    }
+    if (scrim) {
+      scrim.addEventListener('click', close);
+    }
+    input.addEventListener('input', run);
+
+    input.addEventListener('keydown', function (event) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        select(active + 1);
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        select(active - 1);
+      } else if (event.key === 'Enter') {
+        var chosen = list.children[active];
+        var link = chosen && chosen.querySelector('a');
+        if (link) {
+          event.preventDefault();
+          link.click();
+        }
+      }
+    });
+
+    /*
+     * `/` and ⌘K, the two shortcuts a reader will already have in their fingers from every other
+     * documentation site. `/` is skipped while something else has focus and would receive it — a
+     * slash typed into a text field is a slash, not a shortcut.
+     */
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !overlay.hidden) {
+        close();
+        return;
+      }
+      if (event.key === 'k' && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        open();
+        return;
+      }
+      if (event.key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        var focused = document.activeElement;
+        var typing =
+          focused &&
+          (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA' || focused.isContentEditable);
+        if (!typing) {
+          event.preventDefault();
+          open();
+        }
+      }
+    });
+  }
+
   /* Copies a snippet, and says so for a moment — a button with no feedback reads as a broken one. */
   function setUpCopy() {
     document.addEventListener('click', function (event) {
@@ -216,6 +549,7 @@
 
   ready(function () {
     setUpTheme();
+    setUpSearch();
     setUpSidebar();
     setUpReveal();
     setUpContents();

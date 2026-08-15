@@ -37,12 +37,14 @@ import com.himanshoe.kalendar.foundation.datetime.DAYS_PER_WEEK
 import com.himanshoe.kalendar.foundation.datetime.datesUntil
 import com.himanshoe.kalendar.foundation.datetime.startOfWeek
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
-import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.event.byDateExpandingSpans
 import com.himanshoe.kalendar.foundation.grid.weekDates
 import com.himanshoe.kalendar.slot.KalendarDayScope
 import com.himanshoe.kalendar.slot.KalendarHeaderScope
+import com.himanshoe.kalendar.state.KalendarEventLoader
+import com.himanshoe.kalendar.state.KalendarLoadStatus
 import com.himanshoe.kalendar.state.KalendarViewState
+import com.himanshoe.kalendar.state.rememberKalendarEventLoader
 import com.himanshoe.kalendar.state.rememberKalendarToday
 import com.himanshoe.kalendar.state.rememberKalendarWeekState
 import com.himanshoe.kalendar.theme.kalendarColors
@@ -77,10 +79,17 @@ import kotlinx.datetime.plus
  *     selectedDate = today,
  *     state = state,
  *     selectedDates = selected,
- *     onDateClick = { date, _ -> selected = setOf(date) },
+ *     events = bookings,
+ *     onDateClick = { date, dayBookings: List<Booking> -> selected = setOf(date) },
  * )
  * ```
  *
+ * The row is generic in [E], the caller's own event type, inferred from [events]; every callback and
+ * slot hands that type straight back. Use the event-free overload when there are no events to infer
+ * from.
+ *
+ * @param E The event type this calendar holds. Any [KalendarEvent] implementation, including a
+ *   caller's own domain type.
  * @param selectedDate The date used as the default single-selection highlight and, when [state]
  *   is left at its default, the week initially visible. Superseded by [selectedDates] when that
  *   is supplied explicitly.
@@ -88,7 +97,13 @@ import kotlinx.datetime.plus
  * @param state Navigation state from [rememberKalendarWeekState]. Own it yourself to read
  *   [KalendarViewState.visibleDate] (e.g. for a screen title) or call
  *   [KalendarViewState.animateScrollTo] from a button.
- * @param events Events shown as indicator dots on day cells.
+ * @param eventLoader Loads events one visible week at a time instead of taking them all up front —
+ *   see [rememberKalendarEventLoader], and give it the same [state] this calendar has. When set,
+ *   [events] defaults to everything it currently holds and each week draws [loadingContent] until
+ *   its own range has arrived. `null`, the default, is the eager list. See [KalendarMonth] for the
+ *   full contract.
+ * @param events Events shown as indicator dots on day cells. Defaults to the events [eventLoader]
+ *   holds, or to none.
  * @param selectedDates The set of highlighted dates. Defaults to a single-element set containing
  *   [selectedDate]; pass your own hoisted set for multi-select or range selection (see
  *   [datesUntil] for a range-selection helper). Hoist/`remember` the same instance across
@@ -112,18 +127,23 @@ import kotlinx.datetime.plus
  * @param dayOfWeekLabel Replaces the content of each weekday column header. The grid still places
  *   one per column, so a replacement stays aligned with the day cells. Defaults to
  *   [KalendarHeaderDefaults.DayOfWeekLabel] formatted by [config].
+ * @param loadingContent Slot drawn over a week whose events have not arrived yet, given a
+ *   [KalendarLoadingScope] with the range, its [KalendarLoadStatus] and the failure if it failed.
+ *   Overlaid at the row's own size, so it cannot move the calendar under it. Defaults to
+ *   [KalendarLoadingDefaults.Placeholder]. Never drawn when [eventLoader] is `null`.
  * @param dayContent Replaces the default day-cell rendering. Receives a [KalendarDayScope]
  *   describing the date being rendered.
  */
 @Composable
-public fun KalendarWeek(
+public fun <E : KalendarEvent> KalendarWeek(
     selectedDate: LocalDate,
     modifier: Modifier = Modifier,
     state: KalendarViewState = rememberKalendarWeekState(selectedDate),
-    events: KalendarEvents = emptyList(),
+    eventLoader: KalendarEventLoader<E>? = null,
+    events: List<E> = eventLoader?.events ?: emptyList(),
     selectedDates: Set<LocalDate> = setOf(selectedDate),
-    onDateClick: (date: LocalDate, events: List<KalendarEvent>) -> Unit = { _, _ -> },
-    onDayEventClick: ((event: KalendarEvent) -> Unit)? = null,
+    onDateClick: (date: LocalDate, events: List<E>) -> Unit = { _, _ -> },
+    onDayEventClick: ((event: E) -> Unit)? = null,
     onDateRangeSelect: ((start: LocalDate, current: LocalDate) -> Unit)? = null,
     onDateRangeSelectEnd: (() -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
@@ -143,7 +163,10 @@ public fun KalendarWeek(
             formatter = config.dayOfWeekLabelFormatter,
         )
     },
-    dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
+    loadingContent: @Composable (KalendarLoadingScope) -> Unit = { loadingScope ->
+        KalendarLoadingDefaults.Placeholder(scope = loadingScope)
+    },
+    dayContent: (@Composable (scope: KalendarDayScope<E>) -> Unit)? = null,
 ) {
     val colors = kalendarColors()
     val today = rememberKalendarToday(state.timeSource)
@@ -192,41 +215,114 @@ public fun KalendarWeek(
                 val dates = remember(weekStart, config.visibleDaysOfWeek) {
                     weekDates(weekStart = weekStart, visibleDaysOfWeek = config.visibleDaysOfWeek)
                 }
-                KalendarGrid(
-                    dates = dates,
-                    startDayOfWeek = state.startDayOfWeek,
-                    selectedDate = slidingSelection,
-                    keyboard = keyboard,
-                    onDateRangeDrag = onDateRangeSelect,
-                    onDateRangeDragEnd = onDateRangeSelectEnd,
-                    events = events,
-                    visibleDaysOfWeek = config.visibleDaysOfWeek,
-                    dayOfWeekLabel = dayOfWeekLabel,
-                ) { date ->
-                    val dateEvents = eventsByDate[date] ?: emptyList()
-                    val scope = KalendarDayScope(
-                        date = date,
-                        isSelected = date in selectedDates,
-                        isToday = date == today,
-                        isDisabled = config.disabledDates(date),
-                        events = dateEvents,
-                    )
-                    if (dayContent != null) {
-                        dayContent(scope)
-                    } else {
-                        KalendarDayCellDefaults.Cell(
-                            scope = scope,
-                            onClick = { onDateClick(date, dateEvents) },
-                            showSelectionBackground = date != slidingSelection,
-                            monthNameFormatter = config.monthNameFormatter,
-                            maxEventIndicators = config.eventIndicatorCap,
-                            onEventClick = dayEventClick,
+                Box(propagateMinConstraints = true) {
+                    KalendarGrid(
+                        dates = dates,
+                        startDayOfWeek = state.startDayOfWeek,
+                        selectedDate = slidingSelection,
+                        keyboard = keyboard,
+                        onDateRangeDrag = onDateRangeSelect,
+                        onDateRangeDragEnd = onDateRangeSelectEnd,
+                        events = events,
+                        visibleDaysOfWeek = config.visibleDaysOfWeek,
+                        dayOfWeekLabel = dayOfWeekLabel,
+                    ) { date ->
+                        val dateEvents = eventsByDate[date] ?: emptyList()
+                        val scope = KalendarDayScope(
+                            date = date,
+                            isSelected = date in selectedDates,
+                            isToday = date == today,
+                            isDisabled = config.disabledDates(date),
+                            events = dateEvents,
                         )
+                        if (dayContent != null) {
+                            dayContent(scope)
+                        } else {
+                            KalendarDayCellDefaults.Cell(
+                                scope = scope,
+                                onClick = { onDateClick(date, dateEvents) },
+                                showSelectionBackground = date != slidingSelection,
+                                monthNameFormatter = config.monthNameFormatter,
+                                maxEventIndicators = config.eventIndicatorCap,
+                                onEventClick = dayEventClick,
+                            )
+                        }
                     }
+                    KalendarPageLoading(
+                        loader = eventLoader,
+                        date = weekStart,
+                        content = loadingContent,
+                    )
                 }
             }
         }
     }
+}
+
+/**
+ * A week row with no events — the date-selection half of [KalendarWeek] alone.
+ *
+ * ```kotlin
+ * KalendarWeek(selectedDate = today, onDateClick = { date, _ -> selected = setOf(date) })
+ * ```
+ *
+ * This overload exists for inference, not for behaviour — see [KalendarMonth]'s event-free overload
+ * for why a default value cannot stand in for it. `onDayEventClick` is absent because a calendar
+ * with no events can never fire it.
+ *
+ * @param selectedDate See [KalendarWeek].
+ * @param modifier See [KalendarWeek].
+ * @param state See [KalendarWeek].
+ * @param selectedDates See [KalendarWeek].
+ * @param onDateClick Called when a non-disabled date is tapped. The event list is always empty.
+ * @param onDateRangeSelect See [KalendarWeek].
+ * @param onDateRangeSelectEnd See [KalendarWeek].
+ * @param config See [KalendarWeek].
+ * @param header See [KalendarWeek].
+ * @param dayOfWeekLabel See [KalendarWeek].
+ * @param dayContent See [KalendarWeek].
+ */
+@Composable
+public fun KalendarWeek(
+    selectedDate: LocalDate,
+    modifier: Modifier = Modifier,
+    state: KalendarViewState = rememberKalendarWeekState(selectedDate),
+    selectedDates: Set<LocalDate> = setOf(selectedDate),
+    onDateClick: (date: LocalDate, events: List<KalendarEvent>) -> Unit = { _, _ -> },
+    onDateRangeSelect: ((start: LocalDate, current: LocalDate) -> Unit)? = null,
+    onDateRangeSelectEnd: (() -> Unit)? = null,
+    config: KalendarViewConfig = KalendarViewConfig(),
+    header: @Composable (KalendarHeaderScope) -> Unit = { headerScope ->
+        KalendarHeaderDefaults.Header(
+            scope = headerScope,
+            showNavigationArrows = config.showNavigationArrows,
+            showTodayButton = config.showTodayButton,
+            showJumpPicker = config.showJumpPicker,
+            monthNameFormatter = config.monthNameFormatter,
+            shortMonthNameFormatter = config.shortMonthNameFormatter,
+        )
+    },
+    dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
+        KalendarHeaderDefaults.DayOfWeekLabel(
+            dayOfWeek = dayOfWeek,
+            formatter = config.dayOfWeekLabelFormatter,
+        )
+    },
+    dayContent: (@Composable (scope: KalendarDayScope<KalendarEvent>) -> Unit)? = null,
+) {
+    KalendarWeek<KalendarEvent>(
+        selectedDate = selectedDate,
+        modifier = modifier,
+        state = state,
+        selectedDates = selectedDates,
+        onDateClick = onDateClick,
+        onDateRangeSelect = onDateRangeSelect,
+        onDateRangeSelectEnd = onDateRangeSelectEnd,
+        config = config,
+        header = header,
+        dayOfWeekLabel = dayOfWeekLabel,
+        dayContent = dayContent,
+    )
 }
 
 /**

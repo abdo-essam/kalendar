@@ -20,6 +20,7 @@ import androidx.compose.runtime.Stable
 import com.himanshoe.kalendar.KalendarResourceView
 import com.himanshoe.kalendar.KalendarSchedule
 import com.himanshoe.kalendar.KalendarScheduleWeek
+import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.schedule.KalendarResource
 
 /**
@@ -42,7 +43,7 @@ import com.himanshoe.kalendar.foundation.schedule.KalendarResource
  * @see KalendarHeaderScope for why this is an interface rather than a data class.
  */
 @Stable
-public interface KalendarResourceEventScope : KalendarScheduleEventScope {
+public interface KalendarResourceEventScope<out E : KalendarEvent> : KalendarScheduleEventScope<E> {
 
     /**
      * The lane this block is drawn in — while a cross-lane drag is in flight, the lane the block is

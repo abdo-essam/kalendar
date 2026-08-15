@@ -46,14 +46,14 @@ fun YearOverview() {
 | `selectedDate` | `LocalDate` | — | Default single-selection highlight, and the initially visible year when `state` is left at its default. Superseded by `selectedDates` when that is passed. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost container. |
 | `state` | `KalendarViewState` | `rememberKalendarYearState(selectedDate)` | Navigation state. Hoist it to read `visibleDate` or navigate from your own UI. |
-| `events` | `KalendarEvents` | `emptyList()` | Shown as indicator dots on day cells, and as span bars for multi-day events, across all twelve grids. |
+| `events` | `List<E>` | `emptyList()` | Shown as indicator dots on day cells, and as span bars for multi-day events, across all twelve grids. |
 | `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | The highlighted dates. Hoist your own set for multi-select or range. |
-| `onDateClick` | `(date: LocalDate, events: List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped, with that date's events. |
-| `onDayEventClick` | `((event: KalendarEvent) -> Unit)?` | `null` | Called when an individual event is tapped inside a day cell's `+N` overflow popover. |
+| `onDateClick` | `(date: LocalDate, events: List<E>) -> Unit` | no-op | Called when a non-disabled date is tapped, with that date's events. |
+| `onDayEventClick` | `((event: E) -> Unit)?` | `null` | Called when an individual event is tapped inside a day cell's `+N` overflow popover. |
 | `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Shared visual and behavioural settings. See [Configuration](../configuration.md). |
 | `header` | `@Composable (KalendarHeaderScope) -> Unit` | `KalendarHeaderDefaults.Header` | Replaces the navigation header above the year. See [Customization](../customization.md). |
 | `dayOfWeekLabel` | `@Composable (DayOfWeek) -> Unit` | `KalendarHeaderDefaults.DayOfWeekLabel` | Replaces the content of each weekday column header, on every month grid. |
-| `dayContent` | `(@Composable (scope: KalendarDayScope) -> Unit)?` | `null` | Replaces the built-in day cell entirely, on every month grid. See [Customization](../customization.md). |
+| `dayContent` | `(@Composable (scope: KalendarDayScope<E>) -> Unit)?` | `null` | Replaces the built-in day cell entirely, on every month grid. See [Customization](../customization.md). |
 
 > **Note:** no drag gestures here. `KalendarYear` has no `onDateRangeSelect`, no `onEventDrop`, and
 > no sliding selection indicator — twelve grids are on screen at once, so there is no single

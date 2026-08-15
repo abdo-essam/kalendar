@@ -28,25 +28,57 @@ signature-level reference.
 
 Every one of them is `restartable skippable` — see [Performance](../performance.md).
 
+## The event type parameter
+
+Every view that takes events is generic in `E`, the caller's own event type, and infers it from
+`events`. Callbacks and slots hand `E` straight back, so nothing has to be cast:
+
+```kotlin
+class Booking(
+    override val date: LocalDate,
+    override val eventName: String,
+    override val eventDescription: String? = null,
+    val roomId: String,
+) : KalendarEvent
+
+KalendarMonth(
+    selectedDate = today,
+    events = bookings,
+    onDateClick = { date, dayBookings -> show(dayBookings.map { it.roomId }) },
+)
+```
+
+**With no events there is nothing to infer from**, so each view whose `events` is optional also has a
+non-generic overload that has no `events` parameter at all — `KalendarMonth(selectedDate = today)`
+resolves to that one. A default value could not have done this job: a Kotlin default argument is
+never a source of type inference, so a single generic function simply would not compile at that call
+site. Omitting `events` is also what keeps the two unambiguous — pass events and only the generic one
+is a candidate, pass none and only the event-free one is. Each event-free overload drops the
+parameters an event-free calendar could never reach (`onDayEventClick`, `onEventDrop`,
+`onEventClick`, `onEventTimeChange`, `resourceIdOf`, `eventContent`, `allDayEventContent`).
+
+`KalendarAgenda` has no such overload: its `events` is required, so the type is always there to infer
+from. `KalendarDatePicker` is not generic at all — a picker draws no events.
+
 ### `KalendarMonth`
 
 ```kotlin
 @Composable
-public fun KalendarMonth(
+public fun <E : KalendarEvent> KalendarMonth(
     selectedDate: LocalDate,
     modifier: Modifier = Modifier,
     state: KalendarViewState = rememberKalendarMonthState(selectedDate),
-    events: KalendarEvents = emptyList(),
+    events: List<E> = emptyList(),
     selectedDates: Set<LocalDate> = setOf(selectedDate),
-    onDateClick: (date: LocalDate, events: List<KalendarEvent>) -> Unit = { _, _ -> },
-    onDayEventClick: ((event: KalendarEvent) -> Unit)? = null,
+    onDateClick: (date: LocalDate, events: List<E>) -> Unit = { _, _ -> },
+    onDayEventClick: ((event: E) -> Unit)? = null,
     onDateRangeSelect: ((start: LocalDate, current: LocalDate) -> Unit)? = null,
     onDateRangeSelectEnd: (() -> Unit)? = null,
-    onEventDrop: ((events: List<KalendarEvent>, newDate: LocalDate) -> Unit)? = null,
+    onEventDrop: ((events: List<E>, newDate: LocalDate) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     header: @Composable (KalendarHeaderScope) -> Unit = { … },
     dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { … },
-    dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
+    dayContent: (@Composable (scope: KalendarDayScope<E>) -> Unit)? = null,
 )
 ```
 
@@ -58,17 +90,17 @@ drag-to-reschedule.
 | `selectedDate` | `LocalDate` | — | Default single-selection highlight, and the initially visible month when `state` is left at its default. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost container. |
 | `state` | `KalendarViewState` | `rememberKalendarMonthState(selectedDate)` | Navigation state. |
-| `events` | `KalendarEvents` | `emptyList()` | Rendered as indicator dots on day cells, and as span bars for multi-day events. |
+| `events` | `List<E>` | `emptyList()` | Rendered as indicator dots on day cells, and as span bars for multi-day events. |
 | `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | The highlighted dates. Hoist your own for multi-select or range. |
-| `onDateClick` | `(LocalDate, List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped, with that date's events. |
-| `onDayEventClick` | `((KalendarEvent) -> Unit)?` | `null` | Called when an individual event is tapped inside the cell's `+N` overflow popup. |
+| `onDateClick` | `(LocalDate, List<E>) -> Unit` | no-op | Called when a non-disabled date is tapped, with that date's events. |
+| `onDayEventClick` | `((E) -> Unit)?` | `null` | Called when an individual event is tapped inside the cell's `+N` overflow popup. |
 | `onDateRangeSelect` | `((LocalDate, LocalDate) -> Unit)?` | `null` | When non-null, press-and-hold then drag selects a range live. |
 | `onDateRangeSelectEnd` | `(() -> Unit)?` | `null` | Called once when such a drag ends. |
-| `onEventDrop` | `((List<KalendarEvent>, LocalDate) -> Unit)?` | `null` | When non-null, press-and-hold a date **that has events** and drag to another date to reschedule. |
+| `onEventDrop` | `((List<E>, LocalDate) -> Unit)?` | `null` | When non-null, press-and-hold a date **that has events** and drag to another date to reschedule. |
 | `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Shared settings. |
 | `header` | `@Composable (KalendarHeaderScope) -> Unit` | `KalendarHeaderDefaults.Header` | Replaces the navigation header. |
 | `dayOfWeekLabel` | `@Composable (DayOfWeek) -> Unit` | `KalendarHeaderDefaults.DayOfWeekLabel` | Replaces one weekday column header's content. |
-| `dayContent` | `(@Composable (KalendarDayScope) -> Unit)?` | `null` | Replaces the built-in day cell entirely. Last, so trailing-lambda syntax lands on it. |
+| `dayContent` | `(@Composable (KalendarDayScope<E>) -> Unit)?` | `null` | Replaces the built-in day cell entirely. Last, so trailing-lambda syntax lands on it. |
 
 ```kotlin
 KalendarMonth(
@@ -83,20 +115,20 @@ KalendarMonth(
 
 ```kotlin
 @Composable
-public fun KalendarWeek(
+public fun <E : KalendarEvent> KalendarWeek(
     selectedDate: LocalDate,
     modifier: Modifier = Modifier,
     state: KalendarViewState = rememberKalendarWeekState(selectedDate),
-    events: KalendarEvents = emptyList(),
+    events: List<E> = emptyList(),
     selectedDates: Set<LocalDate> = setOf(selectedDate),
-    onDateClick: (date: LocalDate, events: List<KalendarEvent>) -> Unit = { _, _ -> },
-    onDayEventClick: ((event: KalendarEvent) -> Unit)? = null,
+    onDateClick: (date: LocalDate, events: List<E>) -> Unit = { _, _ -> },
+    onDayEventClick: ((event: E) -> Unit)? = null,
     onDateRangeSelect: ((start: LocalDate, current: LocalDate) -> Unit)? = null,
     onDateRangeSelectEnd: (() -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     header: @Composable (KalendarHeaderScope) -> Unit = { … },
     dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { … },
-    dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
+    dayContent: (@Composable (scope: KalendarDayScope<E>) -> Unit)? = null,
 )
 ```
 
@@ -111,18 +143,18 @@ KalendarWeek(selectedDate = today, state = rememberKalendarWeekState(today))
 
 ```kotlin
 @Composable
-public fun KalendarYear(
+public fun <E : KalendarEvent> KalendarYear(
     selectedDate: LocalDate,
     modifier: Modifier = Modifier,
     state: KalendarViewState = rememberKalendarYearState(selectedDate),
-    events: KalendarEvents = emptyList(),
+    events: List<E> = emptyList(),
     selectedDates: Set<LocalDate> = setOf(selectedDate),
-    onDateClick: (date: LocalDate, events: List<KalendarEvent>) -> Unit = { _, _ -> },
-    onDayEventClick: ((event: KalendarEvent) -> Unit)? = null,
+    onDateClick: (date: LocalDate, events: List<E>) -> Unit = { _, _ -> },
+    onDayEventClick: ((event: E) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     header: @Composable (KalendarHeaderScope) -> Unit = { … },
     dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { … },
-    dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
+    dayContent: (@Composable (scope: KalendarDayScope<E>) -> Unit)? = null,
 )
 ```
 
@@ -138,18 +170,18 @@ KalendarYear(selectedDate = today, onDateClick = { date, _ -> jumpTo(date) })
 
 ```kotlin
 @Composable
-public fun KalendarTimeline(
+public fun <E : KalendarEvent> KalendarTimeline(
     selectedDate: LocalDate,
     modifier: Modifier = Modifier,
     state: KalendarTimelineState = rememberKalendarTimelineState(selectedDate),
-    events: KalendarEvents = emptyList(),
+    events: List<E> = emptyList(),
     selectedDates: Set<LocalDate> = setOf(selectedDate),
-    onDateClick: (date: LocalDate, events: List<KalendarEvent>) -> Unit = { _, _ -> },
-    onDayEventClick: ((event: KalendarEvent) -> Unit)? = null,
+    onDateClick: (date: LocalDate, events: List<E>) -> Unit = { _, _ -> },
+    onDayEventClick: ((event: E) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     header: @Composable (KalendarHeaderScope) -> Unit = { … },
     dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { … },
-    dayContent: (@Composable (scope: KalendarDayScope) -> Unit)? = null,
+    dayContent: (@Composable (scope: KalendarDayScope<E>) -> Unit)? = null,
 )
 ```
 
@@ -166,20 +198,20 @@ KalendarTimeline(selectedDate = today, events = events)
 
 ```kotlin
 @Composable
-public fun KalendarSchedule(
+public fun <E : KalendarEvent> KalendarSchedule(
     modifier: Modifier = Modifier,
     state: KalendarViewState = rememberKalendarScheduleState(),
-    events: KalendarEvents = emptyList(),
-    onEventClick: (KalendarEvent) -> Unit = {},
-    onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
+    events: List<E> = emptyList(),
+    onEventClick: (E) -> Unit = {},
+    onEventTimeChange: ((event: E, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
     onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     hourHeight: Dp = KalendarTheme.dimensions.hourHeight,
     nowIndicatorTick: Duration = 1.minutes,
-    allDayEventContent: @Composable (KalendarEvent) -> Unit = { … },
+    allDayEventContent: @Composable (E) -> Unit = { … },
     hourLabel: @Composable (Int) -> Unit = { … },
     nowIndicator: @Composable () -> Unit = { … },
-    eventContent: @Composable (KalendarScheduleEventScope) -> Unit = { … },
+    eventContent: @Composable (KalendarScheduleEventScope<E>) -> Unit = { … },
 )
 ```
 
@@ -190,17 +222,17 @@ have no date selection, so the visible day is the `state`'s business alone.
 |---|---|---|---|
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost container. |
 | `state` | `KalendarViewState` | `rememberKalendarScheduleState()` | Pages by single day. |
-| `events` | `KalendarEvents` | `emptyList()` | Only those on the visible day are rendered. |
-| `onEventClick` | `(KalendarEvent) -> Unit` | no-op | Called when a block or all-day chip is tapped. |
-| `onEventTimeChange` | `((KalendarEvent, LocalDateTime, LocalDateTime) -> Unit)?` | `null` | When non-null, blocks become draggable and resizable from **either** edge. |
+| `events` | `List<E>` | `emptyList()` | Only those on the visible day are rendered. |
+| `onEventClick` | `(E) -> Unit` | no-op | Called when a block or all-day chip is tapped. |
+| `onEventTimeChange` | `((E, LocalDateTime, LocalDateTime) -> Unit)?` | `null` | When non-null, blocks become draggable and resizable from **either** edge. |
 | `onEventCreate` | `((LocalDateTime, LocalDateTime) -> Unit)?` | `null` | When non-null, a press-and-drag on empty grid sweeps out a new time range and reports it on release. |
 | `config` | `KalendarViewConfig` | `KalendarViewConfig()` | `scheduleVisibleHours`, `scheduleInitialScrollHour` and `scheduleDragSnapMinutes` all apply here. |
 | `hourHeight` | `Dp` | `KalendarTheme.dimensions.hourHeight` | Vertical space for one hour; block heights scale with it. |
 | `nowIndicatorTick` | `Duration` | `1.minutes` | How often the now-indicator re-reads the clock. |
-| `allDayEventContent` | `@Composable (KalendarEvent) -> Unit` | `KalendarScheduleDefaults.AllDayChip` | One chip in the all-day row. |
+| `allDayEventContent` | `@Composable (E) -> Unit` | `KalendarScheduleDefaults.AllDayChip` | One chip in the all-day row. |
 | `hourLabel` | `@Composable (Int) -> Unit` | `KalendarScheduleDefaults.HourLabel` | One gutter label, given the absolute hour. |
 | `nowIndicator` | `@Composable () -> Unit` | `KalendarScheduleDefaults.NowIndicator` | The current-time marker. The grid owns its offset. |
-| `eventContent` | `@Composable (KalendarScheduleEventScope) -> Unit` | `KalendarScheduleDefaults.EventBlock` | One timed block. **Last**, so trailing-lambda syntax lands on the primary slot. |
+| `eventContent` | `@Composable (KalendarScheduleEventScope<E>) -> Unit` | `KalendarScheduleDefaults.EventBlock` | One timed block. **Last**, so trailing-lambda syntax lands on the primary slot. |
 
 ```kotlin
 KalendarSchedule(
@@ -215,21 +247,21 @@ KalendarSchedule(
 
 ```kotlin
 @Composable
-public fun KalendarScheduleWeek(
+public fun <E : KalendarEvent> KalendarScheduleWeek(
     modifier: Modifier = Modifier,
     state: KalendarViewState = rememberKalendarWeekState(),
-    events: KalendarEvents = emptyList(),
-    onEventClick: (KalendarEvent) -> Unit = {},
-    onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
+    events: List<E> = emptyList(),
+    onEventClick: (E) -> Unit = {},
+    onEventTimeChange: ((event: E, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
     onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     hourHeight: Dp = KalendarTheme.dimensions.hourHeight,
     nowIndicatorTick: Duration = 1.minutes,
-    allDayEventContent: @Composable (KalendarEvent) -> Unit = { … },
+    allDayEventContent: @Composable (E) -> Unit = { … },
     hourLabel: @Composable (Int) -> Unit = { … },
     nowIndicator: @Composable () -> Unit = { … },
     dayHeader: @Composable (date: LocalDate, isToday: Boolean) -> Unit = { … },
-    eventContent: @Composable (KalendarScheduleEventScope) -> Unit = { … },
+    eventContent: @Composable (KalendarScheduleEventScope<E>) -> Unit = { … },
 )
 ```
 
@@ -248,15 +280,15 @@ KalendarScheduleWeek(state = rememberKalendarWeekState(today), events = events)
 
 ```kotlin
 @Composable
-public fun KalendarResourceView(
+public fun <E : KalendarEvent> KalendarResourceView(
     resources: List<KalendarResource>,
     modifier: Modifier = Modifier,
     state: KalendarViewState = rememberKalendarScheduleState(),
-    events: KalendarEvents = emptyList(),
-    resourceIdOf: (KalendarEvent) -> String? = { it.calendarId },
-    onEventClick: (KalendarEvent) -> Unit = {},
+    events: List<E> = emptyList(),
+    resourceIdOf: (E) -> String? = { it.calendarId },
+    onEventClick: (E) -> Unit = {},
     onEventChange: ((
-        event: KalendarEvent,
+        event: E,
         newStart: LocalDateTime,
         newEnd: LocalDateTime,
         newResourceId: String,
@@ -269,7 +301,7 @@ public fun KalendarResourceView(
     hourLabel: @Composable (Int) -> Unit = { … },
     nowIndicator: @Composable () -> Unit = { … },
     emptyState: @Composable () -> Unit = { … },
-    eventContent: @Composable (KalendarResourceEventScope) -> Unit = { … },
+    eventContent: @Composable (KalendarResourceEventScope<E>) -> Unit = { … },
 )
 ```
 
@@ -280,9 +312,9 @@ One day, one column per resource — a room board, a chair schedule, a vehicle r
 | `resources` | `List<KalendarResource>` | — | The lanes, left to right by `KalendarResource.order`. Empty renders `emptyState`. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost container. |
 | `state` | `KalendarViewState` | `rememberKalendarScheduleState()` | Pages by single day. It does **not** swipe between pages — a horizontal swipe belongs to the lanes; the header's arrows, today button and jump picker move between days. |
-| `events` | `KalendarEvents` | `emptyList()` | Only timed events on the visible day, in a known lane, are drawn. |
-| `resourceIdOf` | `(KalendarEvent) -> String?` | `KalendarEvent.calendarId` | Maps an event to its lane's `id`, or `null` for none. An accessor rather than an interface member, because `KalendarEvent` is shipped and cannot grow one. |
-| `onEventClick` | `(KalendarEvent) -> Unit` | no-op | Called when a block is tapped. |
+| `events` | `List<E>` | `emptyList()` | Only timed events on the visible day, in a known lane, are drawn. |
+| `resourceIdOf` | `(E) -> String?` | `KalendarEvent.calendarId` | Maps an event to its lane's `id`, or `null` for none. An accessor rather than an interface member, because `KalendarEvent` is shipped and cannot grow one. |
+| `onEventClick` | `(E) -> Unit` | no-op | Called when a block is tapped. |
 | `onEventChange` | 4-arg lambda, nullable | `null` | When non-null, blocks drag in time **and across lanes**, and resize from either edge. Reports the event, its new start/end, and the id of the lane it landed in. |
 | `config` | `KalendarViewConfig` | `KalendarViewConfig()` | `disabledDates` and `showAdjacentMonthDates` have no effect. |
 | `hourHeight` | `Dp` | `KalendarTheme.dimensions.hourHeight` | Vertical space for one hour. |
@@ -292,7 +324,7 @@ One day, one column per resource — a room board, a chair schedule, a vehicle r
 | `hourLabel` | `@Composable (Int) -> Unit` | `KalendarResourceDefaults.HourLabel` | One gutter label. |
 | `nowIndicator` | `@Composable () -> Unit` | `KalendarResourceDefaults.NowIndicator` | The current-time marker. |
 | `emptyState` | `@Composable () -> Unit` | `KalendarResourceDefaults.EmptyState` | Shown in place of the grid when `resources` is empty. |
-| `eventContent` | `@Composable (KalendarResourceEventScope) -> Unit` | `KalendarResourceDefaults.EventBlock` | One block. **Last** — the primary slot. |
+| `eventContent` | `@Composable (KalendarResourceEventScope<E>) -> Unit` | `KalendarResourceDefaults.EventBlock` | One block. **Last** — the primary slot. |
 
 ```kotlin
 KalendarResourceView(
@@ -312,15 +344,15 @@ KalendarResourceView(
 
 ```kotlin
 @Composable
-public fun KalendarAgenda(
-    events: KalendarEvents,
+public fun <E : KalendarEvent> KalendarAgenda(
+    events: List<E>,
     modifier: Modifier = Modifier,
-    onEventClick: (KalendarEvent) -> Unit = {},
+    onEventClick: (E) -> Unit = {},
     config: KalendarViewConfig = KalendarViewConfig(),
     state: LazyListState = rememberLazyListState(),
     dateHeader: @Composable (date: LocalDate) -> Unit = { … },
     emptyState: @Composable () -> Unit = { … },
-    eventContent: @Composable (event: KalendarEvent) -> Unit = { … },
+    eventContent: @Composable (event: E) -> Unit = { … },
 )
 ```
 
@@ -328,14 +360,14 @@ Events grouped by date, with no grid and no pager. Dates with no events are skip
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `events` | `KalendarEvents` | — | The events to list. |
+| `events` | `List<E>` | — | The events to list. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost container. |
-| `onEventClick` | `(KalendarEvent) -> Unit` | `{}` | Called when a row is tapped. |
+| `onEventClick` | `(E) -> Unit` | `{}` | Called when a row is tapped. |
 | `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Only the month-name formatter and the background apply here. |
 | `state` | `LazyListState` | `rememberLazyListState()` | Scroll state. A list of events has nothing to page and nothing to bound, so there is no `KalendarViewState`. |
 | `dateHeader` | `@Composable (LocalDate) -> Unit` | `KalendarAgendaDefaults.DateHeader` | One date's header. |
 | `emptyState` | `@Composable () -> Unit` | `KalendarAgendaDefaults.EmptyState` | Shown centred when `events` is empty. |
-| `eventContent` | `@Composable (KalendarEvent) -> Unit` | `KalendarAgendaDefaults.EventRow` | One event row. **Last** — the primary slot. Takes the event alone, because a list row has no position to describe. |
+| `eventContent` | `@Composable (E) -> Unit` | `KalendarAgendaDefaults.EventRow` | One event row. **Last** — the primary slot. Takes the event alone, because a list row has no position to describe. |
 
 ```kotlin
 KalendarAgenda(events = events, onEventClick = { openDetails(it) })
@@ -458,7 +490,7 @@ KalendarSchedule(config = base.copy(scheduleInitialScrollHour = 9))
 ```kotlin
 @Immutable
 public class KalendarDatePickerDayScope(
-    public val day: KalendarDayScope,
+    public val day: KalendarDayScope<KalendarEvent>,
     public val isInRange: Boolean = false,
     public val isRangeStart: Boolean = false,
     public val isRangeEnd: Boolean = false,
@@ -471,7 +503,7 @@ What `KalendarDatePicker`'s `dayContent` slot is given: the ordinary
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `day` | `KalendarDayScope` | — | The date, and whether it is selected, today, or disabled. |
+| `day` | `KalendarDayScope<KalendarEvent>` | — | The date, and whether it is selected, today, or disabled. |
 | `isInRange` | `Boolean` | `false` | Whether the date lies inside the selected span. |
 | `isRangeStart` | `Boolean` | `false` | Whether it is the span's first date. |
 | `isRangeEnd` | `Boolean` | `false` | Whether it is the span's last. Both ends are `true` on the same date for a half-committed range, i.e. one tap in. |
@@ -542,7 +574,7 @@ eventContent = { event ->
 
 | Function | Signature |
 |---|---|
-| `EventBlock` | `(scope: KalendarScheduleEventScope, modifier: Modifier = Modifier)` |
+| `EventBlock` | `(scope: KalendarScheduleEventScope<*>, modifier: Modifier = Modifier)` |
 | `AllDayChip` | `(event: KalendarEvent, modifier: Modifier = Modifier, prefix: String? = null)` |
 | `HourLabel` | `(hour: Int, formatter: (Int) -> String, modifier: Modifier = Modifier)` |
 | `WeekDayHeader` | `(date: LocalDate, isToday: Boolean, dayOfWeekLabelFormatter: (DayOfWeek) -> String, modifier: Modifier = Modifier)` |
@@ -562,7 +594,7 @@ allDayEventContent = { event ->
 | Function | Signature |
 |---|---|
 | `ResourceHeader` | `(resource: KalendarResource, modifier: Modifier = Modifier)` |
-| `EventBlock` | `(scope: KalendarResourceEventScope, modifier: Modifier = Modifier)` |
+| `EventBlock` | `(scope: KalendarResourceEventScope<*>, modifier: Modifier = Modifier)` |
 | `HourLabel` | `(hour: Int, formatter: (Int) -> String, modifier: Modifier = Modifier)` |
 | `NowIndicator` | `(modifier: Modifier = Modifier)` |
 | `EmptyState` | `(modifier: Modifier = Modifier)` |

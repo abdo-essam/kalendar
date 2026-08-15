@@ -67,7 +67,6 @@ import com.himanshoe.kalendar.component.KalendarHourLines
 import com.himanshoe.kalendar.component.KalendarNavigationHeader
 import com.himanshoe.kalendar.component.KalendarNowLine
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
-import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.event.byDateExpandingSpans
 import com.himanshoe.kalendar.foundation.grid.weekDates
 import com.himanshoe.kalendar.foundation.schedule.KalendarHourWindow
@@ -83,7 +82,10 @@ import com.himanshoe.kalendar.foundation.schedule.scheduleCreateRange
 import com.himanshoe.kalendar.foundation.schedule.scheduleCreateTimes
 import com.himanshoe.kalendar.slot.KalendarScheduleEventScope
 import com.himanshoe.kalendar.state.DEFAULT_NOW_TICK
+import com.himanshoe.kalendar.state.KalendarEventLoader
+import com.himanshoe.kalendar.state.KalendarLoadStatus
 import com.himanshoe.kalendar.state.KalendarViewState
+import com.himanshoe.kalendar.state.rememberKalendarEventLoader
 import com.himanshoe.kalendar.state.rememberKalendarNowState
 import com.himanshoe.kalendar.state.rememberKalendarScheduleState
 import com.himanshoe.kalendar.state.rememberKalendarWeekState
@@ -130,17 +132,29 @@ private val LocalScheduleAllDayPrefix = compositionLocalOf<String?> { null }
  * ```kotlin
  * KalendarSchedule(
  *     state = rememberKalendarScheduleState(initialDate = today),
- *     events = events,
- *     onEventClick = { event -> openDetails(event) },
+ *     events = bookings,
+ *     onEventClick = { booking: Booking -> openDetails(booking) },
  * ) { scope ->
- *     MyEventCard(title = scope.event.eventName, start = scope.start)
+ *     MyEventCard(title = scope.event.eventName, room = scope.event.roomId, start = scope.start)
  * }
  * ```
  *
+ * The grid is generic in [E], the caller's own event type, inferred from [events]; every callback and
+ * slot hands that type straight back. Use the event-free overload when there are no events to infer
+ * from.
+ *
+ * @param E The event type this calendar holds. Any [KalendarEvent] implementation, including a
+ *   caller's own domain type.
  * @param modifier [Modifier] applied to the outermost container.
  * @param state Navigation state from [rememberKalendarScheduleState] — pages by single day. Pass
  *   `rememberKalendarScheduleState(initialDate = ...)` to choose the day first shown.
- * @param events Events for the calendar; only those on the visible day are rendered.
+ * @param eventLoader Loads events one visible day at a time instead of taking them all up front —
+ *   see [rememberKalendarEventLoader], and give it the same [state] this grid has. When set,
+ *   [events] defaults to everything it currently holds and each day draws [loadingContent] until
+ *   its own range has arrived. `null`, the default, is the eager list. See [KalendarMonth] for the
+ *   full contract.
+ * @param events Events for the calendar; only those on the visible day are rendered. Defaults to
+ *   the events [eventLoader] holds, or to none.
  * @param onEventClick Called when an event block or all-day chip is tapped.
  * @param onEventTimeChange When non-null, blocks become draggable: press-and-hold then drag to
  *   move an event (snapped to [KalendarViewConfig.scheduleDragSnapMinutes] steps), or
@@ -173,6 +187,10 @@ private val LocalScheduleAllDayPrefix = compositionLocalOf<String?> { null }
  *   only while the clock is inside [KalendarViewConfig.scheduleVisibleHours], and owns its vertical
  *   offset — so the slot renders the marker alone. Defaults to
  *   [KalendarScheduleDefaults.NowIndicator].
+ * @param loadingContent Slot drawn over a day whose events have not arrived yet, given a
+ *   [KalendarLoadingScope] with the range, its [KalendarLoadStatus] and the failure if it failed.
+ *   Overlaid at the day's own size, so it cannot move the grid under it. Defaults to
+ *   [KalendarLoadingDefaults.Placeholder]. Never drawn when [eventLoader] is `null`.
  * @param eventContent Slot for one timed event block, given a [KalendarScheduleEventScope] with
  *   the event, its start and end on the rendered day, its duration and its overlap column. The
  *   grid measures and positions the slot for you and keeps the tap and drag gestures on the cell
@@ -180,17 +198,18 @@ private val LocalScheduleAllDayPrefix = compositionLocalOf<String?> { null }
  *   this is the view's primary slot. Defaults to [KalendarScheduleDefaults.EventBlock].
  */
 @Composable
-public fun KalendarSchedule(
+public fun <E : KalendarEvent> KalendarSchedule(
     modifier: Modifier = Modifier,
     state: KalendarViewState = rememberKalendarScheduleState(),
-    events: KalendarEvents = emptyList(),
-    onEventClick: (KalendarEvent) -> Unit = {},
-    onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
+    eventLoader: KalendarEventLoader<E>? = null,
+    events: List<E> = eventLoader?.events ?: emptyList(),
+    onEventClick: (E) -> Unit = {},
+    onEventTimeChange: ((event: E, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
     onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     hourHeight: Dp = KalendarTheme.dimensions.hourHeight,
     nowIndicatorTick: Duration = DEFAULT_NOW_TICK,
-    allDayEventContent: @Composable (KalendarEvent) -> Unit = {
+    allDayEventContent: @Composable (E) -> Unit = {
         KalendarScheduleDefaults.AllDayChip(event = it)
     },
     hourLabel: @Composable (Int) -> Unit = {
@@ -199,7 +218,10 @@ public fun KalendarSchedule(
     nowIndicator: @Composable () -> Unit = {
         KalendarScheduleDefaults.NowIndicator()
     },
-    eventContent: @Composable (KalendarScheduleEventScope) -> Unit = {
+    loadingContent: @Composable (KalendarLoadingScope) -> Unit = { loadingScope ->
+        KalendarLoadingDefaults.Placeholder(scope = loadingScope)
+    },
+    eventContent: @Composable (KalendarScheduleEventScope<E>) -> Unit = {
         KalendarScheduleDefaults.EventBlock(scope = it)
     },
 ) {
@@ -233,23 +255,83 @@ public fun KalendarSchedule(
             modifier = Modifier.fillMaxWidth(),
         ) { page ->
             val day = state.pager.dateAt(page)
-            SchedulePage(
-                day = day,
-                isToday = day == today,
-                now = now,
-                eventsByDate = eventsByDate,
-                onEventClick = onEventClick,
-                onEventTimeChange = onEventTimeChange,
-                onEventCreate = onEventCreate,
-                config = config,
-                hourHeight = hourHeight,
-                allDayEventContent = allDayEventContent,
-                hourLabel = hourLabel,
-                nowIndicator = nowIndicator,
-                eventContent = eventContent,
-            )
+            Box(propagateMinConstraints = true) {
+                SchedulePage(
+                    day = day,
+                    isToday = day == today,
+                    now = now,
+                    eventsByDate = eventsByDate,
+                    onEventClick = onEventClick,
+                    onEventTimeChange = onEventTimeChange,
+                    onEventCreate = onEventCreate,
+                    config = config,
+                    hourHeight = hourHeight,
+                    allDayEventContent = allDayEventContent,
+                    hourLabel = hourLabel,
+                    nowIndicator = nowIndicator,
+                    eventContent = eventContent,
+                )
+                KalendarPageLoading(
+                    loader = eventLoader,
+                    date = day,
+                    content = loadingContent,
+                )
+            }
         }
     }
+}
+
+/**
+ * An hourly time-grid calendar for a single day with no events — the grid, the gutter and the
+ * now-indicator alone.
+ *
+ * ```kotlin
+ * KalendarSchedule(
+ *     state = rememberKalendarScheduleState(initialDate = today),
+ *     onEventCreate = { start, end -> draft(start, end) },
+ * )
+ * ```
+ *
+ * This overload exists for inference, not for behaviour — see [KalendarMonth]'s event-free overload
+ * for why a default value cannot stand in for it. `onEventClick`, `onEventTimeChange`,
+ * `allDayEventContent` and `eventContent` are absent rather than defaulted, because a grid with no
+ * events can neither fire nor draw any of them; [onEventCreate] stays, because sweeping out a new
+ * range is exactly what an empty grid is for.
+ *
+ * @param modifier See [KalendarSchedule].
+ * @param state See [KalendarSchedule].
+ * @param onEventCreate See [KalendarSchedule].
+ * @param config See [KalendarSchedule].
+ * @param hourHeight See [KalendarSchedule].
+ * @param nowIndicatorTick See [KalendarSchedule].
+ * @param hourLabel See [KalendarSchedule].
+ * @param nowIndicator See [KalendarSchedule].
+ */
+@Composable
+public fun KalendarSchedule(
+    modifier: Modifier = Modifier,
+    state: KalendarViewState = rememberKalendarScheduleState(),
+    onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)? = null,
+    config: KalendarViewConfig = KalendarViewConfig(),
+    hourHeight: Dp = KalendarTheme.dimensions.hourHeight,
+    nowIndicatorTick: Duration = DEFAULT_NOW_TICK,
+    hourLabel: @Composable (Int) -> Unit = {
+        KalendarScheduleDefaults.HourLabel(hour = it, formatter = config.hourLabelFormatter)
+    },
+    nowIndicator: @Composable () -> Unit = {
+        KalendarScheduleDefaults.NowIndicator()
+    },
+) {
+    KalendarSchedule<KalendarEvent>(
+        modifier = modifier,
+        state = state,
+        onEventCreate = onEventCreate,
+        config = config,
+        hourHeight = hourHeight,
+        nowIndicatorTick = nowIndicatorTick,
+        hourLabel = hourLabel,
+        nowIndicator = nowIndicator,
+    )
 }
 
 /**
@@ -272,17 +354,26 @@ public fun KalendarSchedule(
  * ```kotlin
  * KalendarScheduleWeek(
  *     state = rememberKalendarWeekState(initialDate = today),
- *     events = events,
- *     onEventClick = { event -> openDetails(event) },
+ *     events = bookings,
+ *     onEventClick = { booking: Booking -> openDetails(booking) },
  * ) { scope ->
- *     MyEventCard(title = scope.event.eventName, start = scope.start)
+ *     MyEventCard(title = scope.event.eventName, room = scope.event.roomId, start = scope.start)
  * }
  * ```
  *
+ * The grid is generic in [E], exactly as [KalendarSchedule] is. Use the event-free overload when
+ * there are no events to infer it from.
+ *
+ * @param E The event type this calendar holds. Any [KalendarEvent] implementation, including a
+ *   caller's own domain type.
  * @param modifier [Modifier] applied to the outermost container.
  * @param state Navigation state from [rememberKalendarWeekState] — pages by week. Pass
  *   `rememberKalendarWeekState(initialDate = ...)` to choose the week first shown.
- * @param events Events for the calendar; only those in the visible week are rendered.
+ * @param eventLoader Loads events one visible week at a time instead of taking them all up front —
+ *   see [rememberKalendarEventLoader], and give it the same [state] this grid has. `null`, the
+ *   default, is the eager list. See [KalendarMonth] for the full contract.
+ * @param events Events for the calendar; only those in the visible week are rendered. Defaults to
+ *   the events [eventLoader] holds, or to none.
  * @param onEventClick Called when an event block or all-day chip is tapped.
  * @param onEventTimeChange When non-null, blocks become draggable exactly as on
  *   [KalendarSchedule] — including the top and bottom resize edges — and a horizontal drag
@@ -310,6 +401,10 @@ public fun KalendarSchedule(
  * @param dayHeader Slot for one day column's header, given the column's date and whether it is
  *   today. Filled to the column's width. Defaults to [KalendarScheduleDefaults.WeekDayHeader]
  *   labelled with [KalendarViewConfig.dayOfWeekLabelFormatter].
+ * @param loadingContent Slot drawn over a week whose events have not arrived yet, given a
+ *   [KalendarLoadingScope] with the range, its [KalendarLoadStatus] and the failure if it failed.
+ *   Overlaid at the week's own size, so it cannot move the columns under it. Defaults to
+ *   [KalendarLoadingDefaults.Placeholder]. Never drawn when [eventLoader] is `null`.
  * @param eventContent Slot for one timed event block, given a [KalendarScheduleEventScope] with
  *   the event, its start and end on the rendered day, its duration and its overlap column. The
  *   grid measures and positions the slot for you and keeps the tap and drag gestures on the cell
@@ -317,17 +412,18 @@ public fun KalendarSchedule(
  *   this is the view's primary slot. Defaults to [KalendarScheduleDefaults.EventBlock].
  */
 @Composable
-public fun KalendarScheduleWeek(
+public fun <E : KalendarEvent> KalendarScheduleWeek(
     modifier: Modifier = Modifier,
     state: KalendarViewState = rememberKalendarWeekState(),
-    events: KalendarEvents = emptyList(),
-    onEventClick: (KalendarEvent) -> Unit = {},
-    onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
+    eventLoader: KalendarEventLoader<E>? = null,
+    events: List<E> = eventLoader?.events ?: emptyList(),
+    onEventClick: (E) -> Unit = {},
+    onEventTimeChange: ((event: E, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
     onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     hourHeight: Dp = KalendarTheme.dimensions.hourHeight,
     nowIndicatorTick: Duration = DEFAULT_NOW_TICK,
-    allDayEventContent: @Composable (KalendarEvent) -> Unit = {
+    allDayEventContent: @Composable (E) -> Unit = {
         KalendarScheduleDefaults.AllDayChip(event = it, prefix = LocalScheduleAllDayPrefix.current)
     },
     hourLabel: @Composable (Int) -> Unit = {
@@ -343,7 +439,10 @@ public fun KalendarScheduleWeek(
             dayOfWeekLabelFormatter = config.dayOfWeekLabelFormatter,
         )
     },
-    eventContent: @Composable (KalendarScheduleEventScope) -> Unit = {
+    loadingContent: @Composable (KalendarLoadingScope) -> Unit = { loadingScope ->
+        KalendarLoadingDefaults.Placeholder(scope = loadingScope)
+    },
+    eventContent: @Composable (KalendarScheduleEventScope<E>) -> Unit = {
         KalendarScheduleDefaults.EventBlock(scope = it)
     },
 ) {
@@ -372,24 +471,91 @@ public fun KalendarScheduleWeek(
             modifier = Modifier.fillMaxWidth(),
         ) { page ->
             val weekStart = state.pager.dateAt(page)
-            ScheduleWeekPage(
-                weekStart = weekStart,
-                today = today,
-                now = now,
-                eventsByDate = eventsByDate,
-                onEventClick = onEventClick,
-                onEventTimeChange = onEventTimeChange,
-                onEventCreate = onEventCreate,
-                config = config,
-                hourHeight = hourHeight,
-                allDayEventContent = allDayEventContent,
-                hourLabel = hourLabel,
-                nowIndicator = nowIndicator,
-                dayHeader = dayHeader,
-                eventContent = eventContent,
-            )
+            Box(propagateMinConstraints = true) {
+                ScheduleWeekPage(
+                    weekStart = weekStart,
+                    today = today,
+                    now = now,
+                    eventsByDate = eventsByDate,
+                    onEventClick = onEventClick,
+                    onEventTimeChange = onEventTimeChange,
+                    onEventCreate = onEventCreate,
+                    config = config,
+                    hourHeight = hourHeight,
+                    allDayEventContent = allDayEventContent,
+                    hourLabel = hourLabel,
+                    nowIndicator = nowIndicator,
+                    dayHeader = dayHeader,
+                    eventContent = eventContent,
+                )
+                KalendarPageLoading(
+                    loader = eventLoader,
+                    date = weekStart,
+                    content = loadingContent,
+                )
+            }
         }
     }
+}
+
+/**
+ * A 7-day hourly time-grid calendar with no events — the columns, the gutter and the now-indicator
+ * alone.
+ *
+ * ```kotlin
+ * KalendarScheduleWeek(
+ *     state = rememberKalendarWeekState(initialDate = today),
+ *     onEventCreate = { start, end -> draft(start, end) },
+ * )
+ * ```
+ *
+ * This overload exists for inference, not for behaviour — see [KalendarMonth]'s event-free overload
+ * for why a default value cannot stand in for it. The event callbacks and the two event slots are
+ * absent because a grid with no events can neither fire nor draw them.
+ *
+ * @param modifier See [KalendarScheduleWeek].
+ * @param state See [KalendarScheduleWeek].
+ * @param onEventCreate See [KalendarScheduleWeek].
+ * @param config See [KalendarScheduleWeek].
+ * @param hourHeight See [KalendarScheduleWeek].
+ * @param nowIndicatorTick See [KalendarScheduleWeek].
+ * @param hourLabel See [KalendarScheduleWeek].
+ * @param nowIndicator See [KalendarScheduleWeek].
+ * @param dayHeader See [KalendarScheduleWeek].
+ */
+@Composable
+public fun KalendarScheduleWeek(
+    modifier: Modifier = Modifier,
+    state: KalendarViewState = rememberKalendarWeekState(),
+    onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)? = null,
+    config: KalendarViewConfig = KalendarViewConfig(),
+    hourHeight: Dp = KalendarTheme.dimensions.hourHeight,
+    nowIndicatorTick: Duration = DEFAULT_NOW_TICK,
+    hourLabel: @Composable (Int) -> Unit = {
+        KalendarScheduleDefaults.HourLabel(hour = it, formatter = config.hourLabelFormatter)
+    },
+    nowIndicator: @Composable () -> Unit = {
+        KalendarScheduleDefaults.NowIndicator()
+    },
+    dayHeader: @Composable (date: LocalDate, isToday: Boolean) -> Unit = { date, isToday ->
+        KalendarScheduleDefaults.WeekDayHeader(
+            date = date,
+            isToday = isToday,
+            dayOfWeekLabelFormatter = config.dayOfWeekLabelFormatter,
+        )
+    },
+) {
+    KalendarScheduleWeek<KalendarEvent>(
+        modifier = modifier,
+        state = state,
+        onEventCreate = onEventCreate,
+        config = config,
+        hourHeight = hourHeight,
+        nowIndicatorTick = nowIndicatorTick,
+        hourLabel = hourLabel,
+        nowIndicator = nowIndicator,
+        dayHeader = dayHeader,
+    )
 }
 
 /**
@@ -429,7 +595,7 @@ public object KalendarScheduleDefaults {
      * @param modifier [Modifier] applied to the block.
      */
     @Composable
-    public fun EventBlock(scope: KalendarScheduleEventScope, modifier: Modifier = Modifier) {
+    public fun EventBlock(scope: KalendarScheduleEventScope<*>, modifier: Modifier = Modifier) {
         val colors = kalendarColors()
         val dimensions = kalendarDimensions()
         val strings = kalendarStrings()
@@ -570,21 +736,21 @@ private val WEEK_DAY_HEADER_PADDING = 4.dp
  * runs this body, and the index covers the whole event list rather than this week's slice of it.
  */
 @Composable
-private fun ScheduleWeekPage(
+private fun <E : KalendarEvent> ScheduleWeekPage(
     weekStart: LocalDate,
     today: LocalDate,
     now: () -> LocalDateTime,
-    eventsByDate: Map<LocalDate, List<KalendarEvent>>,
-    onEventClick: (KalendarEvent) -> Unit,
-    onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?,
+    eventsByDate: Map<LocalDate, List<E>>,
+    onEventClick: (E) -> Unit,
+    onEventTimeChange: ((event: E, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?,
     onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)?,
     config: KalendarViewConfig,
     hourHeight: Dp,
-    allDayEventContent: @Composable (KalendarEvent) -> Unit,
+    allDayEventContent: @Composable (E) -> Unit,
     hourLabel: @Composable (Int) -> Unit,
     nowIndicator: @Composable () -> Unit,
     dayHeader: @Composable (date: LocalDate, isToday: Boolean) -> Unit,
-    eventContent: @Composable (KalendarScheduleEventScope) -> Unit,
+    eventContent: @Composable (KalendarScheduleEventScope<E>) -> Unit,
 ) {
     val days = remember(weekStart, config.visibleDaysOfWeek) {
         weekDates(weekStart = weekStart, visibleDaysOfWeek = config.visibleDaysOfWeek)
@@ -672,10 +838,10 @@ private fun ScheduleWeekPage(
 }
 
 @Composable
-private fun WeekAllDayRow(
-    entries: List<Pair<LocalDate, KalendarEvent>>,
-    onEventClick: (KalendarEvent) -> Unit,
-    chipContent: @Composable (KalendarEvent) -> Unit,
+private fun <E : KalendarEvent> WeekAllDayRow(
+    entries: List<Pair<LocalDate, E>>,
+    onEventClick: (E) -> Unit,
+    chipContent: @Composable (E) -> Unit,
 ) {
     val dimensions = kalendarDimensions()
     Row(
@@ -697,20 +863,20 @@ private fun WeekAllDayRow(
  * One day's grid. [eventsByDate] arrives already built — see [ScheduleWeekPage].
  */
 @Composable
-private fun SchedulePage(
+private fun <E : KalendarEvent> SchedulePage(
     day: LocalDate,
     isToday: Boolean,
     now: () -> LocalDateTime,
-    eventsByDate: Map<LocalDate, List<KalendarEvent>>,
-    onEventClick: (KalendarEvent) -> Unit,
-    onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?,
+    eventsByDate: Map<LocalDate, List<E>>,
+    onEventClick: (E) -> Unit,
+    onEventTimeChange: ((event: E, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?,
     onEventCreate: ((start: LocalDateTime, end: LocalDateTime) -> Unit)?,
     config: KalendarViewConfig,
     hourHeight: Dp,
-    allDayEventContent: @Composable (KalendarEvent) -> Unit,
+    allDayEventContent: @Composable (E) -> Unit,
     hourLabel: @Composable (Int) -> Unit,
     nowIndicator: @Composable () -> Unit,
-    eventContent: @Composable (KalendarScheduleEventScope) -> Unit,
+    eventContent: @Composable (KalendarScheduleEventScope<E>) -> Unit,
 ) {
     val dayEvents = eventsByDate[day] ?: emptyList()
     val allDayEvents = remember(dayEvents) { dayEvents.filter { it.startTime == null } }
@@ -773,10 +939,10 @@ private fun SchedulePage(
 }
 
 @Composable
-private fun AllDayRow(
-    events: List<KalendarEvent>,
-    onEventClick: (KalendarEvent) -> Unit,
-    chipContent: @Composable (KalendarEvent) -> Unit,
+private fun <E : KalendarEvent> AllDayRow(
+    events: List<E>,
+    onEventClick: (E) -> Unit,
+    chipContent: @Composable (E) -> Unit,
 ) {
     val dimensions = kalendarDimensions()
     Row(
@@ -803,28 +969,31 @@ private fun AllDayRow(
  *   passes, means the view shows one day and a horizontal drag changes nothing.
  */
 @Composable
-private fun ScheduleBlockLayout(
+private fun <E : KalendarEvent> ScheduleBlockLayout(
     blocks: List<KalendarScheduleBlock>,
     hourHeight: Dp,
-    onEventClick: (KalendarEvent) -> Unit,
+    onEventClick: (E) -> Unit,
     date: LocalDate,
     window: KalendarHourWindow,
     columnDates: List<LocalDate>? = null,
     snapMinutes: Int = DEFAULT_SCHEDULE_SNAP_MINUTES,
-    onEventTimeChange: ((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
-    eventContent: @Composable (KalendarScheduleEventScope) -> Unit,
+    onEventTimeChange: ((event: E, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)? = null,
+    eventContent: @Composable (KalendarScheduleEventScope<E>) -> Unit,
 ) {
+    // Remembered so the identity is stable: an inline adapter would be a fresh parameter every
+    // recomposition and would stop every block below from ever skipping.
+    val blockClick = remember(onEventClick) { blockEventClickAdapter(onEventClick) }
     KalendarBlockLayout(
         blocks = blocks,
         hourHeight = hourHeight,
         window = window,
         snapMinutes = snapMinutes,
         horizontalShift = ScheduleDayAxis(date = date, columnDates = columnDates),
-        onEventClick = onEventClick,
-        onRelease = onEventTimeChange?.let(::scheduleReleaseHandler),
+        onEventClick = blockClick,
+        onRelease = onEventTimeChange?.let { handler -> scheduleReleaseHandler(handler) },
         eventContent = { block, isDragging, targetDate ->
             val scope = remember(block, isDragging, targetDate) {
-                scheduleEventScope(block = block, date = targetDate, isDragging = isDragging)
+                scheduleEventScope<E>(block = block, date = targetDate, isDragging = isDragging)
             }
             eventContent(scope)
         },
@@ -835,11 +1004,11 @@ private fun ScheduleBlockLayout(
  * Adapts the block layout's release callback to the Schedule views': the layout reports the adjusted
  * block and the day it landed on, the caller is owed the event and wall-clock times.
  */
-private fun scheduleReleaseHandler(
-    handler: (event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit,
+private fun <E : KalendarEvent> scheduleReleaseHandler(
+    handler: (event: E, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit,
 ): (KalendarScheduleBlock, LocalDate) -> Unit = { block, targetDate ->
     val (newStart, newEnd) = dragReleaseTimes(block = block, targetDate = targetDate)
-    handler(block.event, newStart, newEnd)
+    handler(asCalendarEvent(block.event), newStart, newEnd)
 }
 
 /**
@@ -887,14 +1056,14 @@ private data class ScheduleDayAxis(
  * [dragReleaseTimes] does the minute-range-to-date-time conversion, so an end at midnight becomes
  * 00:00 on the following day here too instead of being truncated to 23:59.
  */
-private fun scheduleEventScope(
+private fun <E : KalendarEvent> scheduleEventScope(
     block: KalendarScheduleBlock,
     date: LocalDate,
     isDragging: Boolean,
-): KalendarScheduleEventScope {
+): KalendarScheduleEventScope<E> {
     val (start, end) = dragReleaseTimes(block = block, targetDate = date)
     return ScheduleEventScope(
-        event = block.event,
+        event = asCalendarEvent<E>(block.event),
         start = start,
         end = end,
         durationMinutes = block.endMinutes - block.startMinutes,
@@ -905,15 +1074,15 @@ private fun scheduleEventScope(
 }
 
 @Immutable
-private class ScheduleEventScope(
-    override val event: KalendarEvent,
+private class ScheduleEventScope<out E : KalendarEvent>(
+    override val event: E,
     override val start: LocalDateTime,
     override val end: LocalDateTime,
     override val durationMinutes: Int,
     override val isDragging: Boolean,
     override val overlapColumn: Int,
     override val overlapColumns: Int,
-) : KalendarScheduleEventScope
+) : KalendarScheduleEventScope<E>
 
 /** Live state for a create-drag: the pressed and current pointer positions down the column. */
 private data class CreateDragState(val anchorPx: Float, val currentPx: Float)

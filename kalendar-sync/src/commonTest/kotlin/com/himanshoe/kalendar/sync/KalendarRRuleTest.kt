@@ -86,6 +86,67 @@ class KalendarRRuleTest {
     }
 
     @Test
+    fun toRRuleString_timedUntil_isADateTimeMatchingTheDtStartValueType() {
+        val rule = KalendarRule(
+            frequency = KalendarRecurrenceFrequency.DAILY,
+            until = LocalDate(2026, 3, 9),
+        )
+        val untilValue = floatingUntilValue(rule = rule, isAllDay = false)
+        assertEquals("FREQ=DAILY;UNTIL=20260309T235959", rule.toRRuleString(untilValue = untilValue))
+    }
+
+    @Test
+    fun floatingUntilValue_allDayOrUnboundedRule_fallsBackToTheDateForm() {
+        val bounded = KalendarRule(
+            frequency = KalendarRecurrenceFrequency.DAILY,
+            until = LocalDate(2026, 3, 9),
+        )
+        assertNull(floatingUntilValue(rule = bounded, isAllDay = true))
+        assertEquals(
+            "FREQ=DAILY;UNTIL=20260309",
+            bounded.toRRuleString(untilValue = floatingUntilValue(rule = bounded, isAllDay = true)),
+        )
+        val unbounded = KalendarRule(frequency = KalendarRecurrenceFrequency.DAILY)
+        assertNull(floatingUntilValue(rule = unbounded, isAllDay = false))
+    }
+
+    @Test
+    fun utcUntilValue_convertsTheEndOfTheLastLocalDayToAnInstant() {
+        // 23:59:59 on Mar 9 at a fixed UTC-5 offset is 04:59:59Z on Mar 10.
+        val rule = KalendarRule(
+            frequency = KalendarRecurrenceFrequency.DAILY,
+            until = LocalDate(2026, 3, 9),
+        )
+        assertEquals(
+            "20260310T045959Z",
+            utcUntilValue(rule = rule, isAllDay = false, timeZone = TimeZone.of("UTC-05:00")),
+        )
+        assertNull(utcUntilValue(rule = rule, isAllDay = true, timeZone = TimeZone.of("UTC-05:00")))
+    }
+
+    @Test
+    fun parseRRuleString_utcUntil_roundTripsBackToTheSameLocalDate() {
+        val zone = TimeZone.of("UTC-05:00")
+        val rule = KalendarRule(
+            frequency = KalendarRecurrenceFrequency.DAILY,
+            until = LocalDate(2026, 3, 9),
+        )
+        val written = rule.toRRuleString(untilValue = utcUntilValue(rule = rule, isAllDay = false, timeZone = zone))
+        assertEquals(rule, parseRRuleString(value = written, timeZone = zone))
+    }
+
+    @Test
+    fun parseRRuleString_floatingUntil_keepsTheWrittenDateWhateverTheZone() {
+        val rule = KalendarRule(
+            frequency = KalendarRecurrenceFrequency.DAILY,
+            until = LocalDate(2026, 3, 9),
+        )
+        val written = rule.toRRuleString(untilValue = floatingUntilValue(rule = rule, isAllDay = false))
+        assertEquals(rule, parseRRuleString(value = written, timeZone = TimeZone.of("UTC+11:00")))
+        assertEquals(rule, parseRRuleString(value = written))
+    }
+
+    @Test
     fun parseRRuleString_missingFreq_returnsNull() {
         assertNull(parseRRuleString("INTERVAL=2;BYDAY=MO"))
     }
@@ -204,24 +265,24 @@ class KalendarRRuleTest {
     }
 
     @Test
-    fun parseExdateValue_plainDate_mapsDirectly() {
+    fun parseIcalDateValue_plainDate_mapsDirectly() {
         assertEquals(
             LocalDate(2026, 1, 7),
-            parseExdateValue(value = "20260107", timeZone = TimeZone.of("UTC+11:00")),
+            parseIcalDateValue(value = "20260107", timeZone = TimeZone.of("UTC+11:00")),
         )
     }
 
     @Test
-    fun parseExdateValue_utcDateTime_convertsBackToLocalDay() {
+    fun parseIcalDateValue_utcDateTime_convertsBackToLocalDay() {
         // 14:00Z on Jan 6 is 01:00 on Jan 7 at UTC+11 — the original exception date.
         assertEquals(
             LocalDate(2026, 1, 7),
-            parseExdateValue(value = "20260106T140000Z", timeZone = TimeZone.of("UTC+11:00")),
+            parseIcalDateValue(value = "20260106T140000Z", timeZone = TimeZone.of("UTC+11:00")),
         )
     }
 
     @Test
-    fun parseExdateValue_roundTripsWhatRecurrenceExdateStringWrites() {
+    fun parseIcalDateValue_roundTripsWhatRecurrenceExdateStringWrites() {
         val zone = TimeZone.of("UTC+11:00")
         val event = BasicKalendarSyncEvent(
             date = LocalDate(2026, 1, 5),
@@ -232,16 +293,16 @@ class KalendarRRuleTest {
             exceptionDates = listOf(LocalDate(2026, 1, 7)),
         )
         val written = recurrenceExdateString(event = event, timeZone = zone)!!
-        assertEquals(LocalDate(2026, 1, 7), parseExdateValue(value = written, timeZone = zone))
+        assertEquals(LocalDate(2026, 1, 7), parseIcalDateValue(value = written, timeZone = zone))
     }
 
     @Test
-    fun parseExdateValue_floatingDateTimeAndGarbage_fallBackToLeadingDate() {
+    fun parseIcalDateValue_floatingDateTimeAndGarbage_fallBackToLeadingDate() {
         assertEquals(
             LocalDate(2026, 1, 7),
-            parseExdateValue(value = "20260107T090000", timeZone = TimeZone.UTC),
+            parseIcalDateValue(value = "20260107T090000", timeZone = TimeZone.UTC),
         )
-        assertNull(parseExdateValue(value = "junk", timeZone = TimeZone.UTC))
+        assertNull(parseIcalDateValue(value = "junk", timeZone = TimeZone.UTC))
     }
 
     @Test

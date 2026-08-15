@@ -31,6 +31,18 @@ import kotlinx.datetime.LocalDate
  * slot is provided. Delivered as a scope rather than positional lambda parameters so future
  * fields can be added without a breaking change to every `dayContent` call site.
  *
+ * [E] is the calendar's own event type, so a cell is handed the caller's domain type rather than
+ * [KalendarEvent] — the same type its `onDateClick` reports:
+ *
+ * ```kotlin
+ * KalendarMonth(selectedDate = today, events = bookings) { scope ->
+ *     MyDayCell(day = scope.date.day, rooms = scope.events.map { it.roomId })
+ * }
+ * ```
+ *
+ * It is `out` so that a cell written once against `KalendarDayScope<KalendarEvent>` can be handed to
+ * a calendar of any event type: a slot is a *consumer* of the scope, and consumers are contravariant.
+ *
  * @property date The date this cell represents.
  * @property isSelected Whether [date] is in the calendar's `selectedDates`.
  * @property isToday Whether [date] is today, in the system time zone.
@@ -38,22 +50,28 @@ import kotlinx.datetime.LocalDate
  * @property events The events occurring on [date].
  */
 @Immutable
-public class KalendarDayScope(
+public class KalendarDayScope<out E : KalendarEvent>(
     public val date: LocalDate,
     public val isSelected: Boolean,
     public val isToday: Boolean,
     public val isDisabled: Boolean,
-    public val events: List<KalendarEvent>,
+    public val events: List<E>,
 ) {
 
-    /** Returns a duplicate of this scope with only the fields passed here replaced. */
+    /**
+     * Returns a duplicate of this scope with only the fields passed here replaced.
+     *
+     * [events] is the one `in` position [E] has. It is sound because the only value that reaches it
+     * is either this scope's own list or one the caller already holds as `List<E>`; `@UnsafeVariance`
+     * records that rather than forcing every `dayContent` to give up covariance for it.
+     */
     public fun copy(
         date: LocalDate = this.date,
         isSelected: Boolean = this.isSelected,
         isToday: Boolean = this.isToday,
         isDisabled: Boolean = this.isDisabled,
-        events: List<KalendarEvent> = this.events,
-    ): KalendarDayScope = KalendarDayScope(
+        events: List<@UnsafeVariance E> = this.events,
+    ): KalendarDayScope<E> = KalendarDayScope(
         date = date,
         isSelected = isSelected,
         isToday = isToday,
@@ -63,7 +81,7 @@ public class KalendarDayScope(
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is KalendarDayScope) return false
+        if (other !is KalendarDayScope<*>) return false
         if (date != other.date) return false
         if (isSelected != other.isSelected) return false
         if (isToday != other.isToday) return false

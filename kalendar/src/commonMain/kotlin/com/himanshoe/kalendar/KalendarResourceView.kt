@@ -61,7 +61,6 @@ import com.himanshoe.kalendar.component.KalendarNavigationHeader
 import com.himanshoe.kalendar.component.KalendarNowLine
 import com.himanshoe.kalendar.component.resourceColumnWidth
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
-import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.event.byDateExpandingSpans
 import com.himanshoe.kalendar.foundation.schedule.KalendarHourWindow
 import com.himanshoe.kalendar.foundation.schedule.KalendarResource
@@ -74,7 +73,10 @@ import com.himanshoe.kalendar.foundation.schedule.resourceShiftForDrag
 import com.himanshoe.kalendar.foundation.schedule.shiftedResourceIndex
 import com.himanshoe.kalendar.slot.KalendarResourceEventScope
 import com.himanshoe.kalendar.state.DEFAULT_NOW_TICK
+import com.himanshoe.kalendar.state.KalendarEventLoader
+import com.himanshoe.kalendar.state.KalendarLoadStatus
 import com.himanshoe.kalendar.state.KalendarViewState
+import com.himanshoe.kalendar.state.rememberKalendarEventLoader
 import com.himanshoe.kalendar.state.rememberKalendarNowState
 import com.himanshoe.kalendar.state.rememberKalendarScheduleState
 import com.himanshoe.kalendar.theme.KalendarStrings
@@ -106,7 +108,9 @@ import kotlin.time.Duration
  * Events reach their lane through [resourceIdOf], an accessor rather than a member of
  * [KalendarEvent] — that interface is shipped and cannot grow one. It maps an event to **at most
  * one** lane: a booking occupies one room, and a single answer is what makes dragging a block
- * between lanes unambiguous.
+ * between lanes unambiguous. The accessor is handed the calendar's own event type, so it reads the
+ * link straight off the caller's domain type — the `as Booking` this example used to need was the
+ * clearest sign the view was missing a type parameter:
  *
  * ```kotlin
  * KalendarResourceView(
@@ -115,22 +119,31 @@ import kotlin.time.Duration
  *         KalendarResource(id = "room-b", title = "Room B"),
  *     ),
  *     events = bookings,
- *     resourceIdOf = { event -> (event as Booking).roomId },
- *     onEventChange = { event, start, end, resourceId -> move(event, start, end, resourceId) },
+ *     resourceIdOf = { booking -> booking.roomId },
+ *     onEventChange = { booking, start, end, resourceId -> move(booking, start, end, resourceId) },
  * )
  * ```
+ *
+ * The grid is generic in [E], the caller's own event type, inferred from [events]. Use the event-free
+ * overload when there are no events to infer from — it is the lane chrome on its own, which is what a
+ * board with nothing booked yet still has to draw.
  *
  * Untimed events — those with no [KalendarEvent.startTime] — are not drawn: a lane grid has no
  * all-day row to pin them to.
  *
+ * @param E The event type this calendar holds. Any [KalendarEvent] implementation, including a
+ *   caller's own domain type.
  * @param resources The lanes to show, left to right by [KalendarResource.order]. Empty renders
  *   [emptyState] in place of the grid.
  * @param modifier [Modifier] applied to the outermost container.
  * @param state Navigation state from [rememberKalendarScheduleState] — pages by single day. Unlike
  *   the Schedule views this one does not swipe between pages, because a horizontal swipe belongs to
  *   the lanes; the header's arrows, today button and jump picker move between days.
+ * @param eventLoader Loads events one visible day at a time instead of taking them all up front —
+ *   see [rememberKalendarEventLoader], and give it the same [state] this board has. `null`, the
+ *   default, is the eager list. See [KalendarMonth] for the full contract.
  * @param events Events for the calendar; only timed ones on the visible day and in a known lane are
- *   rendered.
+ *   rendered. Defaults to the events [eventLoader] holds, or to none.
  * @param resourceIdOf Maps an event to the [KalendarResource.id] of its lane, or `null` for none.
  *   Defaults to [KalendarEvent.calendarId], which is already the interface's "which source does
  *   this belong to" field; pass your own accessor when your events carry the link elsewhere.
@@ -163,6 +176,11 @@ import kotlin.time.Duration
  *   [KalendarResourceDefaults.NowIndicator].
  * @param emptyState Slot shown centred in place of the grid when [resources] is empty. Defaults to
  *   [KalendarResourceDefaults.EmptyState].
+ * @param loadingContent Slot drawn over the lane grid while the visible day's events have not
+ *   arrived yet, given a [KalendarLoadingScope] with the range, its [KalendarLoadStatus] and the
+ *   failure if it failed. Overlaid at the grid's own size, so it cannot move the lanes under it.
+ *   Defaults to [KalendarLoadingDefaults.Placeholder]. Never drawn when [eventLoader] is `null`,
+ *   and never in place of [emptyState] — a board with no lanes has nothing to load events into.
  * @param eventContent Slot for one timed event block, given a [KalendarResourceEventScope] with the
  *   event, its start and end on the rendered day, its duration, its overlap column and its lane. The
  *   grid measures and positions the slot for you and keeps the tap and drag gestures on the cell
@@ -170,15 +188,16 @@ import kotlin.time.Duration
  *   this is the view's primary slot. Defaults to [KalendarResourceDefaults.EventBlock].
  */
 @Composable
-public fun KalendarResourceView(
+public fun <E : KalendarEvent> KalendarResourceView(
     resources: List<KalendarResource>,
     modifier: Modifier = Modifier,
     state: KalendarViewState = rememberKalendarScheduleState(),
-    events: KalendarEvents = emptyList(),
-    resourceIdOf: (KalendarEvent) -> String? = defaultResourceIdOf,
-    onEventClick: (KalendarEvent) -> Unit = {},
+    eventLoader: KalendarEventLoader<E>? = null,
+    events: List<E> = eventLoader?.events ?: emptyList(),
+    resourceIdOf: (E) -> String? = defaultResourceIdOf,
+    onEventClick: (E) -> Unit = {},
     onEventChange: (
-        (event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime, newResourceId: String) -> Unit
+        (event: E, newStart: LocalDateTime, newEnd: LocalDateTime, newResourceId: String) -> Unit
     )? = null,
     config: KalendarViewConfig = KalendarViewConfig(),
     hourHeight: Dp = KalendarTheme.dimensions.hourHeight,
@@ -196,7 +215,10 @@ public fun KalendarResourceView(
     emptyState: @Composable () -> Unit = {
         KalendarResourceDefaults.EmptyState()
     },
-    eventContent: @Composable (KalendarResourceEventScope) -> Unit = {
+    loadingContent: @Composable (KalendarLoadingScope) -> Unit = { loadingScope ->
+        KalendarLoadingDefaults.Placeholder(scope = loadingScope)
+    },
+    eventContent: @Composable (KalendarResourceEventScope<E>) -> Unit = {
         KalendarResourceDefaults.EventBlock(scope = it)
     },
 ) {
@@ -228,25 +250,94 @@ public fun KalendarResourceView(
                 emptyState()
             }
         } else {
-            ResourceGrid(
-                day = state.visibleDate,
-                isToday = state.visibleDate == today,
-                now = now,
-                lanes = lanes,
-                events = events,
-                resourceIdOf = resourceIdOf,
-                onEventClick = onEventClick,
-                onEventChange = onEventChange,
-                config = config,
-                hourHeight = hourHeight,
-                minResourceColumnWidth = minResourceColumnWidth,
-                resourceHeader = resourceHeader,
-                hourLabel = hourLabel,
-                nowIndicator = nowIndicator,
-                eventContent = eventContent,
-            )
+            Box(propagateMinConstraints = true) {
+                ResourceGrid(
+                    day = state.visibleDate,
+                    isToday = state.visibleDate == today,
+                    now = now,
+                    lanes = lanes,
+                    events = events,
+                    resourceIdOf = resourceIdOf,
+                    onEventClick = onEventClick,
+                    onEventChange = onEventChange,
+                    config = config,
+                    hourHeight = hourHeight,
+                    minResourceColumnWidth = minResourceColumnWidth,
+                    resourceHeader = resourceHeader,
+                    hourLabel = hourLabel,
+                    nowIndicator = nowIndicator,
+                    eventContent = eventContent,
+                )
+                KalendarPageLoading(
+                    loader = eventLoader,
+                    date = state.visibleDate,
+                    content = loadingContent,
+                )
+            }
         }
     }
+}
+
+/**
+ * A lane grid with no events — the resource columns, the hour gutter and the now-indicator alone,
+ * which is what a booking board with nothing booked yet still has to draw.
+ *
+ * ```kotlin
+ * KalendarResourceView(resources = listOf(KalendarResource(id = "room-a", title = "Room A")))
+ * ```
+ *
+ * This overload exists for inference, not for behaviour — see [KalendarMonth]'s event-free overload
+ * for why a default value cannot stand in for it. `resourceIdOf`, `onEventClick`, `onEventChange` and
+ * `eventContent` are absent rather than defaulted, because a grid with no events can neither route,
+ * fire nor draw any of them.
+ *
+ * @param resources See [KalendarResourceView].
+ * @param modifier See [KalendarResourceView].
+ * @param state See [KalendarResourceView].
+ * @param config See [KalendarResourceView].
+ * @param hourHeight See [KalendarResourceView].
+ * @param minResourceColumnWidth See [KalendarResourceView].
+ * @param nowIndicatorTick See [KalendarResourceView].
+ * @param resourceHeader See [KalendarResourceView].
+ * @param hourLabel See [KalendarResourceView].
+ * @param nowIndicator See [KalendarResourceView].
+ * @param emptyState See [KalendarResourceView].
+ */
+@Composable
+public fun KalendarResourceView(
+    resources: List<KalendarResource>,
+    modifier: Modifier = Modifier,
+    state: KalendarViewState = rememberKalendarScheduleState(),
+    config: KalendarViewConfig = KalendarViewConfig(),
+    hourHeight: Dp = KalendarTheme.dimensions.hourHeight,
+    minResourceColumnWidth: Dp = KalendarTheme.dimensions.resourceColumnMinWidth,
+    nowIndicatorTick: Duration = DEFAULT_NOW_TICK,
+    resourceHeader: @Composable (resource: KalendarResource) -> Unit = {
+        KalendarResourceDefaults.ResourceHeader(resource = it)
+    },
+    hourLabel: @Composable (Int) -> Unit = {
+        KalendarResourceDefaults.HourLabel(hour = it, formatter = config.hourLabelFormatter)
+    },
+    nowIndicator: @Composable () -> Unit = {
+        KalendarResourceDefaults.NowIndicator()
+    },
+    emptyState: @Composable () -> Unit = {
+        KalendarResourceDefaults.EmptyState()
+    },
+) {
+    KalendarResourceView<KalendarEvent>(
+        resources = resources,
+        modifier = modifier,
+        state = state,
+        config = config,
+        hourHeight = hourHeight,
+        minResourceColumnWidth = minResourceColumnWidth,
+        nowIndicatorTick = nowIndicatorTick,
+        resourceHeader = resourceHeader,
+        hourLabel = hourLabel,
+        nowIndicator = nowIndicator,
+        emptyState = emptyState,
+    )
 }
 
 /**
@@ -320,7 +411,7 @@ public object KalendarResourceDefaults {
      * @param modifier [Modifier] applied to the block.
      */
     @Composable
-    public fun EventBlock(scope: KalendarResourceEventScope, modifier: Modifier = Modifier) {
+    public fun EventBlock(scope: KalendarResourceEventScope<*>, modifier: Modifier = Modifier) {
         val colors = kalendarColors()
         val dimensions = kalendarDimensions()
         val strings = kalendarStrings()
@@ -406,7 +497,7 @@ public object KalendarResourceDefaults {
  */
 private fun resourceEventDescription(
     strings: KalendarStrings,
-    scope: KalendarResourceEventScope,
+    scope: KalendarResourceEventScope<*>,
 ): String = strings.resourceEventAccessibilityLabel(
     scope.event,
     scope.start,
@@ -414,7 +505,13 @@ private fun resourceEventDescription(
     scope.resource.title,
 )
 
-/** [KalendarEvent.calendarId] as a lane link — the default `resourceIdOf`. */
+/**
+ * [KalendarEvent.calendarId] as a lane link — the default `resourceIdOf`.
+ *
+ * Typed on [KalendarEvent] rather than on the view's `E`, and usable as the default for `(E) -> String?`
+ * because a function that accepts every event accepts a narrower one — so one shared instance serves
+ * every calendar instead of a fresh lambda per event type.
+ */
 private val defaultResourceIdOf: (KalendarEvent) -> String? = { it.calendarId }
 
 private const val RESOURCE_EVENT_LABEL_MAX_LINES = 2
@@ -422,16 +519,16 @@ private const val RESOURCE_HEADER_ACCENT_FRACTION = 0.6f
 private val RESOURCE_HEADER_ACCENT_GAP = 2.dp
 
 @Composable
-private fun ResourceGrid(
+private fun <E : KalendarEvent> ResourceGrid(
     day: LocalDate,
     isToday: Boolean,
     now: () -> LocalDateTime,
     lanes: List<KalendarResource>,
-    events: KalendarEvents,
-    resourceIdOf: (KalendarEvent) -> String?,
-    onEventClick: (KalendarEvent) -> Unit,
+    events: List<E>,
+    resourceIdOf: (E) -> String?,
+    onEventClick: (E) -> Unit,
     onEventChange: (
-        (event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime, newResourceId: String) -> Unit
+        (event: E, newStart: LocalDateTime, newEnd: LocalDateTime, newResourceId: String) -> Unit
     )?,
     config: KalendarViewConfig,
     hourHeight: Dp,
@@ -439,7 +536,7 @@ private fun ResourceGrid(
     resourceHeader: @Composable (resource: KalendarResource) -> Unit,
     hourLabel: @Composable (Int) -> Unit,
     nowIndicator: @Composable () -> Unit,
-    eventContent: @Composable (KalendarResourceEventScope) -> Unit,
+    eventContent: @Composable (KalendarResourceEventScope<E>) -> Unit,
 ) {
     val dimensions = kalendarDimensions()
     val density = LocalDensity.current
@@ -450,10 +547,13 @@ private fun ResourceGrid(
     val eventsByDate = remember(events) { events.byDateExpandingSpans() }
     val window = config.scheduleVisibleHours
     val blocksByResource = remember(eventsByDate, lanes, resourceIdOf, day, window) {
+        // The engine buckets `List<KalendarEvent>`, so its accessor has to accept one; every event it
+        // is asked about came out of `eventsByDate`, which is the view's own `List<E>`. See
+        // asCalendarEvent in KalendarEventTypeBridge.kt.
         resourceBlocks(
             events = eventsByDate[day] ?: emptyList(),
             resources = lanes,
-            resourceIdOf = resourceIdOf,
+            resourceIdOf = { event -> resourceIdOf(asCalendarEvent(event)) },
             date = day,
             window = window,
         )
@@ -533,31 +633,34 @@ private fun ResourceGrid(
  * lane's answer to a sideways drag.
  */
 @Composable
-private fun ResourceBlockLayout(
+private fun <E : KalendarEvent> ResourceBlockLayout(
     blocks: List<KalendarScheduleBlock>,
     lanes: List<KalendarResource>,
     laneIndex: Int,
     hourHeight: Dp,
-    onEventClick: (KalendarEvent) -> Unit,
+    onEventClick: (E) -> Unit,
     date: LocalDate,
     window: KalendarHourWindow,
     snapMinutes: Int,
     onEventChange: (
-        (event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime, newResourceId: String) -> Unit
+        (event: E, newStart: LocalDateTime, newEnd: LocalDateTime, newResourceId: String) -> Unit
     )?,
-    eventContent: @Composable (KalendarResourceEventScope) -> Unit,
+    eventContent: @Composable (KalendarResourceEventScope<E>) -> Unit,
 ) {
+    // Remembered so the identity is stable: an inline adapter would be a fresh parameter every
+    // recomposition and would stop every block below from ever skipping.
+    val blockClick = remember(onEventClick) { blockEventClickAdapter(onEventClick) }
     KalendarBlockLayout(
         blocks = blocks,
         hourHeight = hourHeight,
         window = window,
         snapMinutes = snapMinutes,
         horizontalShift = ResourceLaneAxis(lanes = lanes, laneIndex = laneIndex),
-        onEventClick = onEventClick,
+        onEventClick = blockClick,
         onRelease = onEventChange?.let { handler -> resourceReleaseHandler(date = date, handler = handler) },
         eventContent = { block, isDragging, lane ->
             val scope = remember(block, isDragging, lane) {
-                resourceEventScope(block = block, date = date, isDragging = isDragging, resource = lane)
+                resourceEventScope<E>(block = block, date = date, isDragging = isDragging, resource = lane)
             }
             eventContent(scope)
         },
@@ -569,12 +672,12 @@ private fun ResourceBlockLayout(
  * adjusted block and the lane it landed in, the caller is owed the event, wall-clock times and a
  * lane id. [date] is the visible day, which a lane drag never changes.
  */
-private fun resourceReleaseHandler(
+private fun <E : KalendarEvent> resourceReleaseHandler(
     date: LocalDate,
-    handler: (event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime, newResourceId: String) -> Unit,
+    handler: (event: E, newStart: LocalDateTime, newEnd: LocalDateTime, newResourceId: String) -> Unit,
 ): (KalendarScheduleBlock, KalendarResource) -> Unit = { block, lane ->
     val (newStart, newEnd) = dragReleaseTimes(block = block, targetDate = date)
-    handler(block.event, newStart, newEnd, lane.id)
+    handler(asCalendarEvent(block.event), newStart, newEnd, lane.id)
 }
 
 /**
@@ -607,12 +710,12 @@ private data class ResourceLaneAxis(
  * The scope handed to the `eventContent` slot for [block] as currently rendered — drag adjustments
  * and lane shifts included — on the day it is drawn.
  */
-private fun resourceEventScope(
+private fun <E : KalendarEvent> resourceEventScope(
     block: KalendarScheduleBlock,
     date: LocalDate,
     isDragging: Boolean,
     resource: KalendarResource,
-): KalendarResourceEventScope {
+): KalendarResourceEventScope<E> {
     val (start, end) = dragReleaseTimes(block = block, targetDate = date)
     return ResourceEventScope(
         block = block,
@@ -628,15 +731,15 @@ private fun resourceEventScope(
  * later addition to [KalendarScheduleBlock] cannot be silently dropped on the way to the slot.
  */
 @Immutable
-private class ResourceEventScope(
+private class ResourceEventScope<out E : KalendarEvent>(
     private val block: KalendarScheduleBlock,
     override val start: LocalDateTime,
     override val end: LocalDateTime,
     override val isDragging: Boolean,
     override val resource: KalendarResource,
-) : KalendarResourceEventScope {
+) : KalendarResourceEventScope<E> {
 
-    override val event: KalendarEvent get() = block.event
+    override val event: E get() = asCalendarEvent(block.event)
 
     override val durationMinutes: Int get() = block.endMinutes - block.startMinutes
 

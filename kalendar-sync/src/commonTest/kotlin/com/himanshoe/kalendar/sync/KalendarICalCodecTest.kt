@@ -176,6 +176,60 @@ class KalendarICalCodecTest {
     }
 
     @Test
+    fun encode_timedRecurringEventWithUntil_emitsADateTimeUntilMatchingDtStart() {
+        val original = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 5),
+            eventName = "Standup",
+            startTime = LocalTime(9, 0),
+            endTime = LocalTime(9, 30),
+            recurrenceRule = KalendarRule(
+                frequency = KalendarRecurrenceFrequency.DAILY,
+                until = LocalDate(2026, 1, 9),
+            ),
+        )
+        val ics = KalendarICalCodec.encode(listOf(original))
+        assertTrue(ics.contains("RRULE:FREQ=DAILY;UNTIL=20260109T235959"))
+        assertTrue(!ics.contains("UNTIL=20260109T235959Z"))
+    }
+
+    @Test
+    fun encode_allDayRecurringEventWithUntil_emitsADateUntilMatchingDtStart() {
+        val original = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 5),
+            eventName = "Sprint day",
+            recurrenceRule = KalendarRule(
+                frequency = KalendarRecurrenceFrequency.DAILY,
+                until = LocalDate(2026, 1, 9),
+            ),
+        )
+        val ics = KalendarICalCodec.encode(listOf(original))
+        assertTrue(ics.contains("RRULE:FREQ=DAILY;UNTIL=20260109\n"))
+    }
+
+    @Test
+    fun roundTrip_timedRecurringEventWithUntil_keepsTheLastPermittedOccurrence() {
+        val original = BasicKalendarSyncEvent(
+            date = LocalDate(2026, 1, 5),
+            eventName = "Standup",
+            startTime = LocalTime(9, 0),
+            endTime = LocalTime(9, 30),
+            recurrenceRule = KalendarRule(
+                frequency = KalendarRecurrenceFrequency.DAILY,
+                until = LocalDate(2026, 1, 9),
+            ),
+        )
+        val decoded = KalendarICalCodec.decode(KalendarICalCodec.encode(listOf(original))).single()
+        assertEquals(original.recurrenceRule, decoded.recurrenceRule)
+        assertEquals(
+            LocalDate(2026, 1, 9),
+            decoded.expandOccurrences(
+                rangeStart = LocalDate(2026, 1, 1),
+                rangeEnd = LocalDate(2026, 1, 31),
+            ).last().date,
+        )
+    }
+
+    @Test
     fun encode_recurringEventWithExceptions_includesExdateLine() {
         val original = BasicKalendarSyncEvent(
             date = LocalDate(2026, 1, 5),

@@ -81,7 +81,7 @@ match the rest of the calendar:
 
 ```kotlin
 @Composable
-fun MyDayCell(scope: KalendarDayScope) {
+fun MyDayCell(scope: KalendarDayScope<*>) {
     val colors = KalendarTheme.colors
     val typography = KalendarTheme.typography
 

@@ -121,15 +121,45 @@ internal fun KalendarHourColumnDivider(modifier: Modifier = Modifier) {
 }
 
 /**
+ * How far below the top edge of [window] a clock reading [now] sits, in grid minutes. Outside the
+ * window the answer is negative or past [KalendarHourWindow.spanMinutes], which is how a caller
+ * knows there is no row to draw the line on.
+ *
+ * [now] must already be resolved in the calendar's own zone — `KalendarTimeSource.now()` — so a
+ * calendar pinned to an office's zone positions its line on that office's clock rather than the
+ * device's. Nothing here can recover the zone from a [LocalDateTime]; it is a wall-clock reading
+ * with no offset attached, and that is exactly what this wants.
+ *
+ * **Wall clock, deliberately, and this is the load-bearing part on the two days a year a day is not
+ * 24 hours long.** The grid is ruled in wall-clock hours, `scheduleBlocks` positions blocks in
+ * wall-clock minutes from midnight, and both must agree. On the morning the clocks go forward the
+ * line therefore jumps from 01:59 to 03:00 across an hour the grid draws but no event can occupy,
+ * and on the morning they go back it draws 02:30 twice, an hour of real time apart — in both cases
+ * landing exactly where a block for that wall-clock time is drawn.
+ *
+ * Measuring elapsed real time from the day's start instead — the reading
+ * [com.himanshoe.kalendar.foundation.datetime.dayLengthIn] answers — would put the line an hour off
+ * every block for the rest of a spring-forward day. That reading is the right one for a midnight
+ * rollover and the wrong one for a position.
+ */
+internal fun nowLineMinutes(now: LocalDateTime, window: KalendarHourWindow): Int =
+    now.minutesFromMidnight() - window.startMinutes
+
+/**
  * The current-time line, drawn only on a column that is today and only while the clock is inside
  * [window] — on an 08:00–20:00 grid there is no row for 21:30, and a line pinned to the bottom edge
  * would claim there is.
+ *
+ * [isToday] is the caller's, because only the caller knows which date its column draws; it must be
+ * decided against the same time source [now] comes from, or a calendar pinned to another zone shows
+ * its line on the device's today.
  *
  * [now] is read in two places, both deliberate. The *position* is read inside [Modifier.offset]'s
  * lambda, which runs in the layout phase, so a minute passing re-places one line instead of
  * recomposing this composable and its slot. The *visibility* is read through [derivedStateOf], whose
  * result changes at most twice a day — at the window's two edges — so gating the line on it costs a
- * recomposition only when it genuinely appears or disappears.
+ * recomposition only when it genuinely appears or disappears. Both go through [nowLineMinutes], so
+ * the line can never be shown at a position the window does not contain.
  */
 @Composable
 internal fun KalendarNowLine(
@@ -143,14 +173,14 @@ internal fun KalendarNowLine(
         return
     }
     val isWithinWindow by remember(now, window) {
-        derivedStateOf { now().minutesFromMidnight() in window }
+        derivedStateOf { nowLineMinutes(now(), window) in 0 until window.spanMinutes }
     }
     if (!isWithinWindow) {
         return
     }
     Box(
         modifier = Modifier.fillMaxWidth().offset {
-            val minutes = now().minutesFromMidnight() - window.startMinutes
+            val minutes = nowLineMinutes(now(), window)
             IntOffset(x = 0, y = (hourHeight.toPx() * minutes / MINUTES_PER_HOUR).roundToInt())
         },
     ) {

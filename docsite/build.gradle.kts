@@ -120,14 +120,25 @@ val generateDocsSite by tasks.registering(JavaExec::class) {
      */
     dependsOn(generateDocsImages)
 
+    /*
+     * The binary-compatibility dumps are an input because the site is built from them: the reference
+     * auto-linker only links a name the dumps still contain, so renaming a public symbol has to
+     * rebuild the site. The include pattern reaches exactly one directory deep, so it matches a
+     * module's checked-in dump and not the regenerated copy under its `build/` directory — which
+     * would otherwise leave this task never up to date.
+     */
+    val rootDir = rootProject.layout.projectDirectory
+    val apiDumps = rootProject.fileTree(rootDir) { include("*/api/**/*.api") }
+
     inputs.dir(docsDir).withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir(resourcesDir).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(apiDumps).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("apiDumps")
     inputs.property("linkMode", linkMode)
     outputs.dir(outputDir)
 
     argumentProviders.add(
         CommandLineArgumentProvider {
-            listOf(docsDir.asFile.absolutePath, outputDir.get().asFile.absolutePath)
+            listOf(docsDir.asFile.absolutePath, outputDir.get().asFile.absolutePath, rootDir.asFile.absolutePath)
         }
     )
 }

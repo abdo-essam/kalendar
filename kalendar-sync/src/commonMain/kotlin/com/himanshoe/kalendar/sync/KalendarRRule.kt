@@ -43,14 +43,21 @@ private const val DEFAULT_TIMED_DURATION_SECONDS = 3_600L
  * e.g. `FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE,FR`. Shared by the iCal codec and the
  * Android `CalendarContract` provider, which stores the same value format in its
  * `Events.RRULE` column.
+ *
+ * @param untilValue The already-rendered UNTIL value to emit in place of the plain `yyyyMMdd`
+ *   form. RFC 5545 requires UNTIL to carry the same value type as DTSTART, so a timed event has
+ *   to pass a DATE-TIME here — [floatingUntilValue] for the floating DTSTART the iCal codec
+ *   writes, [utcUntilValue] where DTSTART is anchored to a time zone, as on Android. `null`
+ *   emits the DATE form, which is what an all-day event's `DTSTART;VALUE=DATE` requires.
+ *   Ignored when the rule has no [KalendarRule.until].
  */
-internal fun KalendarRule.toRRuleString(): String = buildString {
+internal fun KalendarRule.toRRuleString(untilValue: String? = null): String = buildString {
     append("FREQ=${frequency.name}")
     if (interval != 1) {
         append(";INTERVAL=$interval")
     }
     count?.let { append(";COUNT=$it") }
-    until?.let { append(";UNTIL=${it.toIcalDateString()}") }
+    until?.let { append(";UNTIL=${untilValue ?: it.toIcalDateString()}") }
     if (byDay.isNotEmpty()) {
         append(";BYDAY=${byDay.joinToString(",") { it.toIcalWeekDayString() }}")
     }
@@ -65,8 +72,15 @@ internal fun KalendarRule.toRRuleString(): String = buildString {
 /**
  * Parses the value portion of an RFC 5545 RRULE property into a [KalendarRule].
  * Returns `null` if the FREQ component is missing or unrecognised.
+ *
+ * @param timeZone The zone a UTC UNTIL value (`yyyyMMdd'T'HHmmss'Z'`) is resolved back through to
+ *   reach the local date [KalendarRule.until] holds. This has to be the zone the event's
+ *   occurrences are anchored in — the offset routinely pushes the UTC digits onto the
+ *   neighbouring day, and a boundary read one day late resurrects the occurrence an UNTIL was
+ *   written to drop. Defaults to [TimeZone.UTC], which leaves the digits as written and suits the
+ *   zone-free floating values the iCal codec produces.
  */
-internal fun parseRRuleString(value: String): KalendarRule? = runCatching {
+internal fun parseRRuleString(value: String, timeZone: TimeZone = TimeZone.UTC): KalendarRule? = runCatching {
     val parts = value.split(";").mapNotNull { segment ->
         val eq = segment.indexOf('=')
         if (eq < 0) {
@@ -87,7 +101,7 @@ internal fun parseRRuleString(value: String): KalendarRule? = runCatching {
         frequency = frequency,
         interval = parts["INTERVAL"]?.toIntOrNull() ?: 1,
         count = parts["COUNT"]?.toIntOrNull(),
-        until = parts["UNTIL"]?.let { parseIcalDateString(it) },
+        until = parts["UNTIL"]?.let { parseIcalDateValue(value = it, timeZone = timeZone) },
         byDay = parts["BYDAY"]
             ?.split(",")
             ?.mapNotNull { it.trim().toKalendarWeekDay() }
@@ -155,13 +169,58 @@ internal fun recurrenceExdateString(event: KalendarSyncEvent, timeZone: TimeZone
 }
 
 /**
- * Parses one EXDATE list entry back to the local exception date in [timeZone]. Accepts the plain
+ * Renders [KalendarRule.until] as the floating DATE-TIME an RRULE needs when DTSTART is itself a
+ * floating DATE-TIME, which is the only timed form the iCal codec writes. RFC 5545 requires the
+ * two value types to match, and forbids a UTC UNTIL against a DTSTART in local time.
+ *
+ * The value sits at the very end of the day because [KalendarRule.until] names the last *date* an
+ * occurrence may fall on and UNTIL is inclusive: an occurrence starting at any time that day is
+ * still bounded by it, whatever hour the series runs at.
+ *
+ * Returns `null` — meaning "emit the plain DATE form" — for an all-day event, whose
+ * `DTSTART;VALUE=DATE` requires exactly that, and for a rule with no [KalendarRule.until].
+ */
+internal fun floatingUntilValue(rule: KalendarRule, isAllDay: Boolean): String? {
+    val until = rule.until
+    if (isAllDay || until == null) {
+        return null
+    }
+    return "${until.toIcalDateString()}T${END_OF_DAY.toIcalTimeString()}"
+}
+
+/**
+ * Renders [KalendarRule.until] as the UTC DATE-TIME an RRULE needs when DTSTART is anchored to a
+ * time zone rather than floating — the Android `CalendarContract` case, where the row carries an
+ * `EVENT_TIMEZONE`. RFC 5545 requires UNTIL to be in UTC for such a DTSTART.
+ *
+ * The end of the last permitted local day in [timeZone] is converted to the instant it names, so
+ * the boundary keeps meaning the same moment in the zone the occurrences are anchored in. Writing
+ * the plain DATE form here instead is the classic way to lose the final occurrence of a timed
+ * series: a consumer reads it as midnight, and every occurrence later in that day falls outside.
+ *
+ * Returns `null` for an all-day event and for a rule with no [KalendarRule.until], leaving the
+ * DATE form in place.
+ */
+internal fun utcUntilValue(rule: KalendarRule, isAllDay: Boolean, timeZone: TimeZone): String? {
+    val until = rule.until
+    if (isAllDay || until == null) {
+        return null
+    }
+    val utc = LocalDateTime(date = until, time = END_OF_DAY).toInstant(timeZone).toLocalDateTime(TimeZone.UTC)
+    return "${utc.date.toIcalDateString()}T${utc.time.toIcalTimeString()}Z"
+}
+
+private val END_OF_DAY = LocalTime(hour = 23, minute = 59, second = 59)
+
+/**
+ * Parses an iCal DATE or DATE-TIME property value back to the local date it falls on in
+ * [timeZone] — the form EXDATE entries and a timed rule's UNTIL both arrive in. Accepts the plain
  * date form (`yyyyMMdd`), the UTC date-time form this library writes (`yyyyMMdd'T'HHmmss'Z'`,
- * converted from UTC back to [timeZone] so exclusions written across a midnight-crossing offset
- * land on the right local day), and tolerates floating date-times or trailing junk by falling
+ * converted from UTC back to [timeZone] so a value written across a midnight-crossing offset
+ * lands on the right local day), and tolerates floating date-times or trailing junk by falling
  * back to the leading date digits. Returns `null` for unparseable input.
  */
-internal fun parseExdateValue(value: String, timeZone: TimeZone): LocalDate? {
+internal fun parseIcalDateValue(value: String, timeZone: TimeZone): LocalDate? {
     val trimmed = value.trim()
     val date = parseIcalDateString(trimmed) ?: return null
     val utcTime = if (trimmed.endsWith("Z")) parseIcalUtcTimePart(trimmed) else null

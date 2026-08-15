@@ -34,15 +34,18 @@ import kotlinx.datetime.LocalDate
  *
  * This is an interface rather than a data class so later releases can add information to it without
  * breaking every existing `overflowPopup` lambda.
+ *
+ * [E] is the calendar's own event type, so a replacement popover lists the caller's domain type and
+ * reports it back unchanged. It is `out` for the reason [KalendarDayScope]'s is.
  */
 @Stable
-public interface KalendarDayOverflowScope {
+public interface KalendarDayOverflowScope<out E : KalendarEvent> {
 
     /** The date whose events the popover is listing. */
     public val date: LocalDate
 
     /** Every event on [date], in the order the day cell received them — not just the hidden ones. */
-    public val events: List<KalendarEvent>
+    public val events: List<E>
 
     /**
      * How many of [events] the cell's indicator dots did not represent, i.e. the `N` in its `+N`
@@ -53,8 +56,11 @@ public interface KalendarDayOverflowScope {
     /**
      * Reports [event] to the cell's `onEventClick` and closes the popover, in that order. A popover
      * that wants to stay open should call the callback it was built with instead of this.
+     *
+     * [event] is the one `in` position [E] has, and is sound for the same reason
+     * [KalendarDayScope.copy]'s is: the only events a popover has to report are the ones in [events].
      */
-    public fun onEventClick(event: KalendarEvent)
+    public fun onEventClick(event: @UnsafeVariance E)
 
     /**
      * Closes the popover. Tapping outside it and pressing escape already do this; call it for a

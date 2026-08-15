@@ -38,6 +38,7 @@ private val srcPattern = Regex("""\bsrc="([^"]*)"""")
 private val altPattern = Regex("""\balt="[^"]*"""")
 private val tablePattern = Regex("""<table>([\s\S]*?)</table>""")
 private val paragraphPattern = Regex("""<p>([\s\S]*?)</p>""")
+private val codeOnlyParagraph = Regex("""<code>[^<]*</code>""")
 private val tagPattern = Regex("""<[^>]+>""")
 
 private const val SUMMARY_LENGTH = 180
@@ -318,9 +319,23 @@ fun plainText(html: String): String =
         .replace(Regex("""\s+"""), " ")
         .trim()
 
-/** The page's opening prose, trimmed to something a search result can show whole. */
+/**
+ * The page's opening prose, trimmed to something a search result can show whole.
+ *
+ * A paragraph that is nothing but one code span is skipped. Every reference page opens by naming its
+ * package on a line of its own, and taking that literally makes the page's description — its meta
+ * tag, its entry in `llms.txt` — read "com.himanshoe.kalendar.foundation.grid", which is the one
+ * thing a reader already knew from the link they were deciding whether to follow.
+ */
 private fun firstParagraph(html: String): String {
-    val text = paragraphPattern.find(html)?.groupValues?.get(1)?.let(::plainText).orEmpty()
+    val text =
+        paragraphPattern
+            .findAll(html)
+            .map { match -> match.groupValues[1] }
+            .filterNot { paragraph -> codeOnlyParagraph.matches(paragraph.trim()) }
+            .map(::plainText)
+            .firstOrNull { paragraph -> paragraph.isNotBlank() }
+            .orEmpty()
     return if (text.length <= SUMMARY_LENGTH) {
         text
     } else {

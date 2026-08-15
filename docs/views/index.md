@@ -5,7 +5,8 @@ is no `Kalendar(type = ...)` dispatcher any more (see [Migration from 1.x](../mi
 
 They all live in `com.himanshoe.kalendar`, share the same
 [`KalendarViewConfig`](../configuration.md), resolve their visuals through the same
-[`KalendarTheme`](../theming.md), and take the same [`KalendarEvents`](../events.md) list.
+[`KalendarTheme`](../theming.md), and take the same [`events`](../events.md) list — generic in
+**your** event type, so every callback hands it back without a cast.
 
 Underneath, every one of them is built on the public
 [headless engine](../engine.md) — the same `KalendarPager`, `monthGridDates` and `scheduleBlocks` you

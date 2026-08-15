@@ -42,13 +42,17 @@ import kotlinx.datetime.LocalDateTime
  * }
  * ```
  *
+ * [E] is the calendar's own event type, so [event] is the caller's domain type rather than
+ * [KalendarEvent]. It is `out` so a block renderer written once against
+ * `KalendarScheduleEventScope<KalendarEvent>` still serves a schedule of any event type.
+ *
  * @see KalendarHeaderScope for why this is an interface.
  */
 @Stable
-public interface KalendarScheduleEventScope {
+public interface KalendarScheduleEventScope<out E : KalendarEvent> {
 
     /** The event being rendered. */
-    public val event: KalendarEvent
+    public val event: E
 
     /**
      * The event's start, clamped to the day being rendered when the event began earlier.

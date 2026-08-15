@@ -66,7 +66,7 @@ verified two ways.
 
 By inspection, `KalendarColors`, `KalendarTypography`, `KalendarShapes`, `KalendarDimensions`,
 `KalendarAnimations`, `KalendarThemeTokens`, `KalendarStrings`, `KalendarViewConfig`,
-`KalendarDayScope` and `KalendarDatePickerDayScope` all compare field by field after the usual
+`KalendarDayScope<E>` and `KalendarDatePickerDayScope` all compare field by field after the usual
 `if (this === other) return true` fast path. None of them stops at identity. The same is true of the
 engine's own value types — `BasicKalendarEvent`, `KalendarScheduleBlock`, `KalendarHourWindow`,
 `KalendarSelection`, `KalendarResource`, `KalendarPager`, `KalendarTimeSource` — which do not appear

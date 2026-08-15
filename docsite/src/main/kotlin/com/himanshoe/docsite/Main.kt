@@ -2,18 +2,24 @@ package com.himanshoe.docsite
 
 import java.io.File
 
-private const val EXPECTED_ARGUMENTS = 2
+private const val EXPECTED_ARGUMENTS = 3
+private const val BYTES_PER_KILOBYTE = 1024
 private val assets = listOf("docs.css", "docs.js")
 
 /**
  * Renders the documentation into a static site.
  *
- * Usage: `generateDocsSite <docsDir> <outputDir>`.
+ * Usage: `generateDocsSite <docsDir> <outputDir> <rootDir>`, where `rootDir` is the repository root
+ * holding each module's `api` directory of binary-compatibility dumps — the symbol list the
+ * reference auto-linker is built from.
  */
 fun main(args: Array<String>) {
-    require(args.size == EXPECTED_ARGUMENTS) { "Expected <docsDir> <outputDir>, got ${args.size} argument(s)" }
+    require(args.size == EXPECTED_ARGUMENTS) {
+        "Expected <docsDir> <outputDir> <rootDir>, got ${args.size} argument(s)"
+    }
     val docsDir = File(args[0])
     val outputDir = File(args[1])
+    val rootDir = File(args[2])
 
     outputDir.deleteRecursively()
     outputDir.mkdirs()
@@ -21,7 +27,9 @@ fun main(args: Array<String>) {
     val sources = discoverPages(docsDir)
     val sections = buildNavigation(sources)
     val order = readingOrder(sections)
-    val rendered = sources.associateWith { source -> renderMarkdown(source.markdown) }
+    val parsed = sources.associateWith { source -> renderMarkdown(source.markdown) }
+    val symbols = buildSymbolIndex(pages = parsed, apiSymbols = readApiSymbols(rootDir))
+    val rendered = parsed.mapValues { (source, page) -> page.withSymbolLinks(source = source, symbols = symbols) }
     val entryUrl = order.firstOrNull()?.url ?: "index.html"
 
     order.forEachIndexed { index, source ->
@@ -47,6 +55,10 @@ fun main(args: Array<String>) {
     )
     writeNotFound(outputDir = outputDir, entryUrl = entryUrl)
     writeSitemap(outputDir = outputDir, urls = listOf("index.html") + order.map { source -> source.url })
+    writeSearchIndex(outputDir = outputDir, pages = listOf(home) + order, rendered = rendered)
+    outputDir
+        .resolve("llms.txt")
+        .writeText(renderLlmsTxt(sections = sections, rendered = rendered, version = LIBRARY_VERSION))
     copyStaticFiles(docsDir = docsDir, outputDir = outputDir)
     copyAssets(outputDir)
 
@@ -58,6 +70,49 @@ fun main(args: Array<String>) {
     verifyLinks(outputDir = outputDir, strict = System.getProperty("docsite.links") != "warn")
 
     println("Wrote ${order.size + 1} pages to ${outputDir.absolutePath}")
+    println("Auto-linked ${symbols.size} public symbols to the API reference")
+}
+
+/**
+ * The page with every mention of a documented public symbol turned into a link to its entry.
+ *
+ * Applied to the rendered HTML rather than to the markdown, because the rules are about where a
+ * mention sits — in a code block, inside an existing link, in a heading — and none of those places
+ * is distinguishable before the markdown has been rendered.
+ */
+private fun RenderedPage.withSymbolLinks(
+    source: DocSource,
+    symbols: Map<String, SymbolTarget>
+): RenderedPage =
+    copy(
+        html =
+            linkifySymbols(
+                html = html,
+                currentUrl = source.url,
+                depth = source.url.urlDepth(),
+                symbols = symbols
+            )
+    )
+
+/**
+ * Writes the index the search box reads, and says how big it is.
+ *
+ * The size is printed on every build because it is the number that decides whether search stays
+ * honest: it grows with the docs, silently, and a payload nobody has looked at since it was written
+ * is how a documentation site ends up shipping a megabyte to answer a two-word query.
+ */
+private fun writeSearchIndex(
+    outputDir: File,
+    pages: List<DocSource>,
+    rendered: Map<DocSource, RenderedPage>
+) {
+    val index = buildSearchIndex(pages = pages, rendered = rendered)
+    val json = index.toJson()
+    val target = outputDir.resolve(SEARCH_INDEX_PATH)
+    target.parentFile.mkdirs()
+    target.writeText(json)
+    val kilobytes = json.toByteArray().size / BYTES_PER_KILOBYTE
+    println("Search index: ${index.sections.size} sections across ${index.pages.size} pages, $kilobytes KB")
 }
 
 private fun writeDocPage(
@@ -157,7 +212,11 @@ private fun writeNotFound(
             body = body,
             landing = true
         )
-    outputDir.resolve("404.html").writeText(html.replace("""="assets/""", """="$SITE_BASE_PATH""" + "assets/"))
+    val absolute =
+        html
+            .replace("""="assets/""", """="$SITE_BASE_PATH""" + "assets/")
+            .replace("data-search-root=\"\"", "data-search-root=\"$SITE_BASE_PATH\"")
+    outputDir.resolve("404.html").writeText(absolute)
 }
 
 private fun writeSitemap(

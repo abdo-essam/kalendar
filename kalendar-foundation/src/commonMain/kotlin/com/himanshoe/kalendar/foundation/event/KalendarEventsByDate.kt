@@ -43,9 +43,18 @@ private const val MAX_EVENT_SPAN_DAYS = 366
  * A span longer than [MAX_EVENT_SPAN_DAYS] days is truncated, so a malformed `endDate` far in the
  * future cannot turn one event into an unbounded map. An `endDate` before [KalendarEvent.date] is
  * treated as a single-day event.
+ *
+ * The element type is carried through rather than widened to [KalendarEvent]: this is the index the
+ * calendar views build before handing a date's events to `onDateClick`, and widening it here would
+ * make every one of those callbacks hand back [KalendarEvent] no matter what the caller supplied.
+ * A caller with a domain type keeps it:
+ *
+ * ```kotlin
+ * val byDate: Map<LocalDate, List<Booking>> = bookings.byDateExpandingSpans()
+ * ```
  */
-public fun KalendarEvents.byDateExpandingSpans(): Map<LocalDate, List<KalendarEvent>> {
-    val result = mutableMapOf<LocalDate, MutableList<KalendarEvent>>()
+public fun <E : KalendarEvent> List<E>.byDateExpandingSpans(): Map<LocalDate, List<E>> {
+    val result = mutableMapOf<LocalDate, MutableList<E>>()
     for (event in this) {
         val start = event.date
         val requestedEnd = event.endDate ?: start

@@ -16,16 +16,29 @@
 
 package com.himanshoe.kalendar.component
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -33,16 +46,29 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.toSize
 import com.himanshoe.kalendar.foundation.datetime.DAYS_PER_WEEK
 import com.himanshoe.kalendar.foundation.grid.ALL_DAYS_OF_WEEK
 import com.himanshoe.kalendar.foundation.grid.visibleDateOnOrAfter
 import com.himanshoe.kalendar.foundation.grid.visibleDateStep
 import com.himanshoe.kalendar.theme.KalendarStrings
+import com.himanshoe.kalendar.theme.kalendarColors
+import com.himanshoe.kalendar.theme.kalendarDimensions
+import com.himanshoe.kalendar.theme.kalendarShapes
 import com.himanshoe.kalendar.theme.kalendarStrings
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
@@ -132,11 +158,18 @@ private fun isShiftKey(key: Key): Boolean = key == Key.ShiftLeft || key == Key.S
  * the roving-tabindex pattern every native date picker uses: `Tab` enters the grid once, arrows move
  * a focus ring between days without leaving it, and `Tab` again leaves. Reaching 42 cells by
  * pressing `Tab` 42 times is not navigation, it is a tab trap with extra steps, which is why
- * [KalendarGrid] deactivates focus on the cells themselves.
+ * [KalendarGrid] deactivates focus on the cells themselves — and why [Modifier.kalendarKeyboardCell]
+ * does the same for the grids that are not [KalendarGrid].
+ *
+ * The container underneath does not have to be a pager. [KalendarYear] applies this above a year
+ * pager whose pages are themselves scrolling month columns, and [KalendarTimeline] applies it above a
+ * `LazyColumn` with no pager at all; what a container scrolls to bring the ring back into view is
+ * [KeepKeyboardFocusInView]'s job rather than this modifier's.
  *
  * What each key does:
- * - **Arrows** move one day or one row. Off the end of the visible page, [onScrollTo] pages and the
- *   focus lands on the same date on the new page, so a month boundary is invisible to the user.
+ * - **Arrows** move one day or one row. Off the end of the visible period, [onScrollTo] brings the
+ *   period holding the target into view and the focus lands on it, so a month boundary is invisible
+ *   to the user.
  * - **Enter/Space** select via [onSelect], which is the same callback a tap goes through.
  * - **PageUp/PageDown** move by [pageStep] — one page of the view's own unit.
  * - **Home/End** move to the first and last day of [periodDates].
@@ -155,7 +188,8 @@ private fun isShiftKey(key: Key): Boolean = key == Key.ShiftLeft || key == Key.S
  * @param periodDates The visible period's own dates — a month's days rather than its 42-cell grid,
  *   so the trailing padding cells belonging to the next month are never focused in place of that
  *   month's real ones. It drives `Home`/`End`, and a navigation target outside it is what triggers
- *   [onScrollTo].
+ *   [onScrollTo]. The period is the *view's* unit rather than the grid's: a month for
+ *   [KalendarMonth], a week for [KalendarWeek], a whole year for [KalendarYear].
  * @param visibleDaysOfWeek The days that have a column, from [KalendarViewConfig.visibleDaysOfWeek].
  *   Arrowing skips the rest, so the ring can never land on a date that is not drawn.
  * @param today Today's date, used as the entry point when the grid is focused for the first time and
@@ -163,7 +197,10 @@ private fun isShiftKey(key: Key): Boolean = key == Key.ShiftLeft || key == Key.S
  * @param selectedDate The date focus enters on, preferred over [today]. Pass the single selected
  *   date, or `null` for none.
  * @param onSelect Called by `Enter`/`Space` with the focused date, when [isDateEnabled] allows it.
- * @param onScrollTo Called with a date on another page, to bring that page into view.
+ * @param onScrollTo Called with a date outside [periodDates], to bring the period holding it into
+ *   view. Defaults to doing nothing, for the container that has nowhere to page to: a
+ *   [KalendarTimeline] is one continuous list, so every date it can reach is already in it and
+ *   [KeepKeyboardFocusInView] is the only thing that needs to scroll.
  * @param pageStep Returns the date `pages` pages away from `date`, in the view's own unit.
  * @param isDateEnabled Whether a date may be selected — [KalendarViewConfig.disabledDates] inverted.
  * @param onRangeDrag Reports a `Shift`-extended range as (anchor, focus). `null` disables range
@@ -180,7 +217,7 @@ internal fun Modifier.kalendarGridKeyboard(
     today: LocalDate,
     selectedDate: LocalDate?,
     onSelect: (LocalDate) -> Unit,
-    onScrollTo: (LocalDate) -> Unit,
+    onScrollTo: (LocalDate) -> Unit = {},
     pageStep: (date: LocalDate, pages: Int) -> LocalDate,
     isDateEnabled: (LocalDate) -> Boolean,
     onRangeDrag: ((start: LocalDate, current: LocalDate) -> Unit)?,
@@ -312,5 +349,276 @@ internal fun keyboardFocusAnnouncement(
     append(strings.dayAccessibilityLabel(date, monthNameFormatter(date.month)))
     if (isToday) {
         append(strings.todaySuffix)
+    }
+}
+
+/**
+ * How many day cells a [KalendarKeyboardCells] tracks before the stale ones are swept out.
+ *
+ * A timeline scrolled through a decade reports around four thousand distinct dates, and a placement
+ * whose `LazyColumn` item has since been recycled still holds a detached [LayoutCoordinates] — and
+ * through it the layout node it belonged to. Sweeping on a size trigger rather than on every report
+ * keeps the common case free: three months of grids is under two hundred entries, and a year page's
+ * twelve months at most 366, so no calendar that is merely being *used* ever pays for a sweep.
+ */
+private const val MAX_TRACKED_CELLS = 1024
+
+/**
+ * Where a scrolling container's day cells landed, so a roving focus ring can be drawn over one of
+ * them without any of them recomposing.
+ *
+ * [KalendarGrid] keeps an equivalent map of its own because it also positions a selection indicator
+ * and a drag ghost from it; this is the same idea reduced to what the keyboard needs, for the grids
+ * that are drawn by [KalendarStaticGrid] inside a scrolling parent and so have no such map. The
+ * discipline is the one that matters and it is identical: the map is a plain one, every reader is a
+ * layout lambda or a coroutine, and [revision] is the single [Int] that tells them the cells moved.
+ * Held in snapshot state and read from a composable body, one layout pass of a month grid would
+ * invalidate the composition that produced it, 42 writes at a time.
+ *
+ * Only cells whose date belongs to the grid's *own* month are ever reported. That is not an
+ * optimisation: a year page draws twelve grids and a timeline draws an unbounded number, so April
+ * 1st is on screen twice — once as March's trailing padding — and a map keyed by date could not say
+ * which of the two the ring should sit on.
+ */
+@Stable
+internal class KalendarKeyboardCells {
+
+    private var container: LayoutCoordinates? by mutableStateOf(null)
+    private val placements = mutableMapOf<LocalDate, KalendarKeyboardCellPlacement>()
+
+    /**
+     * Bumped whenever a cell reports a placement it did not already have, and so the one thing that
+     * tells the focus ring the cells have moved.
+     *
+     * Written on a *change* only. A write on every callback would re-place the ring after every
+     * layout pass a settled calendar performs, for the sake of a position it already holds — which
+     * on a scrolling container is every frame the user's finger is down, ring or no ring.
+     */
+    private var revision by mutableIntStateOf(0)
+
+    /** Records the container that every reported cell's bounds are expressed relative to. */
+    fun attach(coordinates: LayoutCoordinates) {
+        container = coordinates
+    }
+
+    /** Records where [date]'s cell landed. Called from the layout phase, once per cell per pass. */
+    fun report(date: LocalDate, coordinates: LayoutCoordinates) {
+        val root = container
+        val known = placements[date]
+        if (known != null && known.stillDescribes(candidate = coordinates, container = root)) {
+            return
+        }
+        if (placements.size > MAX_TRACKED_CELLS) {
+            placements.values.removeAll { !it.coordinates.isAttached }
+        }
+        placements[date] = KalendarKeyboardCellPlacement(coordinates = coordinates, container = root)
+        revision++
+    }
+
+    /**
+     * Where [date]'s cell sits in the container's coordinate space, or `null` when no such cell is on
+     * screen — the date is in a month this container has not composed, or in one a `LazyColumn` has
+     * since recycled.
+     *
+     * **Never call this from composition.** Everything it reads is written during layout.
+     */
+    fun boundsOf(date: LocalDate?): Rect? {
+        // Read first and unconditionally: this is the subscription that re-runs a layout lambda once
+        // the cells are positioned, and a revision of zero does mean no cell has ever reported one.
+        if (revision == 0) {
+            return null
+        }
+        val root = container ?: return null
+        val cell = date?.let(placements::get)?.coordinates?.takeIf { it.isAttached } ?: return null
+        return Rect(offset = root.localPositionOf(cell, Offset.Zero), size = cell.size.toSize())
+    }
+
+    /** The container's own height, which is the window [boundsOf]'s result has to fall inside. */
+    fun viewportHeight(): Float = container?.size?.height?.toFloat() ?: 0f
+}
+
+/**
+ * One day cell as its last [Modifier.onGloballyPositioned] callback described it, and the comparison
+ * that tells a pass which *moved* a cell from one that merely re-reported it.
+ *
+ * The coordinates object cannot answer that itself: it is the same instance from one pass to the
+ * next and a live view rather than a snapshot, so putting it back into the map is a no-op even when
+ * the cell has moved half the screen.
+ *
+ * The position compared is the one **inside the container**, which is the only frame of reference
+ * that answers the question the focus ring actually asks. Inside the cell's own parent — the row it
+ * sits in — a whole month scrolling up the screen does not move a single cell, so the ring would
+ * keep its old offset and be left behind by the scroll. In the root, the opposite: a year pager
+ * translating a page across the screen moves every cell on every frame of the swipe, and the ring is
+ * inside that page and travelling with it, so all of those writes would say nothing. The container
+ * is what the ring is positioned against, so it is what a change has to be measured in.
+ */
+private class KalendarKeyboardCellPlacement(
+    val coordinates: LayoutCoordinates,
+    container: LayoutCoordinates?,
+) {
+
+    private val positionInContainer: Offset? = container?.localPositionOf(coordinates, Offset.Zero)
+    private val size: IntSize = coordinates.size
+
+    /**
+     * Whether [candidate] is the same node, still exactly where this placement recorded it.
+     *
+     * A placement taken before the container had reported its own coordinates has no position to
+     * compare, and describes nothing: it is replaced on the next pass, when there is one.
+     */
+    fun stillDescribes(candidate: LayoutCoordinates, container: LayoutCoordinates?): Boolean {
+        val known = positionInContainer ?: return false
+        if (candidate !== coordinates || candidate.size != size) {
+            return false
+        }
+        return container != null && container.localPositionOf(candidate, Offset.Zero) == known
+    }
+}
+
+/**
+ * Makes one day cell of a [KalendarStaticGrid] part of keyboard navigation: it stops being a tab
+ * stop, and — when [date] is non-null — it reports where it lands to [cells].
+ *
+ * Apply it to a node wrapping the cell rather than to the cell itself. `canFocus = false` has to sit
+ * on a node with no focus target of its own in its chain, exactly as it does in [KalendarGrid]; on
+ * the cell's own modifier it would be competing with the `clickable` that makes the cell focusable in
+ * the first place.
+ *
+ * Pass `null` for [date] on a cell belonging to the previous or next month. It is still deactivated
+ * — a year page would otherwise hold 400-odd tab stops — but it is not tracked, so the one cell the
+ * ring can sit on for a given date is the one inside that date's own month grid.
+ */
+internal fun Modifier.kalendarKeyboardCell(cells: KalendarKeyboardCells, date: LocalDate?): Modifier = this
+    .focusProperties { canFocus = false }
+    .then(
+        if (date == null) {
+            Modifier
+        } else {
+            Modifier.onGloballyPositioned { coordinates -> cells.report(date, coordinates) }
+        },
+    )
+
+/**
+ * The roving keyboard focus ring for a scrolling calendar: a [KalendarColors.focusIndicator] outline
+ * around whichever cell [keyboard] currently points at, in [KalendarShapes.dayCell] and at the day
+ * cell's own [FOCUS_RING_WIDTH], so it is indistinguishable from the ring [KalendarGrid] draws and
+ * from the one a focused cell draws for itself.
+ *
+ * Place it as a sibling *after* the scrolling list, inside the node [KalendarKeyboardCells.attach]
+ * was given. After, rather than before as in [KalendarGrid], because a timeline's list paints a
+ * background and a ring behind it would be invisible; the ring is an outline around the cell's
+ * padding, so drawing it on top covers nothing.
+ *
+ * Both state reads — the focused date and whether the calendar has focus — happen inside
+ * [Modifier.kalendarFocusOverlay]'s layout lambdas, so an arrow press recomposes nothing at all.
+ */
+@Composable
+internal fun KalendarKeyboardFocusRing(
+    keyboard: KalendarGridKeyboardState,
+    cells: KalendarKeyboardCells,
+) {
+    val colors = kalendarColors()
+    val shapes = kalendarShapes()
+    val dimensions = kalendarDimensions()
+
+    Box(
+        modifier = Modifier
+            .kalendarFocusOverlay {
+                if (keyboard.isFocused) {
+                    cells.boundsOf(keyboard.focusedDate)
+                } else {
+                    null
+                }
+            }
+            .testTag(KEYBOARD_FOCUS_RING_TAG)
+            .padding(dimensions.dayCellPadding)
+            .border(width = FOCUS_RING_WIDTH, color = colors.focusIndicator, shape = shapes.dayCell),
+    )
+}
+
+/**
+ * Sizes and positions the focus ring over whichever cell [bounds] names, or measures it away to
+ * nothing when [bounds] names none — the date is off screen, or the calendar does not have focus.
+ *
+ * Both reads happen inside the `offset` and `layout` lambdas, which run in the layout phase, so an
+ * arrow press re-lays-out one node and recomposes nothing. Measuring an absent ring to zero rather
+ * than leaving it out of the composition is what keeps that true in both directions: whether the ring
+ * is *shown* is then a layout-phase decision like everything else about it, and a zero-sized node
+ * draws nothing at all.
+ */
+private fun Modifier.kalendarFocusOverlay(bounds: () -> Rect?): Modifier = this
+    .offset {
+        val cell = bounds() ?: return@offset IntOffset.Zero
+        IntOffset(cell.left.toInt(), cell.top.toInt())
+    }
+    .layout { measurable, _ ->
+        val size = bounds()?.size ?: Size.Zero
+        val placeable = measurable.measure(Constraints.fixed(size.width.toInt(), size.height.toInt()))
+        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+    }
+
+/**
+ * Keeps [listState] scrolled so that the cell [KalendarGridKeyboardState.focusedDate] points at stays
+ * on screen.
+ *
+ * This is what replaces "page to the target" for a container that scrolls instead of paging, and it
+ * is the same effect for both of them: [KalendarYear]'s column of twelve month grids and
+ * [KalendarTimeline]'s unbounded list of them. It runs entirely outside composition — a [snapshotFlow]
+ * on the focused date, and reads of cell bounds that were written during layout — so an arrow press
+ * that scrolls the list recomposes no more of the calendar than the scroll itself does.
+ *
+ * Three cases, in order, and the order is the rule:
+ * - **No cell at all.** The date is in a month the list has not composed, or has recycled since. Its
+ *   item is scrolled to the top, which is the only way back to a date that is not on screen.
+ * - **A different month from the last move.** Its item is scrolled to the top too, even when the cell
+ *   is already visible. Crossing a month is the one keyboard move that changes what the calendar is
+ *   *about*, and a paged view answers it by turning the page; a scrolling one answers it by bringing
+ *   the month up. It is also what keeps [KalendarTimeline]'s `Home`/`End` — which act on the month at
+ *   the top of the list — talking about the month the ring is in.
+ * - **The same month, cell off screen.** Nobody moved months, so the user scrolled: the list moves by
+ *   exactly the shortfall and no further, rather than throwing away the position they chose.
+ *
+ * A cell already fully on screen in the month focus was already in moves nothing at all, which is
+ * what keeps an arrow press within one month free.
+ *
+ * @param keyboard The focus state shared with the calendar's grids.
+ * @param cells Where this container's cells landed, as reported by [Modifier.kalendarKeyboardCell].
+ * @param listState The scrolling list holding the month grids.
+ * @param itemIndexOf The list item holding [LocalDate]'s month, or `null` when the date is not in
+ *   this list at all — which is how a year page ignores focus that has moved to another year.
+ */
+@Composable
+internal fun KeepKeyboardFocusInView(
+    keyboard: KalendarGridKeyboardState,
+    cells: KalendarKeyboardCells,
+    listState: LazyListState,
+    itemIndexOf: (LocalDate) -> Int?,
+) {
+    val latestItemIndexOf = rememberUpdatedState(itemIndexOf)
+    LaunchedEffect(keyboard, cells, listState) {
+        // The item focus was in when it last moved. A coroutine-local rather than state: nothing may
+        // observe it, and it has to be forgotten along with the page that owns this effect.
+        var focusedItem: Int? = null
+        // collectLatest, not collect: holding an arrow down outruns the scroll animation, and a
+        // queued collector would walk the list to every date passed through on the way rather than
+        // to the one focus ended on.
+        snapshotFlow { keyboard.focusedDate }.collectLatest { date ->
+            val index = date?.let(latestItemIndexOf.value) ?: return@collectLatest
+            // Wait for the container rather than give up on it. "Is the ring on screen?" means
+            // nothing before the container has been measured, and on a page the year pager has just
+            // composed it has not been — while the date it should scroll to was already decided
+            // before that page existed. Returning early there strands the ring, because the flow
+            // above only emits on a *change* and there is no further change coming.
+            val viewport = snapshotFlow { cells.viewportHeight() }.first { it > 0f }
+            val bounds = cells.boundsOf(date)
+            val movedMonth = index != focusedItem
+            focusedItem = index
+            when {
+                bounds == null || movedMonth -> listState.animateScrollToItem(index)
+                bounds.top < 0f -> listState.animateScrollBy(bounds.top)
+                bounds.bottom > viewport -> listState.animateScrollBy(bounds.bottom - viewport)
+            }
+        }
     }
 }

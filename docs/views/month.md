@@ -43,17 +43,17 @@ fun MonthGrid() {
 | `selectedDate` | `LocalDate` | — | Default single-selection highlight, and the initially visible month when `state` is left at its default. Superseded by `selectedDates` when that is passed. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost container. |
 | `state` | `KalendarViewState` | `rememberKalendarMonthState(selectedDate)` | Navigation state. Hoist it to read `visibleDate` or navigate from your own UI. |
-| `events` | `KalendarEvents` | `emptyList()` | Shown as indicator dots on day cells, and as span bars for multi-day events. |
+| `events` | `List<E>` | `emptyList()` | Shown as indicator dots on day cells, and as span bars for multi-day events. |
 | `selectedDates` | `Set<LocalDate>` | `setOf(selectedDate)` | The highlighted dates. Hoist your own set for multi-select or range. |
-| `onDateClick` | `(date: LocalDate, events: List<KalendarEvent>) -> Unit` | no-op | Called when a non-disabled date is tapped, with that date's events. |
-| `onDayEventClick` | `((event: KalendarEvent) -> Unit)?` | `null` | Called when an individual event is tapped inside a day cell's `+N` overflow popover. |
+| `onDateClick` | `(date: LocalDate, events: List<E>) -> Unit` | no-op | Called when a non-disabled date is tapped, with that date's events. |
+| `onDayEventClick` | `((event: E) -> Unit)?` | `null` | Called when an individual event is tapped inside a day cell's `+N` overflow popover. |
 | `onDateRangeSelect` | `((start: LocalDate, current: LocalDate) -> Unit)?` | `null` | When non-null, press-and-hold then drag selects a range live. |
 | `onDateRangeSelectEnd` | `(() -> Unit)?` | `null` | Called once when a drag started by `onDateRangeSelect` ends. |
-| `onEventDrop` | `((events: List<KalendarEvent>, newDate: LocalDate) -> Unit)?` | `null` | When non-null, press-and-hold a date **that has events** and drag to another date to reschedule. See [Drag to reschedule](#drag-to-reschedule). |
+| `onEventDrop` | `((events: List<E>, newDate: LocalDate) -> Unit)?` | `null` | When non-null, press-and-hold a date **that has events** and drag to another date to reschedule. See [Drag to reschedule](#drag-to-reschedule). |
 | `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Shared visual and behavioural settings. See [Configuration](../configuration.md). |
 | `header` | `@Composable (KalendarHeaderScope) -> Unit` | `KalendarHeaderDefaults.Header` | Replaces the navigation header above the grid. See [Customization](../customization.md). |
 | `dayOfWeekLabel` | `@Composable (DayOfWeek) -> Unit` | `KalendarHeaderDefaults.DayOfWeekLabel` | Replaces the content of each weekday column header. |
-| `dayContent` | `(@Composable (scope: KalendarDayScope) -> Unit)?` | `null` | Replaces the built-in day cell entirely. See [Customization](../customization.md). |
+| `dayContent` | `(@Composable (scope: KalendarDayScope<E>) -> Unit)?` | `null` | Replaces the built-in day cell entirely. See [Customization](../customization.md). |
 
 ## State factory
 

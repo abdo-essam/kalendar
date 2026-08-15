@@ -38,8 +38,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.util.fastForEach
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
-import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.event.byDateExpandingSpans
+import com.himanshoe.kalendar.state.KalendarEventLoader
+import com.himanshoe.kalendar.state.KalendarLoadStatus
+import com.himanshoe.kalendar.state.rememberKalendarEventLoader
 import com.himanshoe.kalendar.theme.kalendarColors
 import com.himanshoe.kalendar.theme.kalendarDimensions
 import com.himanshoe.kalendar.theme.kalendarShapes
@@ -68,17 +70,30 @@ import kotlinx.datetime.Month
  *
  * ```kotlin
  * KalendarAgenda(
- *     events = events,
- *     onEventClick = { event -> openDetails(event) },
- * ) { event ->
- *     MyEventCard(title = event.eventName)
+ *     events = bookings,
+ *     onEventClick = { booking: Booking -> openDetails(booking) },
+ * ) { booking ->
+ *     MyEventCard(title = booking.eventName, room = booking.roomId)
  * }
  * ```
  *
+ * The list is generic in [E], the caller's own event type, inferred from [events]: `onEventClick` and
+ * the `eventContent` slot both hand that type straight back, so a consumer never casts to reach its
+ * own fields. There is no event-free overload, because [events] is required — the type is always
+ * there to infer from.
+ *
+ * @param E The event type this list holds. Any [KalendarEvent] implementation, including a caller's
+ *   own domain type.
  * @param events The events to list. Supply [KalendarEvent.id] to keep scroll and per-row state
  *   attached to the right event across edits; without it the list falls back to each event's
  *   position within its date.
  * @param modifier [Modifier] applied to the outermost container.
+ * @param eventLoader The loader [events] came from, when they were loaded a range at a time — see
+ *   [rememberKalendarEventLoader]. The list has no pages of its own, so this is only what tells an
+ *   empty list apart from one that has not arrived: with a loader that is still working, [events]
+ *   being empty draws [loadingContent] instead of [emptyState]. Unlike the paged views this does
+ *   not supply [events], which stays required: an agenda usually lists a filtered or merged view of
+ *   what a loader holds, so `events = loader.events` is written out rather than assumed.
  * @param onEventClick Called when an event row is tapped.
  * @param config Shared visual/behavioural settings. Only
  *   [KalendarViewConfig.monthNameFormatter] — which localizes the date headers — and
@@ -88,24 +103,33 @@ import kotlinx.datetime.Month
  *   or to scroll programmatically.
  * @param dateHeader Slot for one date's header, given the date its events fall on. Defaults to
  *   [KalendarAgendaDefaults.DateHeader] formatted with [KalendarViewConfig.monthNameFormatter].
- * @param emptyState Slot shown centred in place of the list when [events] is empty. Defaults to
- *   [KalendarAgendaDefaults.EmptyState], which shows [KalendarStrings.agendaEmptyState].
+ * @param emptyState Slot shown centred in place of the list when [events] is empty *and* nothing is
+ *   still on its way. Defaults to [KalendarAgendaDefaults.EmptyState], which shows
+ *   [KalendarStrings.agendaEmptyState].
+ * @param loadingContent Slot shown centred in place of [emptyState] while [eventLoader] has events
+ *   outstanding, given a [KalendarLoadingScope] with the range it is waiting on, its
+ *   [KalendarLoadStatus] and the failure if it failed. Defaults to
+ *   [KalendarLoadingDefaults.Placeholder]. Never drawn when [eventLoader] is `null`.
  * @param eventContent Slot for one event row; the list applies [onEventClick] around it. Last, so
  *   trailing-lambda syntax lands on it — this is the view's primary slot. Defaults to
  *   [KalendarAgendaDefaults.EventRow].
  */
 @Composable
-public fun KalendarAgenda(
-    events: KalendarEvents,
+public fun <E : KalendarEvent> KalendarAgenda(
+    events: List<E>,
     modifier: Modifier = Modifier,
-    onEventClick: (KalendarEvent) -> Unit = {},
+    eventLoader: KalendarEventLoader<E>? = null,
+    onEventClick: (E) -> Unit = {},
     config: KalendarViewConfig = KalendarViewConfig(),
     state: LazyListState = rememberLazyListState(),
     dateHeader: @Composable (date: LocalDate) -> Unit = { date ->
         KalendarAgendaDefaults.DateHeader(date = date, monthNameFormatter = config.monthNameFormatter)
     },
     emptyState: @Composable () -> Unit = { KalendarAgendaDefaults.EmptyState() },
-    eventContent: @Composable (event: KalendarEvent) -> Unit = { event ->
+    loadingContent: @Composable (KalendarLoadingScope) -> Unit = { loadingScope ->
+        KalendarLoadingDefaults.Placeholder(scope = loadingScope)
+    },
+    eventContent: @Composable (event: E) -> Unit = { event ->
         KalendarAgendaDefaults.EventRow(event = event)
     },
 ) {
@@ -116,8 +140,17 @@ public fun KalendarAgenda(
 
     Box(modifier = modifier.background(background)) {
         if (grouped.isEmpty()) {
+            // The one place an agenda can say something a paged view says per page: with nothing to
+            // list, "none" and "not yet" look the same until the loader is asked which it is.
+            val loadStatus = eventLoader?.status ?: KalendarLoadStatus.Loaded
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                emptyState()
+                if (eventLoader == null || loadStatus == KalendarLoadStatus.Loaded) {
+                    emptyState()
+                } else {
+                    loadingContent(
+                        rememberKalendarLoadingScope(loader = eventLoader, status = loadStatus),
+                    )
+                }
             }
         } else {
             LazyColumn(
@@ -277,7 +310,7 @@ private const val AGENDA_EVENT_CONTENT_TYPE = "kalendar-agenda-event"
  * event can appear in more than one section — which is why the list keys on the date as well as
  * the event.
  */
-private fun KalendarEvents.groupedForAgenda(): List<Pair<LocalDate, List<KalendarEvent>>> =
+private fun <E : KalendarEvent> List<E>.groupedForAgenda(): List<Pair<LocalDate, List<E>>> =
     byDateExpandingSpans()
         .entries
         .sortedBy { it.key }

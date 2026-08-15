@@ -72,7 +72,10 @@ internal object KalendarICalCodec {
             appendLine("DTSTART:${LocalDateTime(event.date, event.resolvedStartTime()).toIcalDateTime()}")
             appendLine("DTEND:${LocalDateTime(event.timedEndDate(), event.resolvedEndTime()).toIcalDateTime()}")
         }
-        event.recurrenceRule?.let { appendLine("RRULE:${it.toRRuleString()}") }
+        event.recurrenceRule?.let { rule ->
+            val until = floatingUntilValue(rule = rule, isAllDay = event.isAllDay)
+            appendLine("RRULE:${rule.toRRuleString(untilValue = until)}")
+        }
         if (event.exceptionDates.isNotEmpty()) {
             appendLine(exdateLine(event))
         }
@@ -290,6 +293,20 @@ internal object KalendarICalCodec {
     private fun icalUnescape(text: String): String =
         text.replace("\\n", "\n").replace("\\,", ",").replace("\\;", ";").replace("\\\\", "\\")
 
-    private fun generateUid(event: KalendarSyncEvent): String =
-        "${event.date}-${event.eventName.hashCode().toUInt()}-kalendar@himanshoe.com"
+    /**
+     * Builds a UID for an event the calendar has not assigned one to yet.
+     *
+     * The start time and the recurrence rule are folded in alongside the name because detaching
+     * the *first* occurrence of a series produces a standalone event sharing the template's date
+     * and, usually, its name — identifying both by date and name alone would put two VEVENTs with
+     * one UID in the same file, and a consumer would take the second for a revision of the first.
+     */
+    private fun generateUid(event: KalendarSyncEvent): String {
+        val identity = listOf(
+            event.eventName,
+            event.startTime?.toString().orEmpty(),
+            event.recurrenceRule?.toRRuleString().orEmpty(),
+        ).joinToString("|")
+        return "${event.date}-${identity.hashCode().toUInt()}-kalendar@himanshoe.com"
+    }
 }

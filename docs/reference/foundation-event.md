@@ -129,21 +129,36 @@ The constructor's positional order is `date`, `eventName`, `eventDescription`, `
 public typealias KalendarEvents = List<KalendarEvent>
 ```
 
-A list of events. Every view's `events` parameter takes this, and it is a plain `List`, so you build
-one with ordinary collection code and any `List<YourEventType>` already satisfies it.
+A list of events of no particular type — the widest event list there is. It is a plain `List`, so you
+build one with ordinary collection code and any `List<YourEventType>` already satisfies it.
 
 ```kotlin
 val events: KalendarEvents = bookings // List<Booking> where Booking : KalendarEvent
 ```
 
+It is deliberately **not** parameterised. The views are generic in their event type and spell that
+parameter `List<E>` directly: `KalendarEvents<E>` would be the same length as `List<E>`, one more
+name to learn, and would force a type argument onto every place that genuinely does not care which
+event type it holds. Reach for it when you are storing or passing events without caring what they
+are; reach for `List<Booking>` when the element type is the point — every `List<Booking>` is already
+a `KalendarEvents`, because `List` is covariant.
+
 ## `byDateExpandingSpans`
 
 ```kotlin
-public fun KalendarEvents.byDateExpandingSpans(): Map<LocalDate, List<KalendarEvent>>
+public fun <E : KalendarEvent> List<E>.byDateExpandingSpans(): Map<LocalDate, List<E>>
 ```
 
 Groups events by **every** date they occupy: an event with `endDate` set appears under each date from
 `date` through `endDate`, inclusive.
+
+The element type is carried through rather than widened. This is the index the calendar views build
+before handing a date's events to `onDateClick`, so widening it here would make every one of those
+callbacks report `KalendarEvent` no matter what the caller supplied:
+
+```kotlin
+val byDate: Map<LocalDate, List<Booking>> = bookings.byDateExpandingSpans()
+```
 
 This is the index a grid wants. Build it once per event list and each cell becomes a map lookup,
 rather than a scan of every event per cell. It is also the difference between a three-day conference

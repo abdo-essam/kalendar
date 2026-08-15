@@ -75,7 +75,7 @@ class KalendarBlockLayoutUiTest {
      * An `eventContent` that fills its slot, so a touch offset expressed as a fraction of the node is
      * a fraction of the *block* — which is what makes "near the top edge" mean the resize strip.
      */
-    private val blockProbe: @Composable (KalendarResourceEventScope) -> Unit = { scope ->
+    private val blockProbe: @Composable (KalendarResourceEventScope<*>) -> Unit = { scope ->
         Box(modifier = Modifier.fillMaxSize().testTag(scope.event.eventName))
     }
 

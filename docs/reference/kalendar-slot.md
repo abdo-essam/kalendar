@@ -14,22 +14,28 @@ The interfaces here are interfaces for the same reason, plus one more: they carr
 
 [Customization](../customization.md) is the narrative version of this page.
 
+Every scope that carries events is generic in the calendar's own event type `E`, and covariant in
+it. Covariance is what makes a slot written once against `…<KalendarEvent>` usable on a calendar of
+any event type: a slot *consumes* its scope, and a consumer of a supertype is a consumer of a
+subtype.
+
 ## `KalendarDayScope`
 
 ```kotlin
 @Immutable
-public class KalendarDayScope(
+public class KalendarDayScope<out E : KalendarEvent>(
     public val date: LocalDate,
     public val isSelected: Boolean,
     public val isToday: Boolean,
     public val isDisabled: Boolean,
-    public val events: List<KalendarEvent>,
+    public val events: List<E>,
 )
 ```
 
 What a `dayContent` slot is given, on `KalendarWeek`, `KalendarMonth`, `KalendarYear` and
 `KalendarTimeline` — and, wrapped in [`KalendarDatePickerDayScope`](kalendar-views.md), on
-`KalendarDatePicker`.
+`KalendarDatePicker`. `E` is whatever the calendar's `events` held, so a cell reads the caller's own
+fields without a cast.
 
 | Property | Type | Description |
 |---|---|---|
@@ -37,18 +43,20 @@ What a `dayContent` slot is given, on `KalendarWeek`, `KalendarMonth`, `Kalendar
 | `isSelected` | `Boolean` | Whether `date` is in the calendar's `selectedDates`. |
 | `isToday` | `Boolean` | Whether `date` is today, as read through the view's `KalendarTimeSource`. |
 | `isDisabled` | `Boolean` | Whether `date` matched `KalendarViewConfig.disabledDates`. On the month-grid views this is **also** `true` for adjacent-month padding dates. |
-| `events` | `List<KalendarEvent>` | The events occurring on `date`, multi-day spans included. |
-| `copy(…)` | `KalendarDayScope` | A duplicate with only the fields passed here replaced. |
+| `events` | `List<E>` | The events occurring on `date`, multi-day spans included. |
+| `copy(…)` | `KalendarDayScope<E>` | A duplicate with only the fields passed here replaced. |
 
 ```kotlin
 KalendarMonth(
     selectedDate = today,
+    events = bookings,
     dayContent = { scope ->
+        // scope is KalendarDayScope<Booking>: scope.events is List<Booking>
         MyDayCell(
             day = scope.date.day,
             highlighted = scope.isSelected,
             muted = scope.isDisabled,
-            dots = scope.events.size,
+            rooms = scope.events.map { it.roomId },
             modifier = Modifier.kalendarDaySemantics(scope = scope, onClick = { select(scope.date) }),
         )
     },
@@ -62,7 +70,7 @@ KalendarMonth(
 
 ```kotlin
 @Stable
-public interface KalendarDayOverflowScope
+public interface KalendarDayOverflowScope<out E : KalendarEvent>
 ```
 
 What a day cell's `+N` overflow popup is given, when a date has more events than
@@ -71,7 +79,7 @@ What a day cell's `+N` overflow popup is given, when a date has more events than
 | Member | Type | Description |
 |---|---|---|
 | `date` | `LocalDate` | The date whose events are listed. |
-| `events` | `List<KalendarEvent>` | **Every** event on `date`, in the order the cell received them — not just the hidden tail. A popover opened from a `+2` that showed the fourth and fifth without the first three would be a list with no beginning. |
+| `events` | `List<E>` | **Every** event on `date`, in the order the cell received them — not just the hidden tail. A popover opened from a `+2` that showed the fourth and fifth without the first three would be a list with no beginning. |
 | `hiddenEventCount` | `Int` | The `N` in the `+N` label — how many the indicator dots did not represent. Always at least 1 while the popover is open. |
 | `onEventClick(event)` | `Unit` | Reports the event to the cell's `onEventClick` and closes the popover, in that order. A popover that wants to stay open should call its own callback instead. |
 | `dismiss()` | `Unit` | Closes the popover. Tapping outside and pressing escape already do this; call it for a close button of your own. |
@@ -136,7 +144,7 @@ months scroll visibly underneath it.
 
 ```kotlin
 @Stable
-public interface KalendarScheduleEventScope
+public interface KalendarScheduleEventScope<out E : KalendarEvent>
 ```
 
 What an `eventContent` slot is given on `KalendarSchedule` and `KalendarScheduleWeek`. The slot is
@@ -145,7 +153,7 @@ an implementation only **draws** — it never positions.
 
 | Member | Type | Description |
 |---|---|---|
-| `event` | `KalendarEvent` | The event being rendered. |
+| `event` | `E` | The event being rendered — the calendar's own event type, so no cast is needed to reach your fields. |
 | `start` | `LocalDateTime` | The event's start, clamped to the rendered day when it began earlier. |
 | `end` | `LocalDateTime` | The event's end, clamped to the rendered day when it runs past midnight. |
 | `durationMinutes` | `Int` | How many minutes of the rendered day this block covers, after clamping. |
@@ -174,7 +182,7 @@ box's width, so you only need them if you want to change *what* you draw at a gi
 
 ```kotlin
 @Stable
-public interface KalendarResourceEventScope : KalendarScheduleEventScope
+public interface KalendarResourceEventScope<out E : KalendarEvent> : KalendarScheduleEventScope<E>
 ```
 
 `KalendarResourceView`'s `eventContent` scope: everything above, plus which lane the block is in.
@@ -184,7 +192,7 @@ public interface KalendarResourceEventScope : KalendarScheduleEventScope
 | `resource` | `KalendarResource` | The lane this block sits in — its `id`, `title`, `color` and `order`. |
 
 Because it *extends* the schedule scope, a slot written as
-`@Composable (KalendarScheduleEventScope) -> Unit` can be passed straight to
+`@Composable (KalendarScheduleEventScope<KalendarEvent>) -> Unit` can be passed straight to
 `KalendarResourceView.eventContent` by contravariance — one event renderer serves both views.
 
 ```kotlin

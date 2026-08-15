@@ -81,10 +81,14 @@ kotlin {
             // KalendarThemeDefaults, to derive default token values from the host app's theme.
             implementation(compose.material3)
             implementation(libs.kotlinx.datetime)
+            // api, not implementation: KalendarEventSource hands back a Flow, so kotlinx-coroutines
+            // is part of this module's public API rather than an internal detail of it.
+            api(libs.kotlinx.coroutines.core)
             api(project(":kalendar-foundation"))
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
         }
         named("desktopTest") {
             dependencies {
@@ -130,8 +134,12 @@ apiValidation {
         listOf(
             "com.himanshoe.kalendar.ComposableSingletons\$KalendarAgendaKt",
             "com.himanshoe.kalendar.ComposableSingletons\$KalendarDatePickerKt",
+            "com.himanshoe.kalendar.ComposableSingletons\$KalendarMonthKt",
             "com.himanshoe.kalendar.ComposableSingletons\$KalendarResourceViewKt",
             "com.himanshoe.kalendar.ComposableSingletons\$KalendarScheduleKt",
+            "com.himanshoe.kalendar.ComposableSingletons\$KalendarTimelineKt",
+            "com.himanshoe.kalendar.ComposableSingletons\$KalendarWeekKt",
+            "com.himanshoe.kalendar.ComposableSingletons\$KalendarYearKt",
             "com.himanshoe.kalendar.component.ComposableSingletons\$KalendarDayCellKt",
             "com.himanshoe.kalendar.component.ComposableSingletons\$KalendarGridKt",
             "com.himanshoe.kalendar.component.ComposableSingletons\$KalendarNavigationHeaderKt",

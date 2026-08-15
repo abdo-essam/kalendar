@@ -44,17 +44,17 @@ KalendarSchedule(
 |---|---|---|---|
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost container. |
 | `state` | `KalendarViewState` | `rememberKalendarScheduleState()` | Navigation state — pages by single day. Pass one built with `initialDate` to open on a day other than today. |
-| `events` | `KalendarEvents` | `emptyList()` | Events for the calendar; only those on the visible day are rendered. |
-| `onEventClick` | `(KalendarEvent) -> Unit` | no-op | Called when an event block or all-day chip is tapped. |
-| `onEventTimeChange` | `((event: KalendarEvent, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?` | `null` | When non-null, blocks become draggable, and resizable from **either** edge. See [Drag to move and resize](#drag-to-move-and-resize). |
+| `events` | `List<E>` | `emptyList()` | Events for the calendar; only those on the visible day are rendered. |
+| `onEventClick` | `(E) -> Unit` | no-op | Called when an event block or all-day chip is tapped. |
+| `onEventTimeChange` | `((event: E, newStart: LocalDateTime, newEnd: LocalDateTime) -> Unit)?` | `null` | When non-null, blocks become draggable, and resizable from **either** edge. See [Drag to move and resize](#drag-to-move-and-resize). |
 | `onEventCreate` | `((start: LocalDateTime, end: LocalDateTime) -> Unit)?` | `null` | When non-null, a press-and-drag on empty grid sweeps out a new time range and reports it on release. |
 | `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Shared settings. `scheduleVisibleHours`, `scheduleInitialScrollHour` and `scheduleDragSnapMinutes` all apply; `disabledDates` and `showAdjacentMonthDates` do not. See [Configuration](../configuration.md). |
 | `hourHeight` | `Dp` | `KalendarTheme.dimensions.hourHeight` | Vertical space for one hour; block heights scale with it. Defaults to the theme's `hourHeight` (64.dp). |
 | `nowIndicatorTick` | `Duration` | `1.minutes` | How often the now-indicator re-reads the clock. |
-| `allDayEventContent` | `@Composable (KalendarEvent) -> Unit` | `KalendarScheduleDefaults.AllDayChip` | Slot for one all-day chip in the row above the grid. |
+| `allDayEventContent` | `@Composable (E) -> Unit` | `KalendarScheduleDefaults.AllDayChip` | Slot for one all-day chip in the row above the grid. |
 | `hourLabel` | `@Composable (Int) -> Unit` | `KalendarScheduleDefaults.HourLabel` | Slot for one hour-gutter label, given the **absolute** hour as `0..23`. |
 | `nowIndicator` | `@Composable () -> Unit` | `KalendarScheduleDefaults.NowIndicator` | Slot for the current-time line. The grid owns its vertical offset and only draws it on today. |
-| `eventContent` | `@Composable (KalendarScheduleEventScope) -> Unit` | `KalendarScheduleDefaults.EventBlock` | Slot for one timed event block. **Last**, so trailing-lambda syntax lands on the view's primary slot. |
+| `eventContent` | `@Composable (KalendarScheduleEventScope<E>) -> Unit` | `KalendarScheduleDefaults.EventBlock` | Slot for one timed event block. **Last**, so trailing-lambda syntax lands on the view's primary slot. |
 
 > **Note:** there is no `selectedDate` parameter. The Schedule views have no concept of date
 > selection, so the day on screen is entirely the `state`'s business — build one with

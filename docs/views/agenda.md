@@ -43,14 +43,14 @@ KalendarAgenda(
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `events` | `KalendarEvents` | — | The events to list. |
+| `events` | `List<E>` | — | The events to list. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the outermost container. |
-| `onEventClick` | `(KalendarEvent) -> Unit` | `{}` | Called when an event row is tapped. |
+| `onEventClick` | `(E) -> Unit` | `{}` | Called when an event row is tapped. |
 | `config` | `KalendarViewConfig` | `KalendarViewConfig()` | Shared settings — only two of them apply here, see below. |
 | `state` | `LazyListState` | `rememberLazyListState()` | Scroll state for the underlying list. Own it to read or drive the scroll position. |
 | `dateHeader` | `@Composable (LocalDate) -> Unit` | `KalendarAgendaDefaults.DateHeader` | Slot for one date's header. |
 | `emptyState` | `@Composable () -> Unit` | `KalendarAgendaDefaults.EmptyState` | Shown centred in place of the list when `events` is empty. |
-| `eventContent` | `@Composable (KalendarEvent) -> Unit` | `KalendarAgendaDefaults.EventRow` | Slot for one event row. The list keeps `onEventClick` around it. **Last**, so trailing-lambda syntax lands on the view's primary slot. |
+| `eventContent` | `@Composable (E) -> Unit` | `KalendarAgendaDefaults.EventRow` | Slot for one event row. The list keeps `onEventClick` around it. **Last**, so trailing-lambda syntax lands on the view's primary slot. |
 
 There are no selection parameters — date selection belongs to the
 [date-grid views](index.md).

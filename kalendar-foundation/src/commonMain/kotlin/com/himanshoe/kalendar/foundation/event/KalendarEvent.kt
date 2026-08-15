@@ -192,7 +192,7 @@ public class BasicKalendarEvent(
 }
 
 /**
- * A list of [KalendarEvent] instances.
+ * A list of events of no particular type — the widest event list there is.
  *
  * Use standard Kotlin collection builders to create one:
  * ```kotlin
@@ -204,5 +204,11 @@ public class BasicKalendarEvent(
  *     ),
  * )
  * ```
+ *
+ * It is deliberately **not** parameterised. The calendar views are generic in their event type and
+ * spell that parameter `List<E>`, because `KalendarEvents<E>` would be the same length, one more name
+ * to learn, and would force a type argument onto every place that genuinely does not care which event
+ * type it holds. Every `List<E>` already *is* a `KalendarEvents`, since [List] is covariant — so this
+ * stays the type to reach for when you are storing or passing events without caring what they are.
  */
 public typealias KalendarEvents = List<KalendarEvent>

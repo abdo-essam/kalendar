@@ -33,11 +33,11 @@ One more sits a level down rather than on a view: `overflowPopup`, on
 `dayContent` calls.
 
 > **Note:** `eventContent` appears in three shapes. On `KalendarSchedule`/`KalendarScheduleWeek` it
-> takes a `KalendarScheduleEventScope` — the event plus where the grid placed it; on
-> `KalendarResourceView` it takes a `KalendarResourceEventScope`, which *extends* that with the lane;
+> takes a `KalendarScheduleEventScope<E>` — the event plus where the grid placed it; on
+> `KalendarResourceView` it takes a `KalendarResourceEventScope<E>`, which *extends* that with the lane;
 > on [`KalendarAgenda`](views/agenda.md) it takes the `KalendarEvent` alone, because a list row has no
 > position to describe. Contravariance means one
-> `@Composable (KalendarScheduleEventScope) -> Unit` serves both hour-grid shapes.
+> `@Composable (KalendarScheduleEventScope<KalendarEvent>) -> Unit` serves both hour-grid shapes.
 
 > **Note:** `eventContent` is the **last** parameter of every view that has one, so trailing-lambda
 > syntax lands on the view's primary slot. The same is true of `dayContent` on the date grids.
@@ -53,11 +53,12 @@ symbol by symbol in the [API reference](reference/index.md).
 ## Custom day cells
 
 `dayContent` replaces the built-in day cell entirely on the four date-grid views. It receives a
-`KalendarDayScope` describing the date being rendered. `KalendarDatePicker` has the same slot but
+`KalendarDayScope<E>` describing the date being rendered, where `E` is the calendar's own event type.
+`KalendarDatePicker` has the same slot but
 wraps that scope in a [`KalendarDatePickerDayScope`](reference/kalendar-views.md), which adds where
 the date sits in a range band.
 
-### `KalendarDayScope`
+### `KalendarDayScope<out E : KalendarEvent>`
 
 | Property | Type | Description |
 |---|---|---|
@@ -65,10 +66,12 @@ the date sits in a range band.
 | `isSelected` | `Boolean` | Whether `date` is in the calendar's `selectedDates`. |
 | `isToday` | `Boolean` | Whether `date` is today, as read through the view's [`KalendarTimeSource`](reference/foundation-datetime.md) — not necessarily the system time zone. |
 | `isDisabled` | `Boolean` | Whether `date` matched `KalendarViewConfig.disabledDates`. On the month-grid views this is also `true` for adjacent-month dates. |
-| `events` | `List<KalendarEvent>` | The events occurring on `date`, multi-day spans included. |
+| `events` | `List<E>` | The events occurring on `date`, multi-day spans included — your own event type, so no cast is needed to read your own fields. |
 
 It is delivered as a scope object rather than positional lambda parameters so that future fields can
-be added without breaking every existing call site.
+be added without breaking every existing call site. It is **covariant** in `E`, which is what lets a
+cell written once against `KalendarDayScope<KalendarEvent>` be handed to a calendar of any event
+type: a slot consumes its scope, and consumers are contravariant.
 
 ```kotlin
 KalendarMonth(
@@ -131,7 +134,7 @@ Applied to your cell's outermost modifier, it adds:
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `scope` | `KalendarDayScope` | — | The cell's state, as handed to the slot. |
+| `scope` | `KalendarDayScope<*>` | — | The cell's state, as handed to the slot. Star-projected: this modifier reads the interface only. |
 | `onClick` | `() -> Unit` | — | Called when the cell is tapped and the date is not disabled. |
 | `monthNameFormatter` | `(Month) -> String` | English month names | Formats the month name inside the announcement. Pass `KalendarViewConfig.monthNameFormatter` to match a localized calendar. |
 | `interactionSource` | `MutableInteractionSource?` | `null` | Supply one when you want to observe press state yourself. Pass one to rebuild the focus ring and hover wash — see [Accessibility](#accessibility). |
@@ -168,7 +171,7 @@ KalendarMonth(
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `scope` | `KalendarDayScope` | — | The cell's state. |
+| `scope` | `KalendarDayScope<E>` | — | The cell's state. |
 | `onClick` | `() -> Unit` | — | Called when the cell is tapped and the date is not disabled. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the cell. |
 | `showSelectionBackground` | `Boolean` | `true` | Whether this cell draws its own selection fill. The views pass `false` when the sliding indicator is already drawing it. |
@@ -176,13 +179,13 @@ KalendarMonth(
 | `maxEventIndicators` | `Int` | `3` | Dots drawn before the remainder collapses into `+N`. The views pass `KalendarViewConfig.eventIndicatorCap`. |
 | `onEventClick` | `(KalendarEvent) -> Unit` | `{}` | Called when an event is tapped inside the overflow popover. The views pass `onDayEventClick`. |
 | `showOverflowPopup` | `Boolean` | `true` | Whether the `+N` label opens a popover at all. `false` leaves it as a plain count. |
-| `overflowPopup` | `@Composable (KalendarDayOverflowScope) -> Unit` | `KalendarDayCellDefaults.OverflowPopup` | Replaces the popover. **Last**, so trailing-lambda syntax lands on it. |
+| `overflowPopup` | `@Composable (KalendarDayOverflowScope<E>) -> Unit` | `KalendarDayCellDefaults.OverflowPopup` | Replaces the popover. **Last**, so trailing-lambda syntax lands on it. |
 
 ### The `+N` overflow popover
 
 Tapping a cell's `+N` label opens a popover listing the date's **whole** event list — not just the
 hidden tail, because a list starting at the fourth event is a list with no beginning. Its
-`KalendarDayOverflowScope` carries `date`, `events`, `hiddenEventCount`, `onEventClick(event)` and
+`KalendarDayOverflowScope<E>` carries `date`, `events`, `hiddenEventCount`, `onEventClick(event)` and
 `dismiss()`:
 
 ```kotlin
@@ -377,7 +380,7 @@ drag-to-reschedule, so custom content never loses them.
 Draws one timed event block. It is given a box already positioned and sized for the event's duration
 and its share of any overlap, so an implementation only draws — it never positions.
 
-`KalendarScheduleEventScope`:
+`KalendarScheduleEventScope<E>`:
 
 | Property | Type | Description |
 |---|---|---|
@@ -492,7 +495,7 @@ clicks, and drag-to-reschedule.
 
 | Function | Signature |
 |---|---|
-| `EventBlock` | `(scope: KalendarScheduleEventScope, modifier: Modifier = Modifier)` |
+| `EventBlock` | `(scope: KalendarScheduleEventScope<*>, modifier: Modifier = Modifier)` |
 | `AllDayChip` | `(event: KalendarEvent, modifier: Modifier = Modifier, prefix: String? = null)` |
 | `HourLabel` | `(hour: Int, formatter: (Int) -> String, modifier: Modifier = Modifier)` |
 | `WeekDayHeader` | `(date: LocalDate, isToday: Boolean, dayOfWeekLabelFormatter: (DayOfWeek) -> String, modifier: Modifier = Modifier)` |
@@ -509,7 +512,7 @@ which lane it is in.
 | Function | Signature |
 |---|---|
 | `ResourceHeader` | `(resource: KalendarResource, modifier: Modifier = Modifier)` |
-| `EventBlock` | `(scope: KalendarResourceEventScope, modifier: Modifier = Modifier)` |
+| `EventBlock` | `(scope: KalendarResourceEventScope<*>, modifier: Modifier = Modifier)` |
 | `HourLabel` | `(hour: Int, formatter: (Int) -> String, modifier: Modifier = Modifier)` |
 | `NowIndicator` | `(modifier: Modifier = Modifier)` |
 | `EmptyState` | `(modifier: Modifier = Modifier)` |

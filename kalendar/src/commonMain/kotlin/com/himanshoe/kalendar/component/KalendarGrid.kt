@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.toSize
+import com.himanshoe.kalendar.foundation.datetime.MAX_SPAN_DAYS
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.grid.ALL_DAYS_OF_WEEK
@@ -95,25 +96,20 @@ internal const val SELECTION_INDICATOR_TAG = "KalendarSelectionIndicator"
 internal const val KEYBOARD_FOCUS_RING_TAG = "KalendarKeyboardFocusRing"
 
 /**
- * Longest run of days one multi-day event is laid out across.
- *
- * The same guard `byDateExpandingSpans` applies when it expands a span into dates, repeated here
- * so the two agree: an event the grid never draws past day 366 must not hold a lane past day 366
- * either, or one malformed `endDate` in the year 9999 reserves a lane in every cell forever.
- */
-private const val MAX_EVENT_SPAN_DAYS = 366
-
-/**
  * The last date this event occupies as a **continuous span**, or `null` if it is not one.
  *
  * An event is a span only when it covers more than one day. An `endDate` equal to or before
  * [KalendarEvent.date] is not a span — it is the single-day event `byDateExpandingSpans` already
  * treats it as, and it draws the indicator dot it always did.
+ *
+ * The [MAX_SPAN_DAYS] cap is the one the engine's own expansion applies, taken from there rather
+ * than restated: an event the grid never draws past that day must not hold a lane past it either,
+ * or one malformed `endDate` in the year 9999 reserves a lane in every cell forever.
  */
 internal fun KalendarEvent.spanEndOrNull(): LocalDate? {
     val end = endDate ?: return null
     if (end <= date) return null
-    return minOf(end, date.plus(MAX_EVENT_SPAN_DAYS, DateTimeUnit.DAY))
+    return minOf(end, date.plus(MAX_SPAN_DAYS, DateTimeUnit.DAY))
 }
 
 /**

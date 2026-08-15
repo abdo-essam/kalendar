@@ -62,7 +62,7 @@ The accessors that **read** the ambient tokens. All are `@Composable` getters.
 
 ```kotlin
 @Composable
-fun MyDayCell(scope: KalendarDayScope) {
+fun MyDayCell(scope: KalendarDayScope<*>) {
     Text(
         text = scope.date.day.toString(),
         color = if (scope.isToday) KalendarTheme.colors.todayContent else KalendarTheme.colors.dayContent,

@@ -53,7 +53,7 @@ import com.himanshoe.kalendar.theme.KalendarTheme
  * example: replacing the default cell must not mean replacing its accessibility.
  */
 @Composable
-internal fun BrandDayCell(scope: KalendarDayScope, onClick: () -> Unit) {
+internal fun BrandDayCell(scope: KalendarDayScope<*>, onClick: () -> Unit) {
     val colors = KalendarTheme.colors
     val shapes = KalendarTheme.shapes
     val dimensions = KalendarTheme.dimensions

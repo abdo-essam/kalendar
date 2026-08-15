@@ -85,6 +85,7 @@ import com.himanshoe.kalendar.component.kalendarGridKeyboard
 import com.himanshoe.kalendar.component.rememberKalendarGridKeyboardState
 import com.himanshoe.kalendar.component.rememberKalendarHeaderScope
 import com.himanshoe.kalendar.foundation.datetime.startOfMonth
+import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.format.KalendarFormatters
 import com.himanshoe.kalendar.foundation.format.monthTitle
 import com.himanshoe.kalendar.foundation.grid.monthDates
@@ -195,8 +196,9 @@ private const val FALLBACK_CLEAR_LABEL = "Clear"
  * without breaking every existing `dayContent` call site.
  *
  * @property day The date and its shared state: which date this is, whether it is selected, whether it
- *   is today, whether it may be tapped, and (always empty here — a picker draws no events) its
- *   events. [KalendarDayScope.isDisabled] is the *authority* on tappability, and folds together the
+ *   is today, whether it may be tapped, and (always empty here — a picker draws no events, which is
+ *   also why it is not generic in an event type the way the calendar views are) its events.
+ *   [KalendarDayScope.isDisabled] is the *authority* on tappability, and folds together the
  *   calendar's `minDate`/`maxDate` bounds and its `disabledDates` predicate.
  * @property isInRange Whether this date falls between the endpoints of a
  *   [KalendarSelectionMode.Range] selection, inclusive. Always `false` in the other modes. This is
@@ -214,7 +216,7 @@ private const val FALLBACK_CLEAR_LABEL = "Clear"
  */
 @Immutable
 public class KalendarDatePickerDayScope(
-    public val day: KalendarDayScope,
+    public val day: KalendarDayScope<KalendarEvent>,
     public val isInRange: Boolean = false,
     public val isRangeStart: Boolean = false,
     public val isRangeEnd: Boolean = false,
@@ -223,7 +225,7 @@ public class KalendarDatePickerDayScope(
 
     /** Returns a duplicate of this scope with only the fields passed here replaced. */
     public fun copy(
-        day: KalendarDayScope = this.day,
+        day: KalendarDayScope<KalendarEvent> = this.day,
         isInRange: Boolean = this.isInRange,
         isRangeStart: Boolean = this.isRangeStart,
         isRangeEnd: Boolean = this.isRangeEnd,

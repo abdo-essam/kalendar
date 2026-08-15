@@ -22,6 +22,10 @@ private const val LOGO_MARK =
         """<path d="M9 2.5v5M19 2.5v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>""" +
         """<rect x="7.5" y="15" width="4.5" height="4.5" rx="1.4" fill="currentColor"/></svg>"""
 
+private const val SEARCH_ICON =
+    """<svg class="icon icon--search" viewBox="0 0 24 24" aria-hidden="true">""" +
+        """<circle cx="10.5" cy="10.5" r="6.3"/><path d="M15.2 15.2 20 20"/></svg>"""
+
 private const val THEME_ICONS =
     """<svg class="icon icon--sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/>""" +
         """<path d="M12 2.2v2.6M12 19.2v2.6M2.2 12h2.6M19.2 12h2.6M5 5l1.9 1.9M17.1 17.1L19 19M19 5l-1.9 1.9""" +
@@ -86,6 +90,7 @@ fun renderPage(
 <body>
 <a class="skip" href="#content">Skip to content</a>
 ${renderTopBar(root = root, landing = landing, entryUrl = context.entryUrl)}
+${renderSearchDialog()}
 ${renderShell(landing = landing, navigation = navigation, contents = contents, body = body)}
 ${renderFooter(root = root, entryUrl = context.entryUrl)}
 <script src="${root}assets/docs.js" defer></script>
@@ -116,6 +121,7 @@ private fun renderTopBar(
   <div class="topbar-inner">
     $menu
     <a class="brand" href="${root}index.html">$LOGO_MARK<span class="brand-name">$SITE_NAME</span></a>
+    ${renderSearchButton(root)}
     <nav class="topbar-links" aria-label="Site">
       <a href="$root$entryUrl">Docs</a>
       <a href="$root$PLAYGROUND_URL">Playground</a>
@@ -126,6 +132,44 @@ private fun renderTopBar(
   </div>
 </header>"""
 }
+
+/**
+ * The control that opens search, and the two paths the script needs to do its job.
+ *
+ * A button rather than an input in the bar: the box a reader types into belongs to the dialog, and
+ * two boxes — one in the bar, one in the panel it opens — is one box too many to keep in step.
+ *
+ * The index path and the site root are attributes rather than constants in the script, because both
+ * depend on how deep the page sits, and a script served from one place to pages at several depths
+ * cannot work that out for itself. `404.html` is rewritten to absolute paths after rendering, and
+ * both attributes are shaped so that rewrite catches them.
+ */
+private fun renderSearchButton(root: String): String =
+    """<button class="search-open" type="button" data-search-index="$root$SEARCH_INDEX_PATH" """ +
+        """data-search-root="$root" aria-label="Search the documentation">$SEARCH_ICON""" +
+        """<span class="search-open-label">Search</span><kbd class="search-key">/</kbd></button>"""
+
+/**
+ * The search panel: closed markup on every page, filled in by the script when it is opened.
+ *
+ * `hidden` rather than absent until needed, so the dialog exists for a reader who opens it before
+ * the deferred script has run, and so the panel a screen reader meets is a real one with a labelled
+ * field rather than a div built at the moment of use.
+ */
+private fun renderSearchDialog(): String =
+    """<div class="search" id="search" hidden>
+  <div class="search-scrim" aria-hidden="true"></div>
+  <div class="search-panel" role="dialog" aria-modal="true" aria-label="Search the documentation">
+    <div class="search-field">
+      $SEARCH_ICON
+      <input class="search-input" id="search-input" type="search" autocomplete="off" spellcheck="false"
+        placeholder="Search the documentation" aria-controls="search-results" aria-autocomplete="list">
+      <button class="search-close" type="button" aria-label="Close search"><kbd>Esc</kbd></button>
+    </div>
+    <p class="search-status" role="status"></p>
+    <ul class="search-results" id="search-results" role="listbox" aria-label="Search results"></ul>
+  </div>
+</div>"""
 
 /**
  * The page's body: a documentation page keeps its sidebar and contents column, a landing page has

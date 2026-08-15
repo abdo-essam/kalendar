@@ -1,12 +1,12 @@
 # Events
 
-Every view takes the same `events: KalendarEvents` list and renders it in the way that suits its
-shape: indicator dots on the date grids, a continuous bar for anything
-[spanning more than one day](#multi-day-events), duration-sized blocks on the
-[Schedule views](views/schedule.md).
+Every view takes an `events: List<E>` list and renders it in the way that suits its shape: indicator
+dots on the date grids, a continuous bar for anything [spanning more than one day](#multi-day-events),
+duration-sized blocks on the [Schedule views](views/schedule.md).
 
-`KalendarEvents` is a plain `typealias` for `List<KalendarEvent>`, so you build one with ordinary
-Kotlin collection code.
+`E` is **your** event type — any implementation of `KalendarEvent`, inferred from the list you pass —
+and every callback and slot hands it straight back. See
+[Using your own event type](#using-your-own-event-type).
 
 ## `KalendarEvent`
 
@@ -104,7 +104,32 @@ data class Meeting(
 }
 ```
 
-Pass `List<Meeting>` straight in — it is already a `List<KalendarEvent>`.
+Pass `List<Meeting>` straight in. The view is generic in the event type, so `E` is inferred as
+`Meeting` and **stays** `Meeting` all the way back out — `onDateClick` reports `List<Meeting>`, a
+`dayContent` slot's `scope.events` is `List<Meeting>`, `onEventClick` reports a `Meeting`:
+
+```kotlin
+KalendarMonth(
+    selectedDate = today,
+    events = meetings,
+    onDateClick = { date, dayMeetings -> open(dayMeetings.map { it.meetingId }) },
+)
+```
+
+There is no cast anywhere in that snippet, and that is the point: before the views were generic, a
+callback could only hand back `KalendarEvent`, so reaching `meetingId` meant `event as Meeting` — a
+cast the compiler could not check and the API had no way to justify.
+
+Two consequences worth knowing:
+
+- **With no events, there is nothing to infer from.** `KalendarMonth(selectedDate = today)` still
+  compiles: it resolves to an event-free overload that has no `events` parameter at all. A default
+  value could not have covered this, because a Kotlin default argument is never a source of type
+  inference.
+- **A mixed list widens.** `listOf(meeting, someOtherEvent)` has the common supertype
+  `List<KalendarEvent>`, so `E` becomes `KalendarEvent` and the callbacks report that. Keep the list
+  homogeneous if you want your own type back — or accept `KalendarEvent` and branch on it, which is
+  what a calendar aggregating several sources genuinely wants.
 
 ## Multi-day events
 
@@ -259,12 +284,15 @@ KalendarMonth(
 )
 ```
 
+Both report **your** event type. `eventsOnDate` above is a `List<Meeting>` when `events` was a
+`List<Meeting>`.
+
 The Schedule views report the specific event instead:
 
 ```kotlin
 KalendarSchedule(
-    events = events,
-    onEventClick = { event -> openDetails(event) },
+    events = meetings,
+    onEventClick = { meeting -> openDetails(meeting.meetingId) },
 )
 ```
 

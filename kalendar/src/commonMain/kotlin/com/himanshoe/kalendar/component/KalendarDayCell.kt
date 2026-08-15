@@ -142,15 +142,15 @@ private val DAY_NUMBER_FONT_STEP = 0.5.sp
  * open state sees it open — the cell is the thing that owns that state, and it has not been asked to
  * close yet at the moment the callback runs.
  */
-private class KalendarDayOverflowScopeImpl(
+private class KalendarDayOverflowScopeImpl<E : KalendarEvent>(
     override val date: LocalDate,
-    override val events: List<KalendarEvent>,
+    override val events: List<E>,
     override val hiddenEventCount: Int,
-    private val reportEventClick: (KalendarEvent) -> Unit,
+    private val reportEventClick: (E) -> Unit,
     private val close: () -> Unit,
-) : KalendarDayOverflowScope {
+) : KalendarDayOverflowScope<E> {
 
-    override fun onEventClick(event: KalendarEvent) {
+    override fun onEventClick(event: E) {
         reportEventClick(event)
         close()
     }
@@ -194,7 +194,7 @@ private class KalendarDayOverflowScopeImpl(
  */
 @Composable
 public fun Modifier.kalendarDaySemantics(
-    scope: KalendarDayScope,
+    scope: KalendarDayScope<*>,
     onClick: () -> Unit,
     monthNameFormatter: (Month) -> String = KalendarFormatters.monthName,
     interactionSource: MutableInteractionSource? = null,
@@ -236,16 +236,16 @@ public fun Modifier.kalendarDaySemantics(
  */
 @Composable
 @Suppress("LongParameterList")
-internal fun KalendarMonthGridCell(
-    scope: KalendarDayScope,
+internal fun <E : KalendarEvent> KalendarMonthGridCell(
+    scope: KalendarDayScope<E>,
     isCurrentMonth: Boolean,
     showAdjacentMonthDates: Boolean,
     onClick: () -> Unit,
-    dayContent: (@Composable (KalendarDayScope) -> Unit)?,
+    dayContent: (@Composable (KalendarDayScope<E>) -> Unit)?,
     showSelectionBackground: Boolean = true,
     monthNameFormatter: (Month) -> String = KalendarFormatters.monthName,
     maxEventIndicators: Int = DEFAULT_EVENT_INDICATOR_CAP,
-    onEventClick: (KalendarEvent) -> Unit = {},
+    onEventClick: (E) -> Unit = {},
 ) {
     val dimensions = kalendarDimensions()
     if (!isCurrentMonth && !showAdjacentMonthDates) {
@@ -336,16 +336,16 @@ public object KalendarDayCellDefaults {
      */
     @Composable
     @Suppress("LongParameterList")
-    public fun Cell(
-        scope: KalendarDayScope,
+    public fun <E : KalendarEvent> Cell(
+        scope: KalendarDayScope<E>,
         onClick: () -> Unit,
         modifier: Modifier = Modifier,
         showSelectionBackground: Boolean = true,
         monthNameFormatter: (Month) -> String = KalendarFormatters.monthName,
         maxEventIndicators: Int = DEFAULT_EVENT_INDICATOR_CAP,
-        onEventClick: (KalendarEvent) -> Unit = {},
+        onEventClick: (E) -> Unit = {},
         showOverflowPopup: Boolean = true,
-        overflowPopup: @Composable (KalendarDayOverflowScope) -> Unit = { overflowScope ->
+        overflowPopup: @Composable (KalendarDayOverflowScope<E>) -> Unit = { overflowScope ->
             OverflowPopup(scope = overflowScope)
         },
     ) {
@@ -591,7 +591,7 @@ public object KalendarDayCellDefaults {
      */
     @Composable
     public fun OverflowPopup(
-        scope: KalendarDayOverflowScope,
+        scope: KalendarDayOverflowScope<*>,
         modifier: Modifier = Modifier,
     ) {
         val colors = kalendarColors()
@@ -907,7 +907,7 @@ private fun KalendarDayCellLayout(
 @Composable
 @Suppress("LongParameterList")
 private fun EventIndicatorRow(
-    scope: KalendarDayScope,
+    scope: KalendarDayScope<*>,
     spanLanes: KalendarSpanLanes,
     drawnLaneCount: Int,
     dottedCount: Int,

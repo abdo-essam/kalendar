@@ -20,18 +20,21 @@ import androidx.compose.runtime.Immutable
 
 /**
  * Every Kalendar token set in one value, so a whole look can be passed around, `copy`-ed, and
- * overridden for a single calendar without wrapping it in a [KalendarTheme].
+ * applied to a single calendar rather than to a whole app.
  *
- * Read the ambient instance with [KalendarTheme.tokens], and hand a modified copy to any view's
- * `theme` parameter to restyle just that one:
+ * Read the ambient instance with [KalendarTheme.tokens] and apply a modified copy with the
+ * `KalendarTheme(tokens = …)` overload to restyle just one calendar. `copy` is what keeps the
+ * override to the tokens you actually changed — the other five sets come through from the
+ * surrounding theme:
  *
  * ```kotlin
- * KalendarMonth(
- *     selectedDate = today,
- *     theme = KalendarTheme.tokens.copy(
+ * KalendarTheme(
+ *     tokens = KalendarTheme.tokens.copy(
  *         colors = KalendarTheme.colors.copy(selectionBackground = BrandPurple),
  *     ),
- * )
+ * ) {
+ *     KalendarMonth(selectedDate = today)
+ * }
  * ```
  *
  * @property colors Colour tokens. See [KalendarColors].

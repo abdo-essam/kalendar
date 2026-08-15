@@ -7,7 +7,7 @@ public final class com/himanshoe/kalendar/KalendarAgendaDefaults {
 }
 
 public final class com/himanshoe/kalendar/KalendarAgendaKt {
-	public static final fun KalendarAgenda (Ljava/util/List;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function1;Lcom/himanshoe/kalendar/KalendarViewConfig;Landroidx/compose/foundation/lazy/LazyListState;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
+	public static final fun KalendarAgenda (Ljava/util/List;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarEventLoader;Lkotlin/jvm/functions/Function1;Lcom/himanshoe/kalendar/KalendarViewConfig;Landroidx/compose/foundation/lazy/LazyListState;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 }
 
 public abstract interface class com/himanshoe/kalendar/KalendarDatePickerActionScope {
@@ -48,8 +48,27 @@ public final class com/himanshoe/kalendar/KalendarDatePickerKt {
 	public static final fun KalendarDatePicker (Ljava/util/Set;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Lcom/himanshoe/kalendar/foundation/selection/KalendarSelectionMode;Lcom/himanshoe/kalendar/KalendarViewConfig;Lkotlin/ranges/IntRange;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
 }
 
+public final class com/himanshoe/kalendar/KalendarLoadingDefaults {
+	public static final field $stable I
+	public static final field INSTANCE Lcom/himanshoe/kalendar/KalendarLoadingDefaults;
+	public final fun Placeholder (Lcom/himanshoe/kalendar/KalendarLoadingScope;Landroidx/compose/ui/Modifier;Ljava/lang/String;Landroidx/compose/runtime/Composer;II)V
+}
+
+public final class com/himanshoe/kalendar/KalendarLoadingScope {
+	public static final field $stable I
+	public fun <init> (Lcom/himanshoe/kalendar/state/KalendarDateRange;Lcom/himanshoe/kalendar/state/KalendarLoadStatus;Ljava/lang/Throwable;Lkotlin/jvm/functions/Function0;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Ljava/lang/Throwable;
+	public final fun getRange ()Lcom/himanshoe/kalendar/state/KalendarDateRange;
+	public final fun getRetry ()Lkotlin/jvm/functions/Function0;
+	public final fun getStatus ()Lcom/himanshoe/kalendar/state/KalendarLoadStatus;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class com/himanshoe/kalendar/KalendarMonthKt {
-	public static final fun KalendarMonth (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lcom/himanshoe/kalendar/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+	public static final fun KalendarMonth (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Lcom/himanshoe/kalendar/state/KalendarEventLoader;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function2;Lcom/himanshoe/kalendar/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+	public static final fun KalendarMonth (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lcom/himanshoe/kalendar/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
 }
 
 public final class com/himanshoe/kalendar/KalendarResourceDefaults {
@@ -63,7 +82,8 @@ public final class com/himanshoe/kalendar/KalendarResourceDefaults {
 }
 
 public final class com/himanshoe/kalendar/KalendarResourceViewKt {
-	public static final fun KalendarResourceView-yQYKYQk (Ljava/util/List;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function4;Lcom/himanshoe/kalendar/KalendarViewConfig;FFJLkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+	public static final fun KalendarResourceView-5YCvIL4 (Ljava/util/List;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Lcom/himanshoe/kalendar/KalendarViewConfig;FFJLkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;III)V
+	public static final fun KalendarResourceView-8Ao7xM0 (Ljava/util/List;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Lcom/himanshoe/kalendar/state/KalendarEventLoader;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function4;Lcom/himanshoe/kalendar/KalendarViewConfig;FFJLkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
 }
 
 public final class com/himanshoe/kalendar/KalendarScheduleDefaults {
@@ -77,12 +97,15 @@ public final class com/himanshoe/kalendar/KalendarScheduleDefaults {
 }
 
 public final class com/himanshoe/kalendar/KalendarScheduleKt {
-	public static final fun KalendarSchedule-neCDxuE (Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lcom/himanshoe/kalendar/KalendarViewConfig;FJLkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
-	public static final fun KalendarScheduleWeek-mFC_MDg (Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lcom/himanshoe/kalendar/KalendarViewConfig;FJLkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+	public static final fun KalendarSchedule-14gYw4Q (Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Lcom/himanshoe/kalendar/state/KalendarEventLoader;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lcom/himanshoe/kalendar/KalendarViewConfig;FJLkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+	public static final fun KalendarSchedule-7Mtarm8 (Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Lkotlin/jvm/functions/Function2;Lcom/himanshoe/kalendar/KalendarViewConfig;FJLkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+	public static final fun KalendarScheduleWeek-HTWfky4 (Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Lcom/himanshoe/kalendar/state/KalendarEventLoader;Ljava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lcom/himanshoe/kalendar/KalendarViewConfig;FJLkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function4;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+	public static final fun KalendarScheduleWeek-pmT422s (Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Lkotlin/jvm/functions/Function2;Lcom/himanshoe/kalendar/KalendarViewConfig;FJLkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function4;Landroidx/compose/runtime/Composer;II)V
 }
 
 public final class com/himanshoe/kalendar/KalendarTimelineKt {
-	public static final fun KalendarTimeline (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarTimelineState;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lcom/himanshoe/kalendar/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+	public static final fun KalendarTimeline (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarTimelineState;Lcom/himanshoe/kalendar/state/KalendarEventLoader;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lcom/himanshoe/kalendar/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+	public static final fun KalendarTimeline (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarTimelineState;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lcom/himanshoe/kalendar/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 }
 
 public final class com/himanshoe/kalendar/KalendarViewConfig {
@@ -115,11 +138,13 @@ public final class com/himanshoe/kalendar/KalendarViewConfig {
 }
 
 public final class com/himanshoe/kalendar/KalendarWeekKt {
-	public static final fun KalendarWeek (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lcom/himanshoe/kalendar/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+	public static final fun KalendarWeek (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Lcom/himanshoe/kalendar/state/KalendarEventLoader;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lcom/himanshoe/kalendar/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+	public static final fun KalendarWeek (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Lcom/himanshoe/kalendar/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
 }
 
 public final class com/himanshoe/kalendar/KalendarYearKt {
-	public static final fun KalendarYear (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lcom/himanshoe/kalendar/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+	public static final fun KalendarYear (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Lcom/himanshoe/kalendar/state/KalendarEventLoader;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lcom/himanshoe/kalendar/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+	public static final fun KalendarYear (Lkotlinx/datetime/LocalDate;Landroidx/compose/ui/Modifier;Lcom/himanshoe/kalendar/state/KalendarViewState;Ljava/util/Set;Lkotlin/jvm/functions/Function2;Lcom/himanshoe/kalendar/KalendarViewConfig;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 }
 
 public final class com/himanshoe/kalendar/component/KalendarDayCellDefaults {
@@ -187,6 +212,56 @@ public abstract interface class com/himanshoe/kalendar/slot/KalendarScheduleEven
 	public abstract fun getOverlapColumns ()I
 	public abstract fun getStart ()Lkotlinx/datetime/LocalDateTime;
 	public abstract fun isDragging ()Z
+}
+
+public final class com/himanshoe/kalendar/state/KalendarDateRange : kotlin/ranges/ClosedRange {
+	public static final field $stable I
+	public fun <init> (Lkotlinx/datetime/LocalDate;Lkotlinx/datetime/LocalDate;)V
+	public synthetic fun contains (Ljava/lang/Comparable;)Z
+	public fun contains (Lkotlinx/datetime/LocalDate;)Z
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDayCount ()I
+	public synthetic fun getEndInclusive ()Ljava/lang/Comparable;
+	public fun getEndInclusive ()Lkotlinx/datetime/LocalDate;
+	public synthetic fun getStart ()Ljava/lang/Comparable;
+	public fun getStart ()Lkotlinx/datetime/LocalDate;
+	public fun hashCode ()I
+	public fun isEmpty ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/himanshoe/kalendar/state/KalendarEventLoader {
+	public static final field $stable I
+	public final fun errorAt (Lkotlinx/datetime/LocalDate;)Ljava/lang/Throwable;
+	public final fun getError ()Ljava/lang/Throwable;
+	public final fun getEvents ()Ljava/util/List;
+	public final fun getRange ()Lcom/himanshoe/kalendar/state/KalendarDateRange;
+	public final fun getStatus ()Lcom/himanshoe/kalendar/state/KalendarLoadStatus;
+	public final fun retry ()V
+	public final fun statusAt (Lkotlinx/datetime/LocalDate;)Lcom/himanshoe/kalendar/state/KalendarLoadStatus;
+}
+
+public final class com/himanshoe/kalendar/state/KalendarEventLoaderKt {
+	public static final fun rememberKalendarEventLoader (Lcom/himanshoe/kalendar/state/KalendarTimelineState;Lcom/himanshoe/kalendar/state/KalendarEventSource;ILandroidx/compose/runtime/Composer;II)Lcom/himanshoe/kalendar/state/KalendarEventLoader;
+	public static final fun rememberKalendarEventLoader (Lcom/himanshoe/kalendar/state/KalendarViewState;Lcom/himanshoe/kalendar/state/KalendarEventSource;ILandroidx/compose/runtime/Composer;II)Lcom/himanshoe/kalendar/state/KalendarEventLoader;
+}
+
+public abstract interface class com/himanshoe/kalendar/state/KalendarEventSource {
+	public static final field Companion Lcom/himanshoe/kalendar/state/KalendarEventSource$Companion;
+	public abstract fun eventsIn (Lcom/himanshoe/kalendar/state/KalendarDateRange;)Lkotlinx/coroutines/flow/Flow;
+}
+
+public final class com/himanshoe/kalendar/state/KalendarEventSource$Companion {
+	public final fun suspending (Lkotlin/jvm/functions/Function2;)Lcom/himanshoe/kalendar/state/KalendarEventSource;
+}
+
+public final class com/himanshoe/kalendar/state/KalendarLoadStatus : java/lang/Enum {
+	public static final field Failed Lcom/himanshoe/kalendar/state/KalendarLoadStatus;
+	public static final field Loaded Lcom/himanshoe/kalendar/state/KalendarLoadStatus;
+	public static final field Loading Lcom/himanshoe/kalendar/state/KalendarLoadStatus;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/himanshoe/kalendar/state/KalendarLoadStatus;
+	public static fun values ()[Lcom/himanshoe/kalendar/state/KalendarLoadStatus;
 }
 
 public final class com/himanshoe/kalendar/state/KalendarSelectionState {
@@ -416,6 +491,7 @@ public final class com/himanshoe/kalendar/theme/KalendarThemeDefaults {
 
 public final class com/himanshoe/kalendar/theme/KalendarThemeKt {
 	public static final fun KalendarTheme (Lcom/himanshoe/kalendar/theme/KalendarColors;Lcom/himanshoe/kalendar/theme/KalendarTypography;Lcom/himanshoe/kalendar/theme/KalendarShapes;Lcom/himanshoe/kalendar/theme/KalendarDimensions;Lcom/himanshoe/kalendar/theme/KalendarAnimations;Lcom/himanshoe/kalendar/theme/KalendarStrings;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+	public static final fun KalendarTheme (Lcom/himanshoe/kalendar/theme/KalendarThemeTokens;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;I)V
 }
 
 public final class com/himanshoe/kalendar/theme/KalendarThemeTokens {

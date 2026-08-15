@@ -20,7 +20,7 @@ them.
 ```kotlin
 @Composable
 public fun Modifier.kalendarDaySemantics(
-    scope: KalendarDayScope,
+    scope: KalendarDayScope<*>,
     onClick: () -> Unit,
     monthNameFormatter: (Month) -> String = KalendarFormatters.monthName,
     interactionSource: MutableInteractionSource? = null,
@@ -32,7 +32,7 @@ handling**. This modifier gives both back.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `scope` | `KalendarDayScope` | — | The cell's state, as handed to the slot. |
+| `scope` | `KalendarDayScope<*>` | — | The cell's state, as handed to the slot. Star-projected: this modifier reads the interface only. |
 | `onClick` | `() -> Unit` | — | Called when the cell is tapped and the date is **not** disabled. |
 | `monthNameFormatter` | `(Month) -> String` | `KalendarFormatters.monthName` | Formats the month name inside the announcement. Pass `config.monthNameFormatter` to match a localized calendar. |
 | `interactionSource` | `MutableInteractionSource?` | `null` | Supply one to observe press, focus and hover state yourself — which is how you rebuild the focus ring and hover wash a custom cell also loses. |
@@ -99,30 +99,30 @@ cell rather than reimplement it.
 
 ```kotlin
 @Composable
-public fun Cell(
-    scope: KalendarDayScope,
+public fun <E : KalendarEvent> Cell(
+    scope: KalendarDayScope<E>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     showSelectionBackground: Boolean = true,
     monthNameFormatter: (Month) -> String = KalendarFormatters.monthName,
     maxEventIndicators: Int = 3,
-    onEventClick: (KalendarEvent) -> Unit = {},
+    onEventClick: (E) -> Unit = {},
     showOverflowPopup: Boolean = true,
-    overflowPopup: @Composable (KalendarDayOverflowScope) -> Unit = { OverflowPopup(scope = it) },
+    overflowPopup: @Composable (KalendarDayOverflowScope<E>) -> Unit = { OverflowPopup(scope = it) },
 )
 ```
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `scope` | `KalendarDayScope` | — | The cell's state. |
+| `scope` | `KalendarDayScope<E>` | — | The cell's state. |
 | `onClick` | `() -> Unit` | — | Called when the cell is tapped and the date is not disabled. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the cell. |
 | `showSelectionBackground` | `Boolean` | `true` | Whether this cell draws its own selection fill. The views pass `false` when the sliding indicator is already drawing it. |
 | `monthNameFormatter` | `(Month) -> String` | English month names | Used for the accessibility description. |
 | `maxEventIndicators` | `Int` | `3` | Dots drawn before the remainder collapses into `+N`. Counts only the events drawn as dots — a multi-day event that got a [span bar](../events.md#multi-day-events) lane is not one of them. The views pass `KalendarViewConfig.eventIndicatorCap`. |
-| `onEventClick` | `(KalendarEvent) -> Unit` | `{}` | Called when an event is tapped inside the overflow popover. |
+| `onEventClick` | `(E) -> Unit` | `{}` | Called when an event is tapped inside the overflow popover — the calendar's own event type. |
 | `showOverflowPopup` | `Boolean` | `true` | Whether the `+N` label opens a popover at all. `false` leaves it as a plain count. |
-| `overflowPopup` | `@Composable (KalendarDayOverflowScope) -> Unit` | `OverflowPopup` | Replaces the popover. **Last**, so trailing-lambda syntax lands on it. |
+| `overflowPopup` | `@Composable (KalendarDayOverflowScope<E>) -> Unit` | `OverflowPopup` | Replaces the popover. **Last**, so trailing-lambda syntax lands on it. |
 
 ```kotlin
 KalendarMonth(
@@ -146,7 +146,7 @@ KalendarMonth(
 ```kotlin
 @Composable
 public fun OverflowPopup(
-    scope: KalendarDayOverflowScope,
+    scope: KalendarDayOverflowScope<*>,
     modifier: Modifier = Modifier,
 )
 ```
@@ -156,7 +156,7 @@ escape.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `scope` | [`KalendarDayOverflowScope`](kalendar-slot.md) | — | The date, its events, and the hidden count. |
+| `scope` | [`KalendarDayOverflowScope<*>`](kalendar-slot.md) | — | The date, its events, and the hidden count. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the popover surface. |
 
 ```kotlin

@@ -56,16 +56,46 @@ public object KalendarTheme {
     public val strings: KalendarStrings
         @Composable get() = kalendarStrings()
 
-    /** All ambient token sets bundled together, ready to `copy` into a view's `theme` parameter. */
+    /**
+     * All ambient token sets bundled together — the value to `copy` when overriding a single
+     * calendar via `KalendarTheme(tokens = …)`.
+     *
+     * Reading this outside a [KalendarTheme] yields [KalendarThemeDefaults], and yields the *same*
+     * bundle on every recomposition, so it is safe to use as the base of a `copy` in a hot path.
+     */
     public val tokens: KalendarThemeTokens
-        @Composable get() = LocalKalendarTokens.current ?: KalendarThemeTokens(
-            colors = KalendarThemeDefaults.colors(),
-            typography = KalendarThemeDefaults.typography(),
+        @Composable get() {
+            val ambient = LocalKalendarTokens.current
+            return if (ambient != null) {
+                ambient
+            } else {
+                defaultKalendarTokens()
+            }
+        }
+}
+
+/**
+ * The bundle a calendar composed outside any [KalendarTheme] runs on.
+ *
+ * Remembered rather than rebuilt: this is the default that every unthemed call site lands on, and
+ * an unstable bundle there would recompose the calendar under it on every pass. The four
+ * Material-independent sets come from [KalendarThemeDefaults], which returns shared singletons, so
+ * only the two Material-derived sets can invalidate it.
+ */
+@Composable
+private fun defaultKalendarTokens(): KalendarThemeTokens {
+    val colors = KalendarThemeDefaults.colors()
+    val typography = KalendarThemeDefaults.typography()
+    return remember(colors, typography) {
+        KalendarThemeTokens(
+            colors = colors,
+            typography = typography,
             shapes = KalendarThemeDefaults.shapes(),
-            dimensions = KalendarDimensions(),
-            animations = KalendarAnimations(),
-            strings = KalendarStrings(),
+            dimensions = KalendarThemeDefaults.dimensions(),
+            animations = KalendarThemeDefaults.animations(),
+            strings = KalendarThemeDefaults.strings(),
         )
+    }
 }
 
 /**
@@ -83,6 +113,10 @@ public object KalendarTheme {
  *     KalendarMonth(selectedDate = today)
  * }
  * ```
+ *
+ * Each parameter defaults to the ambient value, so this nests: an inner `KalendarTheme` overriding
+ * `dimensions` keeps the outer one's colours. To restyle a single calendar from a bundle you
+ * already hold, use the `KalendarTheme(tokens = …)` overload instead.
  *
  * @param colors Colour tokens. Defaults to [KalendarThemeDefaults.colors], which follows the
  *   ambient Material theme; pass [KalendarThemeDefaults.systemColors] in a non-Material app.
@@ -113,7 +147,47 @@ public fun KalendarTheme(
             strings = strings,
         )
     }
-    CompositionLocalProvider(LocalKalendarTokens provides tokens, content = content)
+    KalendarTheme(tokens = tokens, content = content)
+}
+
+/**
+ * Applies a prepared [KalendarThemeTokens] to [content] — the per-call-site override.
+ *
+ * Where the [KalendarTheme] overload above is for dressing a whole app, this one is for "this one
+ * calendar is different": build the bundle from [KalendarTheme.tokens] and `copy` only what
+ * changes, and everything else keeps coming from the surrounding theme.
+ *
+ * ```kotlin
+ * KalendarTheme(colors = appCalendarColors) {
+ *     KalendarMonth(selectedDate = today)
+ *     // Compact, but still in the app's colours.
+ *     KalendarTheme(tokens = KalendarTheme.tokens.copy(dimensions = KalendarDimensions(hourHeight = 32.dp))) {
+ *         KalendarDatePicker(selectedDates = picked, onDateClick = ::pick)
+ *     }
+ * }
+ * ```
+ *
+ * The override is scoped to [content], so it wins over the enclosing theme and is invisible to
+ * siblings. Nesting composes in the obvious direction: the innermost `copy` wins, and each level
+ * above it supplies whatever that level did not touch.
+ *
+ * @param tokens The bundle to apply, or `null` to inherit the surrounding theme untouched. `null`
+ *   passes the ambient bundle through by identity, which is what makes it the right default for a
+ *   `theme`-style parameter on a view: not overriding costs nothing and changes nothing.
+ * @param content The calendar views these tokens apply to.
+ */
+@Composable
+public fun KalendarTheme(
+    tokens: KalendarThemeTokens?,
+    content: @Composable () -> Unit,
+) {
+    // Provided unconditionally, even for a null override. Wrapping conditionally would give the
+    // content a different group shape in the two cases, so a caller toggling an override on and off
+    // would discard the calendar's remembered state along with it.
+    CompositionLocalProvider(
+        LocalKalendarTokens provides (tokens ?: LocalKalendarTokens.current),
+        content = content,
+    )
 }
 
 /** The effective [KalendarColors]: the ambient [KalendarTheme]'s, or Material-derived defaults. */

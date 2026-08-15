@@ -159,7 +159,7 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
         val endIdx = cursor.getColumnIndex(CalendarContract.Events.DTEND)
         val rule = cursor.getString(cursor.getColumnIndex(CalendarContract.Events.RRULE))
             ?.takeIf { it.isNotBlank() }
-            ?.let { parseRRuleString(it) }
+            ?.let { parseRRuleString(value = it, timeZone = timeZone) }
         val endMs = when {
             !cursor.isNull(endIdx) -> cursor.getLong(endIdx)
             rule != null -> durationEndMillis(
@@ -352,7 +352,8 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
     private fun ContentValues.applyRecurrenceOrEnd(event: KalendarSyncEvent, endMs: Long, clearStaleFields: Boolean) {
         val rule = event.recurrenceRule
         if (rule != null) {
-            put(CalendarContract.Events.RRULE, rule.toRRuleString())
+            val until = utcUntilValue(rule = rule, isAllDay = event.isAllDay, timeZone = tz)
+            put(CalendarContract.Events.RRULE, rule.toRRuleString(untilValue = until))
             put(CalendarContract.Events.DURATION, recurrenceDurationString(event))
             val exdate = recurrenceExdateString(event = event, timeZone = tz)
             if (exdate != null) {
@@ -390,7 +391,7 @@ private class AndroidKalendarSync(private val context: Context) : KalendarSyncPr
      * local day; plain date values map directly.
      */
     private fun parseExdateColumn(raw: String?, timeZone: TimeZone): List<LocalDate> =
-        raw?.split(",")?.mapNotNull { parseExdateValue(value = it, timeZone = timeZone) }.orEmpty()
+        raw?.split(",")?.mapNotNull { parseIcalDateValue(value = it, timeZone = timeZone) }.orEmpty()
 
     /**
      * Resolves the calendar to insert into: the caller-supplied [calendarId] when given
