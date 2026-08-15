@@ -36,10 +36,45 @@ import kotlinx.datetime.LocalDate
  * breaking every existing `overflowPopup` lambda.
  *
  * [E] is the calendar's own event type, so a replacement popover lists the caller's domain type and
- * reports it back unchanged. It is `out` for the reason [KalendarDayScope]'s is.
+ * reports it back unchanged.
+ *
+ * Unlike [KalendarDayScope], this scope is **invariant**, because [onEventClick] consumes an [E]
+ * rather than producing one. Declared `out E`, a popover written over
+ * `KalendarDayOverflowScope<KalendarEvent>` could be handed a `KalendarDayOverflowScope<Booking>`
+ * — covariance permits exactly that — and could then pass it any [KalendarEvent] at all, which the
+ * cell's own `onEventClick` would receive as a `Booking` and fail on. Invariance is what makes that
+ * unrepresentable rather than merely discouraged.
+ *
+ * One popover still serves calendars of every event type — make the popover itself generic instead
+ * of the scope covariant, which is what [KalendarDayCellDefaults.OverflowPopup] does:
+ *
+ * ```kotlin
+ * @Composable
+ * fun <E : KalendarEvent> RoomPopup(scope: KalendarDayOverflowScope<E>) {
+ *     Column {
+ *         scope.events.forEach { event ->
+ *             Text(
+ *                 text = event.eventName,
+ *                 modifier = Modifier.clickable { scope.onEventClick(event) },
+ *             )
+ *         }
+ *     }
+ * }
+ *
+ * KalendarMonth(selectedDate = today, events = bookings) { dayScope ->
+ *     KalendarDayCellDefaults.Cell(
+ *         scope = dayScope,
+ *         onClick = { select(dayScope.date) },
+ *         overflowPopup = { RoomPopup(scope = it) },
+ *     )
+ * }
+ * ```
+ *
+ * A `KalendarDayOverflowScope<*>` is not the way to write that: a star projection can read [events]
+ * but may not call [onEventClick] at all, which is the same rule stated from the other side.
  */
 @Stable
-public interface KalendarDayOverflowScope<out E : KalendarEvent> {
+public interface KalendarDayOverflowScope<E : KalendarEvent> {
 
     /** The date whose events the popover is listing. */
     public val date: LocalDate
@@ -57,10 +92,11 @@ public interface KalendarDayOverflowScope<out E : KalendarEvent> {
      * Reports [event] to the cell's `onEventClick` and closes the popover, in that order. A popover
      * that wants to stay open should call the callback it was built with instead of this.
      *
-     * [event] is the one `in` position [E] has, and is sound for the same reason
-     * [KalendarDayScope.copy]'s is: the only events a popover has to report are the ones in [events].
+     * [event] is the one position [E] is consumed in, and is why this interface is invariant: with
+     * `out E` a popover holding the scope as `KalendarDayOverflowScope<KalendarEvent>` could pass an
+     * event of any type and the cell would receive it as an [E].
      */
-    public fun onEventClick(event: @UnsafeVariance E)
+    public fun onEventClick(event: E)
 
     /**
      * Closes the popover. Tapping outside it and pressing escape already do this; call it for a

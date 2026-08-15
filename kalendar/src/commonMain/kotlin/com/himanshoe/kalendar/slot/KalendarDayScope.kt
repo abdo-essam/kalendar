@@ -61,9 +61,20 @@ public class KalendarDayScope<out E : KalendarEvent>(
     /**
      * Returns a duplicate of this scope with only the fields passed here replaced.
      *
-     * [events] is the one `in` position [E] has. It is sound because the only value that reaches it
-     * is either this scope's own list or one the caller already holds as `List<E>`; `@UnsafeVariance`
-     * records that rather than forcing every `dayContent` to give up covariance for it.
+     * [events] is the one `in` position [E] has, so `@UnsafeVariance` is what keeps the class
+     * covariant for every `dayContent` written against `KalendarDayScope<KalendarEvent>`.
+     *
+     * What that annotation gives up is narrow. Wherever [E] is known — inside a `dayContent` for a
+     * calendar of `Booking` — the compiler still demands a `List<Booking>` here, so a scope cannot be
+     * poisoned at its own type. The one thing it permits is a caller who has *widened* a
+     * `KalendarDayScope<Booking>` to `KalendarDayScope<KalendarEvent>` replacing the list with events
+     * of some other type, and the result is typed `KalendarDayScope<KalendarEvent>` — which is
+     * exactly what it now holds.
+     *
+     * That stays sound because this class has no operation that *consumes* an [E]: nothing here
+     * hands the list back to a `(E) -> Unit` the way [KalendarDayOverflowScope.onEventClick] does,
+     * which is why that interface had to be invariant instead. Reaching a `ClassCastException` from
+     * a widened copy needs the caller to write an unchecked cast back to the narrow type.
      */
     public fun copy(
         date: LocalDate = this.date,

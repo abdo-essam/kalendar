@@ -204,6 +204,22 @@ dayContent = { scope ->
 }
 ```
 
+Unlike the other slot scopes, `KalendarDayOverflowScope` is **invariant** in `E`, because
+`onEventClick` consumes an event rather than producing one. That costs nothing at a call site like
+the one above, where `E` is inferred. It matters only if you factor the popover out to share it
+across calendars of different event types: make it a generic composable rather than a value typed
+over `KalendarEvent`.
+
+```kotlin
+@Composable
+fun <E : KalendarEvent> MyOverflowSheet(scope: KalendarDayOverflowScope<E>) { /* … */ }
+
+// overflowPopup = { MyOverflowSheet(scope = it) }
+```
+
+A read-only popover may still take a `KalendarDayOverflowScope<*>`; a star projection can read
+`events` but cannot call `onEventClick`.
+
 ## The header slot
 
 `header` replaces the navigation chrome above a date grid on
@@ -567,13 +583,45 @@ None of this needs turning on. It is what the built-in renderings already do, an
 because a custom slot replaces the piece that does it — and because knowing which strings drive it is
 how you [localize](localization.md) the announcements.
 
-### Keyboard and pointer
+### Keyboard navigation
 
-Every day cell is a tab stop on desktop and wasmJs. A focused cell draws a 2dp ring in
-`KalendarColors.focusIndicator` (defaulting to `todayContent`), and a cell under the pointer is
-washed with `KalendarColors.hoverBackground` (`dayContent` at 8%). Without the ring, keyboard
-navigation of a month grid is invisible — you are tabbing through 42 cells with no way to tell which
-one you are on.
+`KalendarMonth`, `KalendarWeek`, `KalendarYear`, `KalendarTimeline` and `KalendarDatePicker` are all
+navigable from the keyboard on desktop and wasmJs, with the same key map.
+
+**The grid is one tab stop, not forty-two.** This is the roving-tabindex pattern every native date
+picker uses: `Tab` enters the grid once, arrow keys move a focus ring between days without leaving
+it, and `Tab` again leaves. Reaching 42 cells by pressing `Tab` 42 times is a tab trap with extra
+steps, so the cells themselves are deactivated as focus targets.
+
+| Key | What it does |
+|---|---|
+| <kbd>←</kbd> <kbd>→</kbd> | One visible day. On a Mon–Fri calendar, `→` from Friday reaches Monday rather than stopping on a Saturday that has no cell. |
+| <kbd>↑</kbd> <kbd>↓</kbd> | One week, landing on the same weekday and so in the same column. |
+| <kbd>PageUp</kbd> <kbd>PageDown</kbd> | One page of the view's own unit — a week for `KalendarWeek`, a month for `KalendarMonth`, `KalendarTimeline` and `KalendarDatePicker`, a year for `KalendarYear`. |
+| <kbd>Home</kbd> <kbd>End</kbd> | First and last day of the **period**, not the grid — `Home` in a month view reaches the 1st, not the leading padding day from the previous month. |
+| <kbd>Enter</kbd> <kbd>Space</kbd> | Selects the focused date, through the same callback a tap goes through. |
+| <kbd>Shift</kbd> + arrow | Extends a range from where focus was when `Shift` was first held, reporting through `onDateRangeSelect` exactly as the press-and-hold drag does. Releasing `Shift` calls `onDateRangeSelectEnd`. |
+
+Moving off the end of the visible period scrolls the period holding the target into view and the
+focus lands on it, so a month boundary is invisible to the user.
+
+`Shift`+arrow reports a range only on the two views that have a range-drag gesture for it to mirror —
+`KalendarMonth` and `KalendarWeek`, the ones with `onDateRangeSelect`. On `KalendarYear`,
+`KalendarTimeline` and `KalendarDatePicker` it moves focus and reports nothing, rather than inventing
+a second range API for a view that has no gesture equivalent. Where it does apply it is not a nicety:
+without it `onDateRangeSelect` would be reachable by pointer only, which is a WCAG 2.1.1 failure.
+
+**Disabled dates are focusable but not selectable.** Focus lands on a date your `disabledDates`
+predicate rejects — a keyboard user is told the date exists and is unavailable — but `Enter` and
+`Space` do nothing on it, exactly as the cell's own `clickable(enabled = false)` behaves for a tap.
+Range extension does not consult it at all, matching the drag gesture, which never has either.
+
+### Focus and hover affordances
+
+A focused cell draws a 2dp ring in `KalendarColors.focusIndicator` (defaulting to `todayContent`),
+and a cell under the pointer is washed with `KalendarColors.hoverBackground` (`dayContent` at 8%).
+Without the ring, keyboard navigation of a month grid is invisible — the focus moves and nothing on
+screen says where it went.
 
 Both are driven by the cell's `MutableInteractionSource`. A custom `dayContent` replaces the cell and
 therefore both affordances; pass your own interaction source to `kalendarDaySemantics` and read

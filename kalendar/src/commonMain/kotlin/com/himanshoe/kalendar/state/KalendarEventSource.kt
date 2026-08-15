@@ -29,10 +29,14 @@ import kotlinx.coroutines.flow.flow
  * calendar current without the calendar polling anything:
  *
  * ```kotlin
- * val loader = rememberKalendarEventLoader(state = monthState) { range ->
- *     bookingDao.observeBetween(from = range.start, to = range.endInclusive)
- * }
+ * val loader = rememberKalendarEventLoader(
+ *     state = monthState,
+ *     source = { range -> bookingDao.observeBetween(from = range.start, to = range.endInclusive) },
+ * )
  * ```
+ *
+ * This is a `fun interface`, so the lambda above converts to one. It is passed by name rather than
+ * as a trailing lambda because `rememberKalendarEventLoader` takes `prefetchPages` after `source`.
  *
  * For a one-shot load — a network call, a `suspend` DAO — use [suspending], which wraps the call in
  * a flow that emits once:

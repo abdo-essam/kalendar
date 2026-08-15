@@ -109,6 +109,7 @@ views, has no concept of date selection.
 | `dayOfWeekLabel` slot | yes | yes | yes | yes | no | no | no | no | yes |
 | Event / hour / now-indicator slots | no | no | no | no | yes | yes | yes | no | no |
 | `dateHeader` / `eventContent` / `emptyState` slots | no | no | no | no | no | no | partly | yes | no |
+| `eventLoader` and the `loadingContent` slot | yes | yes | yes | yes | yes | yes | yes | yes | no |
 
 `KalendarTimeline` scrolls continuously, so it has no pages and no arrow buttons — its `header` slot
 receives a scope whose page vocabulary is mapped onto months, and

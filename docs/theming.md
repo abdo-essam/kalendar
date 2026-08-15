@@ -26,7 +26,7 @@ It mirrors `MaterialTheme` deliberately, so it should already feel familiar:
 |---|---|
 | `KalendarColors`, `KalendarTypography`, `KalendarShapes`, `KalendarDimensions`, `KalendarAnimations`, `KalendarStrings` | The six token sets. |
 | `KalendarThemeTokens` | All six bundled into one value. |
-| `KalendarTheme { }` | The composable that **provides** tokens to everything inside it. |
+| `KalendarTheme { }` | The composable that **provides** tokens to everything inside it. Two overloads: one taking the six sets, one taking a [`KalendarThemeTokens` bundle](#overriding-one-calendar). |
 | `KalendarTheme` (the object) | The accessors that **read** the ambient tokens — `KalendarTheme.colors`, `KalendarTheme.dimensions`, and so on. |
 | `KalendarThemeDefaults` | The built-in token values, and the three palettes. |
 
@@ -437,37 +437,69 @@ fun rememberBrandKalendarTokens(): KalendarThemeTokens =
     )
 ```
 
-Apply it by spreading it back over a `KalendarTheme`:
+Apply it with the `tokens` overload, which takes the bundle directly:
 
 ```kotlin
-val tokens = rememberBrandKalendarTokens()
-
-KalendarTheme(
-    colors = tokens.colors,
-    typography = tokens.typography,
-    shapes = tokens.shapes,
-    dimensions = tokens.dimensions,
-    animations = tokens.animations,
-    strings = tokens.strings,
-) {
+KalendarTheme(tokens = rememberBrandKalendarTokens()) {
     KalendarMonth(selectedDate = today)
 }
 ```
 
-To restyle a single calendar differently from its surroundings, wrap just that one in its own
-`KalendarTheme`. Nesting is the mechanism: each token set you do not pass is inherited from the
-theme above, so an inner theme only states its differences.
+## Overriding one calendar
+
+`KalendarTheme(tokens = …)` is also how you restyle a single calendar without dressing its
+surroundings. Where the six-parameter overload is for an app-wide look, this one is for *"this one
+calendar is different"*: read the ambient bundle from `KalendarTheme.tokens`, `copy` only what
+changes, and everything you did not name keeps coming from the theme above.
 
 ```kotlin
-KalendarTheme(colors = KalendarThemeDefaults.systemColors()) {
+KalendarTheme(colors = appCalendarColors) {
     KalendarMonth(selectedDate = today)
 
-    // Same colours, denser layout — everything else inherited.
-    KalendarTheme(dimensions = KalendarTheme.dimensions.copy(dayCellPadding = 0.dp)) {
-        KalendarYear(selectedDate = today)
+    // Compact, but still in the app's colours.
+    KalendarTheme(
+        tokens = KalendarTheme.tokens.copy(
+            dimensions = KalendarDimensions(hourHeight = 32.dp),
+        ),
+    ) {
+        KalendarSchedule(state = rememberKalendarScheduleState(initialDate = today))
     }
 }
 ```
+
+The override is scoped to the content lambda, so it wins over the enclosing theme and is invisible to
+siblings. Nesting composes in the obvious direction: the innermost `copy` wins, and each level above
+supplies whatever that level did not touch.
+
+`tokens` is nullable, and `null` means *inherit the surrounding theme untouched* — the ambient bundle
+is passed through by identity, so overriding nothing costs nothing. That is what makes it the right
+type for a `theme`-style parameter on a screen of your own:
+
+```kotlin
+@Composable
+fun BookingScreen(
+    bookings: List<Booking>,
+    theme: KalendarThemeTokens? = null,
+) {
+    KalendarTheme(tokens = theme) {
+        KalendarMonth(selectedDate = today, events = bookings)
+    }
+}
+```
+
+> **Note:** the tokens are provided unconditionally, even for a `null` override. Wrapping
+> conditionally would give the content a different group shape in the two cases, so a caller toggling
+> an override on and off would discard the calendar's remembered state along with it.
+
+### Which overload to reach for
+
+| | |
+|---|---|
+| `KalendarTheme(colors = …, shapes = …) { }` | Stating a look from its parts. Each parameter defaults to the ambient value, so it nests too. |
+| `KalendarTheme(tokens = …) { }` | Applying a bundle you already hold, or overriding one calendar from `KalendarTheme.tokens.copy(…)`. |
+
+Both provide the same six token sets and nest the same way; `tokens` simply skips the step of taking
+a bundle apart into six arguments so the composable can put it back together.
 
 ## Setting a theme once, app-wide
 

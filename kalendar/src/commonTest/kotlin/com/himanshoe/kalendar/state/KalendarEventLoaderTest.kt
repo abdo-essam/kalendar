@@ -20,6 +20,8 @@ import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
 import com.himanshoe.kalendar.foundation.paging.KalendarPageUnit
 import com.himanshoe.kalendar.foundation.paging.KalendarPager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -284,6 +286,114 @@ class KalendarEventLoaderTest {
         runCurrent()
 
         assertEquals(1, loader.events.size, "one event, returned twice, is still one event")
+    }
+
+    /**
+     * The loader survives the coroutine that drives it, and that coroutine restarts.
+     * [rememberKalendarEventLoader] remembers the instance across recompositions but runs
+     * [KalendarEventLoader.keepLoaded] from a `LaunchedEffect`, which cancels and relaunches
+     * whenever one of its keys changes — `prefetchPages` being the one a caller can change at will.
+     *
+     * Cancellation kills the per-page collections without saying so to whatever recorded them, so a
+     * record of "in flight" that outlives the run makes the next run skip every page in the window.
+     * Nothing fails, nothing is in flight, and the calendar simply stops loading.
+     */
+    @Test
+    fun asksForTheWholeWindowAgainAfterTheDrivingCoroutineRestarts() = runTest {
+        val pager = monthPager()
+        val source = TestEventSource()
+        val loader = KalendarEventLoader(pager = pager, source = source)
+        val page = pager.pageOf(march)
+        val windows = MutableStateFlow(setOf(page, page + 1))
+
+        val firstRun = backgroundScope.launch { loader.keepLoaded(windows) }
+        runCurrent()
+        assertEquals(2, source.requested.size, "the first run asks for its window")
+
+        firstRun.cancelAndJoin()
+        backgroundScope.launch { loader.keepLoaded(windows) }
+        runCurrent()
+
+        assertEquals(
+            listOf(
+                loader.rangeOfPage(page),
+                loader.rangeOfPage(page + 1),
+                loader.rangeOfPage(page),
+                loader.rangeOfPage(page + 1),
+            ),
+            source.requested,
+            "a restarted engine has nothing in flight and must ask for its whole window again",
+        )
+    }
+
+    /**
+     * The restart is not allowed to blank a calendar that already has events on it: the ranges are
+     * the same ranges, so what arrived for them last time is still what to draw while they are being
+     * asked for again.
+     *
+     * [TestEventSource] would hide the second half of this — its per-range gate replays, so the
+     * reloaded page answers in the same turn it is asked. This source deliberately answers once and
+     * then stays silent, which is what leaves the reload observable.
+     */
+    @Test
+    fun keepsTheEventsItHeldWhileTheRestartedRunReloadsThem() = runTest {
+        val pager = monthPager()
+        var collections = 0
+        val source = KalendarEventSource<BasicKalendarEvent> {
+            flow {
+                collections += 1
+                if (collections == 1) {
+                    emit(listOf(event(date = march, name = "standup")))
+                }
+                awaitCancellation()
+            }
+        }
+        val loader = KalendarEventLoader(pager = pager, source = source)
+        val windows = MutableStateFlow(setOf(pager.pageOf(march)))
+
+        val firstRun = backgroundScope.launch { loader.keepLoaded(windows) }
+        runCurrent()
+        assertEquals(KalendarLoadStatus.Loaded, loader.statusAt(march))
+
+        firstRun.cancelAndJoin()
+        backgroundScope.launch { loader.keepLoaded(windows) }
+        runCurrent()
+
+        assertEquals(2, collections, "the range is collected again")
+        assertEquals(KalendarLoadStatus.Loading, loader.statusAt(march), "and is loading until it answers")
+        assertEquals(
+            listOf("standup"),
+            loader.events.map { held -> held.eventName },
+            "what the cancelled run had loaded stays on screen meanwhile",
+        )
+    }
+
+    /**
+     * The other half of owning the in-flight record per run: the pages themselves outlive it, so the
+     * sweep that evicts what the window no longer wants has to run over the held pages rather than
+     * over the pages this run happens to have started.
+     */
+    @Test
+    fun dropsAPageTheRestartedWindowNoLongerWants() = runTest {
+        val pager = monthPager()
+        val source = TestEventSource()
+        val loader = KalendarEventLoader(pager = pager, source = source)
+        val page = pager.pageOf(march)
+        val windows = MutableStateFlow(setOf(page, page + 1))
+
+        val firstRun = backgroundScope.launch { loader.keepLoaded(windows) }
+        runCurrent()
+        source.deliver(loader.rangeOfPage(page + 1), listOf(event(date = LocalDate(2026, 4, 10), name = "april")))
+        runCurrent()
+        assertEquals(1, loader.events.size)
+
+        firstRun.cancelAndJoin()
+        windows.value = setOf(page)
+        backgroundScope.launch { loader.keepLoaded(windows) }
+        runCurrent()
+
+        assertTrue(loader.events.isEmpty(), "a page the new window excludes is dropped, not stranded")
+        assertEquals(loader.rangeOfPage(page), loader.range, "and stops counting towards the held span")
     }
 
     @Test

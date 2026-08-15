@@ -219,3 +219,115 @@ fixed.today() // always 2026-03-10
 
 In the views module this is provided through
 [`ProvideKalendarTimeSource`](kalendar-state.md) and read through `rememberKalendarTimeSource()`.
+
+| Member | Returns | Description |
+|---|---|---|
+| `dateOf(instant)` | `LocalDate` | Which date `instant` falls on in this source's zone. |
+| `timeOf(instant)` | `LocalDateTime` | `instant` as a wall-clock date and time in this source's zone. |
+
+## Time zones
+
+Turning an instant into a *position on a calendar* is a zone-dependent question, and these four
+functions are the engine's answers to it. The views go through them for the now-indicator, for day
+boundaries when a span is expanded, and for deciding which date a timed event belongs to; a caller
+laying out cells themselves needs the same arithmetic.
+
+### `Instant.dateIn`
+
+```kotlin
+public fun Instant.dateIn(timeZone: TimeZone): LocalDate
+```
+
+Which calendar date this instant falls on when read in `timeZone`. There is no zone-free answer — the
+same moment is two different dates either side of the date line — so a calendar pinned to an office's
+zone has to ask this rather than the device.
+
+```kotlin
+val newYearMorning = Instant.parse("2026-01-01T00:30:00Z")
+newYearMorning.dateIn(TimeZone.of("Pacific/Kiritimati")) // 2026-01-01, already 14:30 there
+newYearMorning.dateIn(TimeZone.of("Pacific/Honolulu"))   // 2025-12-31, still the night before
+```
+
+### `LocalDateTime.sameInstantIn`
+
+```kotlin
+public fun LocalDateTime.sameInstantIn(source: TimeZone, target: TimeZone): LocalDateTime
+```
+
+The same moment as this wall-clock time in `source`, read off a clock in `target`. This is what makes
+an event survive being looked at from somewhere else: a 09:00 stand-up recorded in Berlin stays 09:00
+for anyone whose calendar is pinned to Berlin, and shifts — date included — for a calendar read
+anywhere else.
+
+```kotlin
+val utc = TimeZone.UTC
+val lateShift = LocalDateTime(2026, 1, 15, 23, 0)
+lateShift.sameInstantIn(source = utc, target = TimeZone.of("Europe/London")) // 2026-01-15T23:00
+lateShift.sameInstantIn(source = utc, target = TimeZone.of("Asia/Tokyo"))    // 2026-01-16T08:00
+```
+
+A wall-clock time that a daylight-saving jump skipped in `source` has no instant of its own; it
+resolves as though the pre-transition offset were still in force, which is the only reading that
+keeps the function total.
+
+### `LocalDate.dayLengthIn`
+
+```kotlin
+public fun LocalDate.dayLengthIn(timeZone: TimeZone): Duration
+```
+
+How long this calendar day actually lasts in `timeZone` — 23, 24 or 25 hours, and neither whole nor
+round in the zones whose daylight-saving step is half an hour.
+
+```kotlin
+val berlin = TimeZone.of("Europe/Berlin")
+LocalDate(2026, 3, 29).dayLengthIn(berlin)  // 23h, the clocks went forward
+LocalDate(2026, 10, 25).dayLengthIn(berlin) // 25h, they went back
+```
+
+**Anything that measures a day by adding 24 hours to its midnight is wrong twice a year in most of
+the world.** Ask this instead — for a midnight rollover, for a progress bar across the day, for the
+real gap between two dates.
+
+> **Note:** this is deliberately *not* what an hour grid divides its height by. Those grids are ruled
+> in wall clock, and wall clock reaches 24:00 on every date there is; a 23-hour day simply has an hour
+> no event can occupy, and a 25-hour day an hour two events can share.
+
+### `datesOfSpanIn`
+
+```kotlin
+public fun datesOfSpanIn(start: Instant, end: Instant, timeZone: TimeZone): List<LocalDate>
+```
+
+Every date the moment range `start`..`end` occupies when read in `timeZone`, in order — the
+zone-dependent half of multi-day expansion, since which days a span lands on is a question about
+where the day boundaries fall.
+
+```kotlin
+val tokyo = TimeZone.of("Asia/Tokyo")
+val overnight = Instant.parse("2026-01-15T23:00:00Z") // 2026-01-16T08:00 in Tokyo
+datesOfSpanIn(start = overnight, end = overnight + 2.hours, timeZone = tokyo)
+// [2026-01-16] — one Tokyo date, though it is two dates in UTC
+```
+
+| Behaviour | Rule |
+|---|---|
+| `end` exactly on a midnight | Belongs to the day that **ends** there, not the one that begins — an event booked 09:00 until 00:00 occupies one date, and a back-to-back pair does not make both days look busy. |
+| `end` at or before `start` | A single date. |
+| A span longer than `MAX_SPAN_DAYS` | Truncated there. |
+
+The days are walked as calendar dates rather than counted from the elapsed duration, which is the
+only way to get a daylight-saving day right: the 23 hours from 23:00 to 23:00 across a spring forward
+are still two dates, and the 25 hours from midnight to midnight across an autumn fall back are still
+one.
+
+### `MAX_SPAN_DAYS`
+
+```kotlin
+public const val MAX_SPAN_DAYS: Int = 366
+```
+
+The longest run of days one span is expanded across. A calendar's event list is caller-supplied and an
+end far in the future is a data bug rather than a three-thousand-year meeting: without a cap, one
+malformed span becomes an unbounded list and every consumer of that list — a date index, a lane
+packer, a grid — inherits the unboundedness.

@@ -585,13 +585,20 @@ public object KalendarDayCellDefaults {
      * and scrolls once it is taller than its ceiling, so a day with thirty events does not produce a
      * popover taller than the screen.
      *
+     * Generic in [E] rather than taking a `KalendarDayOverflowScope<*>`: the scope is invariant, so a
+     * star projection can read its [events][KalendarDayOverflowScope.events] but cannot report a tap
+     * back through [onEventClick][KalendarDayOverflowScope.onEventClick]. A type parameter is how a
+     * popover serves calendars of every event type without giving that up — write your own the same
+     * way and pass it as `overflowPopup = { MyPopup(scope = it) }`.
+     *
+     * @param E The calendar's event type, inferred from [scope].
      * @param scope The day's events and the popover's callbacks. Inside an `overflowPopup` slot this
      *   is the value the slot was handed.
      * @param modifier [Modifier] applied to the popover's surface.
      */
     @Composable
-    public fun OverflowPopup(
-        scope: KalendarDayOverflowScope<*>,
+    public fun <E : KalendarEvent> OverflowPopup(
+        scope: KalendarDayOverflowScope<E>,
         modifier: Modifier = Modifier,
     ) {
         val colors = kalendarColors()

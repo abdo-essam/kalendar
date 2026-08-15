@@ -8,6 +8,11 @@ duration-sized blocks on the [Schedule views](views/schedule.md).
 and every callback and slot hands it straight back. See
 [Using your own event type](#using-your-own-event-type).
 
+> **Handing over the whole list is not the only option.** If the events live in a database or behind
+> a network call, pass an `eventLoader` instead and the view asks for one visible range at a time,
+> prefetching its neighbours so a swipe does not land on an empty grid — see
+> [Loading events as they are needed](loading-events.md).
+
 ## `KalendarEvent`
 
 The interface every event implements. Only `date`, `eventName`, and `eventDescription` are required;
@@ -406,3 +411,8 @@ cells yourself on the [engine](engine.md), wrap it in `remember(events)` exactly
 
 Event slots on the hour grids are **keyed by the event**, so inserting one at the top of a day
 recomposes the newcomer and nothing else — measured in [Performance](performance.md).
+
+For a list large enough that hoisting it is not the issue — a calendar backed by a database, or one
+with no natural end — load it a range at a time instead of all at once. The loader's window bounds
+memory by what is on screen rather than by how far the user has scrolled: see
+[Loading events as they are needed](loading-events.md).

@@ -134,6 +134,114 @@ migrations — they were internal, and are now supported.
 
 
 ### Breaking changes
+- **The calendar views are generic in their event type: `KalendarMonth<E : KalendarEvent>` and so on
+  for `KalendarWeek`, `KalendarYear`, `KalendarTimeline`, `KalendarAgenda`, `KalendarSchedule`,
+  `KalendarScheduleWeek` and `KalendarResourceView`.** `events` is now `List<E>` rather than
+  `KalendarEvents`, and every callback and slot hands `E` straight back — `onDateClick` receives
+  `List<Booking>`, `onEventClick` receives `Booking`, `resourceIdOf` is given a `Booking`. The cast
+  a consumer used to write to get its own type back out of a callback is gone; there is nothing left
+  to cast. `E` is inferred from `events`, so a call that already passes events needs no change at
+  all:
+
+  ```kotlin
+  // before: dayEvents was List<KalendarEvent>, and reading roomId meant a cast
+  KalendarResourceView(
+      resources = rooms,
+      events = bookings,
+      resourceIdOf = { event -> (event as Booking).roomId },
+      onEventClick = { event -> openDetails(event as Booking) },
+  )
+
+  // after: E is Booking, inferred from `events`
+  KalendarResourceView(
+      resources = rooms,
+      events = bookings,
+      resourceIdOf = { booking -> booking.roomId },
+      onEventClick = { booking -> openDetails(booking) },
+  )
+  ```
+
+  **Migration.** Every row below was checked by compiling it, not by reasoning about it.
+
+  | Call shape | Change |
+  |---|---|
+  | Passes `events`, callbacks take inferred parameters | none |
+  | Passes `events`, and a callback **declares** `KalendarEvent` explicitly (`onDateClick = { _, events: List<KalendarEvent> -> … }`), or passes a stored `(LocalDate, List<KalendarEvent>) -> Unit` or a function reference of that shape | none — a lambda parameter may be annotated with a supertype of the expected one, and a function type is contravariant in its parameters, so `E` still infers to your own type and the widened annotation is accepted |
+  | Passes `events`, and a **`dayContent` slot** is written against `KalendarDayScope<KalendarEvent>` | none — `KalendarDayScope` is covariant, so one cell renderer still serves a calendar of any event type |
+  | Passes no `events` **and** no event-only parameter | none — an event-free overload takes over, see below |
+  | **Passes no `events` but does pass an event-only parameter** — `onDayEventClick`, `onEventDrop`, `onEventClick`, `onEventTimeChange`, `resourceIdOf`, `eventContent`, `allDayEventContent` | **breaks**: `Cannot infer type for type parameter 'E'`. Add `events = emptyList()`, or name the type (`KalendarSchedule<KalendarEvent>(onEventClick = …)`), or drop the parameter — on an event-free calendar it could never have fired |
+  | Declares a slot type in a helper (`fun MyCell(scope: KalendarDayScope)`) | add a type argument: `KalendarDayScope<*>` to read any calendar's events, `KalendarDayScope<Booking>` to read yours |
+
+  The fourth row is the one that costs a compile. Omitting `events` is what selects the event-free
+  overload, and that overload does not have these parameters at all — so passing one leaves the
+  generic overload as the only candidate, with nothing to fix `E` to. It is reached by ordinary 1.x
+  code, because `events` used to default to `emptyList()`: `KalendarSchedule(onEventClick = …)` and
+  `KalendarResourceView(resources = rooms, resourceIdOf = …)` both compiled and both now do not.
+  `events = emptyList()` is the mechanical fix and infers `E = KalendarEvent`, matching 1.x exactly.
+
+  The same rule catches the new parameters, which is worth knowing even on a fresh call site:
+  `KalendarMonth(selectedDate = today, loadingContent = { … })` does not compile on its own, because
+  `loadingContent` exists only on the generic overload. Pass an `eventLoader` — which supplies `E`
+  itself — or one of the two remedies above.
+
+- **Every event-carrying slot scope is generic too**, so a `dayContent` sees the same type its
+  `onDateClick` reports rather than the erased one: `KalendarDayScope<out E : KalendarEvent>`,
+  `KalendarDayOverflowScope<E>`, `KalendarScheduleEventScope<out E>` and
+  `KalendarResourceEventScope<out E> : KalendarScheduleEventScope<E>`. The three covariant ones
+  only ever *produce* an event, so a cell or block renderer written once against `…<KalendarEvent>`
+  still serves a calendar of any event type — a slot *consumes* the scope, and consumers are
+  contravariant in it.
+
+  **`KalendarDayOverflowScope` is the exception, and is invariant**, because `onEventClick(event: E)`
+  consumes an `E`. Covariance there was unsound rather than merely permissive: a popover holding the
+  scope as `KalendarDayOverflowScope<KalendarEvent>` could be handed a
+  `KalendarDayOverflowScope<Booking>` and pass it any `KalendarEvent`, which the cell's own
+  `(Booking) -> Unit` received and threw `ClassCastException` on.
+
+  `KalendarDayCellDefaults.Cell` and `KalendarMonthGridCell` gained the same parameter;
+  `kalendarDaySemantics`, `KalendarScheduleDefaults.EventBlock` and
+  `KalendarResourceDefaults.EventBlock` read their interface only and take a star projection.
+  `KalendarDayCellDefaults.OverflowPopup` is instead generic in `E` — a star projection could not
+  call `onEventClick` at all.
+
+  **Migration.** A shared `overflowPopup` renderer must become generic rather than monomorphic:
+
+  | `overflowPopup` written as | Change |
+  |---|---|
+  | A lambda at the call site (`overflowPopup = { … }`) | none — `E` is inferred from the calendar |
+  | A read-only popover over `KalendarDayOverflowScope<*>` | none — reading `events` is still allowed |
+  | A stored `@Composable (KalendarDayOverflowScope<KalendarEvent>) -> Unit`, reused across calendars | **breaks**: make it a generic composable, `@Composable fun <E : KalendarEvent> MyPopup(scope: KalendarDayOverflowScope<E>)`, and pass `overflowPopup = { MyPopup(scope = it) }` |
+
+  This is a source-level break only; both forms erase to the same JVM signature, so it is not an ABI
+  break.
+- **Each view whose `events` is optional gained an event-free overload** — `KalendarMonth`,
+  `KalendarWeek`, `KalendarYear`, `KalendarTimeline`, `KalendarSchedule`, `KalendarScheduleWeek`,
+  `KalendarResourceView`. `KalendarMonth(selectedDate = today)` still compiles and still means what
+  it did; it now resolves to the overload that has no `events` parameter. This is not a convenience:
+  a Kotlin default argument is **never** a source of type inference, so with `events` omitted there
+  is nothing to fix `E` to and a single generic function would not compile at that call site at all.
+  Distinguishing the two by the *absence* of `events` is also what keeps the overloads unambiguous —
+  supply events and only the generic one is a candidate, supply none and only the event-free one is.
+  Each event-free overload drops the parameters a calendar with no events could never reach
+  (`onDayEventClick`, `onEventDrop`, `onEventClick`, `onEventTimeChange`, `resourceIdOf`,
+  `eventContent`, `allDayEventContent`), and keeps everything that still draws.
+- **`byDateExpandingSpans()` is generic:** `fun <E : KalendarEvent> List<E>.byDateExpandingSpans():
+  Map<LocalDate, List<E>>`. It is the index the views build before handing a date's events to
+  `onDateClick`, so widening it there would have widened every callback downstream. Existing calls on
+  a `KalendarEvents` infer `E = KalendarEvent` and are unchanged.
+- **`KalendarEvents` survives, unparameterised**, and is now documented as what it always was: the
+  widest event list there is, `List<KalendarEvent>`. It is *not* becoming `KalendarEvents<E>` —
+  that would be the same length as `List<E>`, one more name to learn, and would force a type argument
+  onto every place that genuinely does not care which event type it holds. Every `List<E>` already is
+  a `KalendarEvents`, because `List` is covariant.
+- **Where the generic stops.** `kalendar-foundation`'s block engine — `scheduleBlocks`,
+  `resourceBlocks`, `KalendarScheduleBlock` — stays typed on `KalendarEvent`, and the Schedule and
+  Resource views re-attach `E` on the way back out. The engine is *geometry*: it packs minute ranges
+  and carries each event along untouched, so nothing it computes could be more precise than
+  `KalendarEvent`, and parameterising it would put a type argument on every internal signature for no
+  expressiveness at all. The price is one unchecked cast per view, at the single boundary where the
+  event comes back, documented and covered by `KalendarDomainEventTypeUiTest` — one cast inside the
+  library instead of one in every consumer's callback.
 - **`Kalendar(type = ...)` and `KalendarType` are gone.** The last remaining type, `Agenda`, is now
   the top-level `com.himanshoe.kalendar.KalendarAgenda` composable, so every view in the
   library is called directly. There is no dispatch entry point left; replace
@@ -166,6 +274,94 @@ migrations — they were internal, and are now supported.
   them.
 
 ### Added
+- **Events can be loaded per visible range instead of all at once, and the UI says when they have
+  not arrived.** Every view took its whole event list up front, so a calendar backed by a database or
+  a network had two options: load the world before showing anything, or reload it on every swipe.
+  `rememberKalendarEventLoader(state, source)` sits beside the eager list rather than replacing it —
+  a screen with events already in memory still passes `events` and pays nothing — and asks a
+  `KalendarEventSource` for the range each page is about to draw. Four properties are the point of
+  it, and are what a hand-rolled version usually misses: a range in the window is **requested once**,
+  so sliding the window by a page asks only for the page that entered it; the window is the visible
+  page **plus `prefetchPages` either side**, so an ordinary swipe lands on a page that is already
+  there, and a programmatic jump extends the window to its destination when the animation *starts*;
+  a range the user has **swiped past is cancelled**, so a slow answer for a page nobody is looking at
+  is neither waited for nor shown; and memory is **bounded by the window**, not by how far the user
+  has scrolled. The range a page reports is the grid it draws rather than the period it is named
+  after — March 2026 opens on a Sunday, so its page asks for 23 February through 5 April — because
+  those leading and trailing cells show events like any other. A source is `Flow`-shaped so a Room
+  query keeps the calendar current on its own, with `KalendarEventSource.suspending { }` for a
+  one-shot network load. Events reaching the views are de-duplicated by `KalendarEvent.id`, since two
+  adjacent ranges both legitimately return a multi-day event that straddles their boundary.
+- **A month with no events yet no longer looks like a month with no events.** Once events can be
+  absent-because-pending, the two have to be told apart. Each view gained a `loadingContent` slot,
+  handed a `KalendarLoadingScope` carrying the range, its `KalendarLoadStatus` and — when it failed —
+  the failure and a `retry`. It defaults to `KalendarLoadingDefaults.Placeholder`, a wash drawn from
+  `KalendarColors.dayContent` so it follows the theme in both light and dark. The placeholder is a
+  match-parent-size overlay, which is a layout guarantee rather than a coincidence: it is measured
+  after the page has decided its own size, so events landing changes what is drawn and never where —
+  pinned by a test that compares a day cell's bounds before and after. There is deliberately no
+  shimmer: an indefinitely repeating animation never lets a Compose test go idle, so a shimmering
+  default would hang the first UI test a consumer wrote around a loading calendar. `KalendarAgenda`,
+  having no pages, uses the slot for the one case it does have — an empty list that is still filling.
+- **A calendar can be pinned to a time zone rather than the device's.** `KalendarTimeSource` gained a
+  `timeZone`, defaulting to `TimeZone.currentSystemDefault()`, and it reaches everything that turns
+  an instant into a position: what "today" is, where the now-indicator sits, where a day boundary
+  falls when a span is expanded, and which date a timed event belongs to. That last one is the reason
+  it matters — an event at 23:00 UTC is today in London and tomorrow in Tokyo, so a booking tool
+  showing an office's calendar has to ask the office's zone, not the viewer's phone.
+  `ProvideKalendarTimeSource` sets it for a subtree.
+
+  Four zone-aware functions in `kalendar-foundation` are public with it, because the engine has to
+  answer the same questions without the views: `Instant.dateIn(timeZone)`,
+  `LocalDateTime.sameInstantIn(source, target)`, `LocalDate.dayLengthIn(timeZone)` and
+  `datesOfSpanIn(start, end, timeZone)`, plus the `MAX_SPAN_DAYS` cap that keeps one malformed span
+  from expanding without bound. `dayLengthIn` exists because **a day is not always 24 hours**: it is
+  23 or 25 across a daylight-saving step, and neither whole nor round in the zones whose step is half
+  an hour, so anything measuring a day by adding 24 hours to its midnight is wrong twice a year in
+  most of the world. The hour grids deliberately do *not* divide their height by it — they are ruled
+  in wall clock, which reaches 24:00 on every date there is.
+- **`Year` and `Timeline` are keyboard navigable**, matching what `Month` and `Week` already did
+  rather than inventing a second idiom for them. All four use the roving-tabindex pattern every
+  native date picker uses: the grid is **one** tab stop, arrows move a focus ring between days
+  without leaving it, and `Tab` again leaves — reaching 42 cells by pressing `Tab` 42 times is a tab
+  trap with extra steps, not navigation. `Home`/`End` go to the first and last day of the *period*
+  rather than the grid, so `Home` in a month reaches the 1st and not the leading padding day;
+  `PageUp`/`PageDown` step by the view's own unit, a year for `KalendarYear` and a month for
+  `KalendarTimeline`. Arrows leaving the visible period scroll the period holding the target into
+  view, so a boundary is invisible to the user. Disabled dates are **focusable but not selectable** —
+  a keyboard user is told the date exists and is unavailable rather than having it silently skipped
+  and a hole appear in the grid. `Shift`+arrow extends a range on the two views that have a
+  range-drag gesture to mirror (`Month`, `Week`); without it `onDateRangeSelect` would be reachable
+  by pointer only, which is a WCAG 2.1.1 failure.
+- **A call site can override one theme token without constructing a theme.**
+  `KalendarTheme(tokens: KalendarThemeTokens?, content)` takes a prepared bundle, so restyling one
+  calendar is `KalendarTheme(tokens = KalendarTheme.tokens.copy(dimensions = …))` rather than
+  spreading six token sets back over the six-parameter overload. `tokens = null` inherits the
+  surrounding theme untouched, passing the ambient bundle through by identity, which makes it a
+  usable default for a `theme` parameter on a consumer's own composable — not overriding costs
+  nothing and changes nothing. The bundle is provided unconditionally even for `null`: wrapping
+  conditionally would give the content a different group shape in the two cases, so a caller toggling
+  an override on and off would discard the calendar's remembered state with it.
+- **Recurring events can be edited and deleted at one occurrence, at this and following, or across
+  the series.** `KalendarRecurrenceScope` is the three-way choice every calendar app offers, and
+  `KalendarSyncEvent.editOccurrence(occurrenceDate, edited, scope)` /
+  `deleteOccurrence(occurrenceDate, scope)` turn the answer into a `KalendarSeriesChange` — at most
+  one write to the stored series row, plus the rows that have to be inserted. Both are pure
+  functions; nothing touches a device until the change is applied.
+
+  What each scope does to the data is the part a backend has to reason about. `THIS_OCCURRENCE`
+  keeps the rule and adds an EXDATE, and an edit additionally produces a **detached** one-off event
+  that must not inherit the rule — a copy that still carried it would resurrect the whole series
+  under a second id. `THIS_AND_FOLLOWING` terminates the stored row with `UNTIL = occurrenceDate - 1
+  day`, since RFC 5545's `UNTIL` is inclusive and the occurrence at the split has to be lost while
+  the one before it is kept, and starts a new series at the split. A `COUNT` is **divided rather than
+  copied** — carried across, both halves would run the full count — and is counted with exception
+  dates cleared, because EXDATE removes occurrences from a determined series rather than shortening
+  it, so an excluded date still consumed one. A split at the series' own first occurrence rewrites in
+  place instead of leaving an `UNTIL` before its own `DTSTART`. `ENTIRE_SERIES` rewrites the row in
+  place under its original id, shifting the anchor, the span and every exception date by the same
+  number of days when the occurrence moved. A change never both deletes the series and creates
+  events, so applying the series write before the inserts cannot leave an occurrence existing twice.
 - **Multi-day events draw as one continuous bar, not as loose dots.** A three-day conference used to
   render as three dots on three days, which is exactly what three unrelated single-day events look
   like — the month grid had no way to say "this is one thing that lasts". An event with an `endDate`

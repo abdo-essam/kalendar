@@ -78,12 +78,16 @@ public enum class KalendarLoadStatus {
  *
  * ```kotlin
  * val monthState = rememberKalendarMonthState()
- * val bookings = rememberKalendarEventLoader(state = monthState) { range ->
- *     bookingDao.observeBetween(from = range.start, to = range.endInclusive)
- * }
+ * val bookings = rememberKalendarEventLoader(
+ *     state = monthState,
+ *     source = { range -> bookingDao.observeBetween(from = range.start, to = range.endInclusive) },
+ * )
  *
  * KalendarMonth(selectedDate = today, state = monthState, eventLoader = bookings)
  * ```
+ *
+ * `source` is not the last parameter — `prefetchPages` follows it — so it is passed by name rather
+ * than as a trailing lambda.
  *
  * Four properties are worth knowing, because they are what a hand-rolled version usually gets wrong:
  *
@@ -119,11 +123,11 @@ public class KalendarEventLoader<E : KalendarEvent> internal constructor(
     /**
      * The pages currently held, keyed by page index.
      *
-     * Snapshot-backed, so a load completing on a background dispatcher recomposes the calendar; the
-     * `jobs` map beside it deliberately is not, since nothing draws a [Job].
+     * Snapshot-backed, so a load completing on a background dispatcher recomposes the calendar. This
+     * is the loader's only long-lived state: which pages are *in flight* belongs to a single run of
+     * [keepLoaded] and is kept there, for the reason that method's KDoc gives.
      */
     private val pages = mutableStateMapOf<Int, KalendarEventPage<E>>()
-    private val jobs = mutableMapOf<Int, Job>()
     private var lastRetry = 0
 
     /**
@@ -236,26 +240,45 @@ public class KalendarEventLoader<E : KalendarEvent> internal constructor(
      * leaving the composition does — cancels every collection it started. Kept separate from the
      * `remember` factories so that the window can be driven by a plain flow in a test, rather than
      * by a pager only a composition can move.
+     *
+     * The loader outlives any one run of this. [rememberKalendarEventLoader] holds the instance
+     * across recompositions but drives it from a `LaunchedEffect`, and a `LaunchedEffect` whose keys
+     * change cancels its coroutine and starts a fresh one against the same loader. So which pages
+     * are in flight is tracked in a map owned by the run rather than by the loader: a field would
+     * survive the cancellation that killed every job in it, still read as "already collecting" for
+     * every page, and leave the next run skipping the whole window — a calendar that stops loading
+     * silently, with no failure to report and nothing in flight to wait for.
      */
     internal suspend fun keepLoaded(windows: Flow<Set<Int>>) {
         coroutineScope {
+            val jobs = mutableMapOf<Int, Job>()
             combine(windows, retries) { window, retryCount -> window to retryCount }
                 .distinctUntilChanged()
                 .collect { (window, retryCount) ->
-                    applyWindow(window = window, retryCount = retryCount, scope = this)
+                    applyWindow(window = window, retryCount = retryCount, scope = this, jobs = jobs)
                 }
         }
     }
 
-    private fun applyWindow(window: Set<Int>, retryCount: Int, scope: CoroutineScope) {
+    private fun applyWindow(
+        window: Set<Int>,
+        retryCount: Int,
+        scope: CoroutineScope,
+        jobs: MutableMap<Int, Job>,
+    ) {
         val retrying = retryCount != lastRetry
         lastRetry = retryCount
-        jobs.keys.filterNot { page -> page in window }.forEach(::drop)
+        // Swept over the held pages rather than over this run's jobs. A page a cancelled run left
+        // behind has an entry in `pages` and no job in this map, so a sweep of the jobs alone would
+        // never reach it and it would sit in `events` and `range` for as long as the loader lived.
+        pages.keys
+            .filterNot { page -> page in window }
+            .forEach { page -> drop(page = page, jobs = jobs) }
         if (retrying) {
             pages.entries
                 .filter { entry -> entry.value.status == KalendarLoadStatus.Failed }
                 .map { entry -> entry.key }
-                .forEach(::drop)
+                .forEach { page -> drop(page = page, jobs = jobs) }
         }
         window.forEach { page ->
             // The guard is the whole point of the window: a page that was already being collected
@@ -264,7 +287,10 @@ public class KalendarEventLoader<E : KalendarEvent> internal constructor(
             if (page !in jobs) {
                 pages[page] = KalendarEventPage(
                     status = KalendarLoadStatus.Loading,
-                    events = emptyList(),
+                    // Non-empty only when a cancelled run had already loaded this page. They are the
+                    // same range's events and still current, so a restart re-requests behind what is
+                    // on screen instead of blanking a populated calendar back to its placeholder.
+                    events = pages[page]?.events.orEmpty(),
                     error = null,
                 )
                 jobs[page] = scope.launch { collectPage(page) }
@@ -272,7 +298,7 @@ public class KalendarEventLoader<E : KalendarEvent> internal constructor(
         }
     }
 
-    private fun drop(page: Int) {
+    private fun drop(page: Int, jobs: MutableMap<Int, Job>) {
         jobs.remove(page)?.cancel()
         pages.remove(page)
     }

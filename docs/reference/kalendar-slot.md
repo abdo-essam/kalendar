@@ -70,11 +70,29 @@ KalendarMonth(
 
 ```kotlin
 @Stable
-public interface KalendarDayOverflowScope<out E : KalendarEvent>
+public interface KalendarDayOverflowScope<E : KalendarEvent>
 ```
 
 What a day cell's `+N` overflow popup is given, when a date has more events than
 `KalendarViewConfig.eventIndicatorCap` and the user opens the remainder.
+
+Unlike the other slot scopes this one is **invariant**, because `onEventClick` *consumes* an `E`.
+Declared `out E`, a popover written over `KalendarDayOverflowScope<KalendarEvent>` could be handed a
+`KalendarDayOverflowScope<Booking>` and pass it any `KalendarEvent` at all, which the cell's own
+`onEventClick` — a `(Booking) -> Unit` — would receive and fail on with a `ClassCastException`.
+
+A popover shared across calendars of different event types is therefore a **generic composable**
+rather than a single value:
+
+```kotlin
+@Composable
+fun <E : KalendarEvent> RoomPopup(scope: KalendarDayOverflowScope<E>) { /* … */ }
+
+// overflowPopup = { RoomPopup(scope = it) }
+```
+
+`KalendarDayOverflowScope<*>` is not a substitute: a star projection can read `events` but may not
+call `onEventClick` at all. It remains fine for a read-only popover.
 
 | Member | Type | Description |
 |---|---|---|

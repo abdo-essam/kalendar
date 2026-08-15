@@ -145,8 +145,8 @@ KalendarMonth(
 
 ```kotlin
 @Composable
-public fun OverflowPopup(
-    scope: KalendarDayOverflowScope<*>,
+public fun <E : KalendarEvent> OverflowPopup(
+    scope: KalendarDayOverflowScope<E>,
     modifier: Modifier = Modifier,
 )
 ```
@@ -154,9 +154,15 @@ public fun OverflowPopup(
 The built-in `+N` popover: the date's whole event list, dismissed by tapping outside or pressing
 escape.
 
+Generic in `E` rather than taking a star projection, because
+[`KalendarDayOverflowScope`](kalendar-slot.md) is invariant: a `KalendarDayOverflowScope<*>` can read
+`events` but cannot report a tap back through `onEventClick`. Write your own shared popover the same
+way — as a generic composable — and pass it as `overflowPopup = { MyPopup(scope = it) }`.
+
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `scope` | [`KalendarDayOverflowScope<*>`](kalendar-slot.md) | — | The date, its events, and the hidden count. |
+| `E` | `: KalendarEvent` | inferred from `scope` | The calendar's event type. |
+| `scope` | [`KalendarDayOverflowScope<E>`](kalendar-slot.md) | — | The date, its events, and the hidden count. |
 | `modifier` | `Modifier` | `Modifier` | Applied to the popover surface. |
 
 ```kotlin

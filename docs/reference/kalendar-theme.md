@@ -42,6 +42,36 @@ KalendarTheme(colors = KalendarThemeDefaults.colors().copy(selectionBackground =
 Wrapping is optional: a view used outside any `KalendarTheme` falls back to `KalendarThemeDefaults`,
 so reading a token is always safe.
 
+### The `tokens` overload
+
+```kotlin
+@Composable
+public fun KalendarTheme(
+    tokens: KalendarThemeTokens?,
+    content: @Composable () -> Unit,
+)
+```
+
+Applies a prepared bundle. Use it to spread a look you already hold, or to override a single call
+site from the ambient bundle without constructing a whole theme:
+
+```kotlin
+KalendarTheme(tokens = KalendarTheme.tokens.copy(dimensions = KalendarDimensions(hourHeight = 32.dp))) {
+    KalendarSchedule(state = rememberKalendarScheduleState(initialDate = today))
+}
+```
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `tokens` | `KalendarThemeTokens?` | The bundle to apply. `null` inherits the surrounding theme untouched, passing the ambient bundle through by identity — which is what makes it a usable default for a `theme` parameter on your own composable. |
+| `content` | `@Composable () -> Unit` | The views these tokens apply to. |
+
+The tokens are provided unconditionally, even for `null`. Wrapping conditionally would give the
+content a different group shape in the two cases, so a caller toggling an override on and off would
+discard the calendar's remembered state with it.
+
+See [Overriding one calendar](../theming.md#overriding-one-calendar).
+
 ## `KalendarTheme` — the object
 
 ```kotlin

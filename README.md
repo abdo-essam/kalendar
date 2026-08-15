@@ -55,6 +55,11 @@ settings the first time.) The same deployment also publishes the Dokka API refer
 
 All views are restylable via **[KalendarTheme](docs/theming.md)** colour tokens — no Material dependency required in your app's design system.
 
+Events can be handed over up front as a list, or **[loaded a visible range at a
+time](docs/loading-events.md)** when they live in a database or behind a network call: the view
+reports the range it is about to draw, adjacent pages are prefetched so a swipe does not land on an
+empty grid, and a `loadingContent` slot keeps "no events yet" from looking like "no events".
+
 Every view is a top-level composable called directly — `KalendarMonth(...)`, `KalendarAgenda(...)`.
 There is no `Kalendar(type = ...)` entry point and no `KalendarType`: both were removed in 2.0.
 They use the event model from `kalendar-foundation` (`KalendarEvent`/`BasicKalendarEvent`), which
@@ -67,6 +72,10 @@ their docs for usage.
 (Android `CalendarContract`, iOS EventKit, a file-backed `.ics` provider on Desktop) — no
 third-party account required. Includes RFC 5545 recurrence and iCal import/export, and is
 independent of `kalendar`/`kalendar-foundation`.
+
+Recurring series can be edited or deleted at **[one occurrence, this and following, or the whole
+series](docs/sync.md#editing-one-occurrence-of-a-series)** — each scope resolving to an explicit set
+of writes, so you can see exactly what your backend will be asked to do.
 
 ## 🎉 Getting Started
 
