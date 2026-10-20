@@ -94,6 +94,9 @@ kotlin {
             dependencies {
                 implementation(compose.desktop.uiTestJUnit4)
                 implementation(compose.desktop.currentOs)
+                // Dogfood: the library's own UI tests run on the published test-support module,
+                // so its API is exercised here before any consumer sees it.
+                implementation(project(":kalendar-testing"))
             }
         }
     }

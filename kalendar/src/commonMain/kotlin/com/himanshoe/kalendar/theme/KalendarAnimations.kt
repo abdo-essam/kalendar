@@ -30,8 +30,11 @@ import androidx.compose.ui.graphics.Color
 /**
  * Motion settings for every Kalendar view.
  *
- * Set [enabled] to `false` to make every transition instant — the right response to a platform
- * reduced-motion preference, and what screenshot tests want:
+ * A platform reduced-motion preference needs nothing from you: [KalendarThemeDefaults.animations],
+ * the default every themed and unthemed view lands on, already answers it by switching [enabled]
+ * off. Constructing this class yourself replaces that default — whatever you pass for [enabled] is
+ * final, so `enabled = true` animates even under reduced motion, and `enabled = false` makes every
+ * transition instant, which is what deterministic screenshot tests want:
  *
  * ```kotlin
  * KalendarTheme(animations = KalendarAnimations(enabled = false)) { ... }
@@ -44,7 +47,8 @@ import androidx.compose.ui.graphics.Color
  * leave, unhurried to arrive.
  *
  * @property enabled Master switch. When `false`, every animation below snaps to its target and
- *   [pressScale] is ignored.
+ *   [pressScale] is ignored. Constructed directly it defaults to `true`; the theme's default
+ *   instance instead follows the platform reduced-motion setting.
  * @property selectionColorSpec Drives the day cell's selection fill fading in and out. Fully damped
  *   and slower than the indicator that slides over it: a fill that overshot would flash a colour
  *   the theme does not contain.

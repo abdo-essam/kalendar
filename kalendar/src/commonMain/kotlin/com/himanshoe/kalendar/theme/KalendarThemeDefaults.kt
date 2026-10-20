@@ -64,8 +64,27 @@ public object KalendarThemeDefaults {
     /** Kalendar's built-in [KalendarDimensions]. */
     public fun dimensions(): KalendarDimensions = DefaultDimensions
 
-    /** Kalendar's built-in [KalendarAnimations]. */
-    public fun animations(): KalendarAnimations = DefaultAnimations
+    /**
+     * Kalendar's built-in [KalendarAnimations], with [KalendarAnimations.enabled] answering the
+     * platform's reduced-motion setting instead of being hard-coded to `true`.
+     *
+     * When the person using the device has asked their OS to minimise motion — Android's "Remove
+     * animations" or a zero animator duration scale, iOS's Reduce Motion switch, the web's
+     * `prefers-reduced-motion` — every transition snaps instead of animating. Desktop JVMs expose
+     * no such signal, so there the default always animates. The setting is a default, not a veto:
+     * constructing [KalendarAnimations] yourself decides `enabled` explicitly and is never
+     * second-guessed.
+     *
+     * ```kotlin
+     * // Follows the platform reduced-motion setting:
+     * KalendarTheme { KalendarMonth(selectedDate = today) }
+     * // Overrides it — animations stay on regardless:
+     * KalendarTheme(animations = KalendarAnimations(enabled = true)) { ... }
+     * ```
+     */
+    @Composable
+    public fun animations(): KalendarAnimations =
+        if (kalendarPrefersReducedMotion()) ReducedMotionAnimations else DefaultAnimations
 
     /** Kalendar's built-in [KalendarStrings] — English, and the thing to override to localize. */
     public fun strings(): KalendarStrings = DefaultStrings
@@ -181,4 +200,11 @@ private val DefaultShapes = KalendarShapes(
 )
 private val DefaultDimensions = KalendarDimensions()
 private val DefaultAnimations = KalendarAnimations()
+
+/**
+ * [DefaultAnimations] with motion switched off — the instance every default-themed calendar runs
+ * on while the platform reports reduced motion. A shared value rather than a per-read `copy`, so
+ * the `remember` keyed on the animation tokens sees the same instance on every pass.
+ */
+private val ReducedMotionAnimations = DefaultAnimations.copy(enabled = false)
 private val DefaultStrings = KalendarStrings()

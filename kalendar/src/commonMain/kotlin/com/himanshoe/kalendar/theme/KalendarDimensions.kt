@@ -72,6 +72,10 @@ import com.himanshoe.kalendar.KalendarYear
  *   lane for each, and a day cell too short for the whole strip drops it. Multi-day events past
  *   the last lane fall back to the indicator dot they would have drawn before, so they are still
  *   visible and still reach the `+N` overflow. Must be at least `0`; `0` disables span bars.
+ * @property weekNumberGutterWidth Width of the ISO week-number gutter the week-based grids draw at
+ *   the start of each row when [KalendarViewConfig.showWeekNumbers] is on. The day columns divide
+ *   the width that remains, so widening the gutter narrows every day column by the same amount and
+ *   never disturbs their equal widths.
  * @property headerPadding Padding around the navigation header's contents.
  * @property headerIconSlotWidth Width reserved on each side of the header title for arrow and
  *   today buttons; the title's available width is computed from it.
@@ -122,6 +126,7 @@ public class KalendarDimensions(
     public val spanBarCornerRadius: Dp = 2.dp,
     public val spanBarEndInset: Dp = 3.dp,
     public val spanBarMaxLanes: Int = DEFAULT_SPAN_BAR_LANES,
+    public val weekNumberGutterWidth: Dp = 28.dp,
     public val headerPadding: PaddingValues = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
     public val headerIconSlotWidth: Dp = 48.dp,
     public val headerContentSpacing: Dp = 8.dp,
@@ -166,6 +171,7 @@ public class KalendarDimensions(
         spanBarCornerRadius: Dp = this.spanBarCornerRadius,
         spanBarEndInset: Dp = this.spanBarEndInset,
         spanBarMaxLanes: Int = this.spanBarMaxLanes,
+        weekNumberGutterWidth: Dp = this.weekNumberGutterWidth,
         headerPadding: PaddingValues = this.headerPadding,
         headerIconSlotWidth: Dp = this.headerIconSlotWidth,
         headerContentSpacing: Dp = this.headerContentSpacing,
@@ -201,6 +207,7 @@ public class KalendarDimensions(
         spanBarCornerRadius = spanBarCornerRadius,
         spanBarEndInset = spanBarEndInset,
         spanBarMaxLanes = spanBarMaxLanes,
+        weekNumberGutterWidth = weekNumberGutterWidth,
         headerPadding = headerPadding,
         headerIconSlotWidth = headerIconSlotWidth,
         headerContentSpacing = headerContentSpacing,
@@ -241,6 +248,7 @@ public class KalendarDimensions(
         if (spanBarCornerRadius != other.spanBarCornerRadius) return false
         if (spanBarEndInset != other.spanBarEndInset) return false
         if (spanBarMaxLanes != other.spanBarMaxLanes) return false
+        if (weekNumberGutterWidth != other.weekNumberGutterWidth) return false
         if (headerPadding != other.headerPadding) return false
         if (headerIconSlotWidth != other.headerIconSlotWidth) return false
         if (headerContentSpacing != other.headerContentSpacing) return false
@@ -279,6 +287,7 @@ public class KalendarDimensions(
         result = 31 * result + spanBarCornerRadius.hashCode()
         result = 31 * result + spanBarEndInset.hashCode()
         result = 31 * result + spanBarMaxLanes.hashCode()
+        result = 31 * result + weekNumberGutterWidth.hashCode()
         result = 31 * result + headerPadding.hashCode()
         result = 31 * result + headerIconSlotWidth.hashCode()
         result = 31 * result + headerContentSpacing.hashCode()
@@ -317,6 +326,7 @@ public class KalendarDimensions(
         "spanBarCornerRadius=$spanBarCornerRadius, " +
         "spanBarEndInset=$spanBarEndInset, " +
         "spanBarMaxLanes=$spanBarMaxLanes, " +
+        "weekNumberGutterWidth=$weekNumberGutterWidth, " +
         "headerPadding=$headerPadding, " +
         "headerIconSlotWidth=$headerIconSlotWidth, " +
         "headerContentSpacing=$headerContentSpacing, " +

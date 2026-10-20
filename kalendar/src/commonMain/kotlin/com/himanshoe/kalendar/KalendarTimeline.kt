@@ -29,11 +29,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.onGloballyPositioned
+import com.himanshoe.kalendar.component.DefaultWeekNumberContent
 import com.himanshoe.kalendar.component.KalendarHeaderDefaults
 import com.himanshoe.kalendar.component.KalendarKeyboardCells
 import com.himanshoe.kalendar.component.KalendarKeyboardFocusRing
 import com.himanshoe.kalendar.component.KalendarMonthGridCell
 import com.himanshoe.kalendar.component.KalendarStaticGrid
+import com.himanshoe.kalendar.component.KalendarWeekNumberDefaults
 import com.himanshoe.kalendar.component.KeepKeyboardFocusInView
 import com.himanshoe.kalendar.component.kalendarGridKeyboard
 import com.himanshoe.kalendar.component.kalendarKeyboardCell
@@ -144,6 +146,10 @@ import kotlinx.datetime.plus
  * @param dayOfWeekLabel Replaces the content of each weekday column header, on every month grid.
  *   The grid still places one per column, so a replacement stays aligned with the day cells.
  *   Defaults to [KalendarHeaderDefaults.DayOfWeekLabel] formatted by [config].
+ * @param weekNumberLabel Replaces the content of one ISO week-number gutter cell, on every month
+ *   grid — the hook for tappable week numbers. Receives the row's ISO-8601 week number and the
+ *   Monday that number belongs to. Composed only while [KalendarViewConfig.showWeekNumbers] is on;
+ *   defaults to [KalendarWeekNumberDefaults.Label].
  * @param loadingContent Slot drawn over a month whose events have not arrived yet, given a
  *   [KalendarLoadingScope] with the range, its [KalendarLoadStatus] and the failure if it failed.
  *   Overlaid at that month's own size, so it cannot move the list under it. Defaults to
@@ -175,6 +181,7 @@ public fun <E : KalendarEvent> KalendarTimeline(
             formatter = config.dayOfWeekLabelFormatter,
         )
     },
+    weekNumberLabel: (@Composable (weekNumber: Int, mondayOfWeek: LocalDate) -> Unit)? = null,
     loadingContent: @Composable (KalendarLoadingScope) -> Unit = { loadingScope ->
         KalendarLoadingDefaults.Placeholder(scope = loadingScope)
     },
@@ -188,6 +195,7 @@ public fun <E : KalendarEvent> KalendarTimeline(
     // Hoisted out of the cell lambda: `?:` on a non-capturing literal yields the same singleton
     // every recomposition, so the cell's `onEventClick` parameter stays equal and skippable.
     val dayEventClick = onDayEventClick ?: {}
+    val gridWeekNumber = if (config.showWeekNumbers) weekNumberLabel ?: DefaultWeekNumberContent else null
     val background = config.background ?: SolidColor(colors.background)
 
     val keyboard = rememberKalendarGridKeyboardState()
@@ -254,6 +262,7 @@ public fun <E : KalendarEvent> KalendarTimeline(
                                 events = events,
                                 visibleDaysOfWeek = config.visibleDaysOfWeek,
                                 dayOfWeekLabel = dayOfWeekLabel,
+                                weekNumber = gridWeekNumber,
                             ) { date ->
                                 val dateEvents = eventsByDate[date] ?: emptyList()
                                 val isCurrentMonth = date.month == monthStart.month
@@ -323,6 +332,7 @@ public fun <E : KalendarEvent> KalendarTimeline(
  * @param config See [KalendarTimeline].
  * @param header See [KalendarTimeline].
  * @param dayOfWeekLabel See [KalendarTimeline].
+ * @param weekNumberLabel See [KalendarTimeline].
  * @param dayContent See [KalendarTimeline].
  */
 @Composable
@@ -346,6 +356,7 @@ public fun KalendarTimeline(
             formatter = config.dayOfWeekLabelFormatter,
         )
     },
+    weekNumberLabel: (@Composable (weekNumber: Int, mondayOfWeek: LocalDate) -> Unit)? = null,
     dayContent: (@Composable (scope: KalendarDayScope<KalendarEvent>) -> Unit)? = null,
 ) {
     KalendarTimeline<KalendarEvent>(
@@ -357,6 +368,7 @@ public fun KalendarTimeline(
         config = config,
         header = header,
         dayOfWeekLabel = dayOfWeekLabel,
+        weekNumberLabel = weekNumberLabel,
         dayContent = dayContent,
     )
 }

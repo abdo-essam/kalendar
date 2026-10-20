@@ -48,6 +48,17 @@ import kotlinx.datetime.Month
  *   [KalendarMonth], and only while exactly one date is selected — there is nothing to slide
  *   between for multi-select or range selection. Works with a custom `dayContent` too: the
  *   indicator is drawn behind the cell, so your own cell keeps the animation. Defaults to `true`.
+ * @param showWeekNumbers Whether the week-based grids — [KalendarWeek], [KalendarMonth], and
+ *   [KalendarTimeline] — draw an ISO-8601 week-number gutter at the start of each row. The number
+ *   shown is the ISO week of the row's Monday (see
+ *   [mondayOfWeek][com.himanshoe.kalendar.foundation.datetime.mondayOfWeek]): under a Monday
+ *   `startDayOfWeek` that is the row's first date, and under a Sunday start the row is labeled by
+ *   the Monday-to-Saturday block a European reader is counting, not by its leading Sunday. The
+ *   gutter is [KalendarDimensions.weekNumberGutterWidth][com.himanshoe.kalendar.theme.KalendarDimensions.weekNumberGutterWidth]
+ *   wide — the day columns split what remains equally — a screen reader announces each number via
+ *   [KalendarStrings.weekNumberAccessibilityLabel][com.himanshoe.kalendar.theme.KalendarStrings.weekNumberAccessibilityLabel],
+ *   and each view's `weekNumberLabel` slot replaces the cell's content. The views without week
+ *   rows ignore it. Defaults to `false`.
  * @param monthNameFormatter Formats a month name for titles, headers, and accessibility
  *   descriptions. kotlinx-datetime has no locale-aware formatting, so this defaults to plain
  *   English (e.g. "August") — pass a formatter backed by a platform date API (`java.time`,
@@ -100,6 +111,7 @@ public class KalendarViewConfig(
     public val showTodayButton: Boolean = true,
     public val showJumpPicker: Boolean = true,
     public val showSelectionIndicator: Boolean = true,
+    public val showWeekNumbers: Boolean = false,
     public val monthNameFormatter: (Month) -> String = KalendarFormatters.monthName,
     public val shortMonthNameFormatter: (Month) -> String = KalendarFormatters.shortMonthName,
     public val dayOfWeekNameFormatter: (DayOfWeek) -> String = KalendarFormatters.dayOfWeekName,
@@ -138,6 +150,7 @@ public class KalendarViewConfig(
         showTodayButton: Boolean = this.showTodayButton,
         showJumpPicker: Boolean = this.showJumpPicker,
         showSelectionIndicator: Boolean = this.showSelectionIndicator,
+        showWeekNumbers: Boolean = this.showWeekNumbers,
         monthNameFormatter: (Month) -> String = this.monthNameFormatter,
         shortMonthNameFormatter: (Month) -> String = this.shortMonthNameFormatter,
         dayOfWeekNameFormatter: (DayOfWeek) -> String = this.dayOfWeekNameFormatter,
@@ -156,6 +169,7 @@ public class KalendarViewConfig(
         showTodayButton = showTodayButton,
         showJumpPicker = showJumpPicker,
         showSelectionIndicator = showSelectionIndicator,
+        showWeekNumbers = showWeekNumbers,
         monthNameFormatter = monthNameFormatter,
         shortMonthNameFormatter = shortMonthNameFormatter,
         dayOfWeekNameFormatter = dayOfWeekNameFormatter,
@@ -179,6 +193,7 @@ public class KalendarViewConfig(
         if (showTodayButton != other.showTodayButton) return false
         if (showJumpPicker != other.showJumpPicker) return false
         if (showSelectionIndicator != other.showSelectionIndicator) return false
+        if (showWeekNumbers != other.showWeekNumbers) return false
         if (monthNameFormatter != other.monthNameFormatter) return false
         if (shortMonthNameFormatter != other.shortMonthNameFormatter) return false
         if (dayOfWeekNameFormatter != other.dayOfWeekNameFormatter) return false
@@ -200,6 +215,7 @@ public class KalendarViewConfig(
         result = 31 * result + showTodayButton.hashCode()
         result = 31 * result + showJumpPicker.hashCode()
         result = 31 * result + showSelectionIndicator.hashCode()
+        result = 31 * result + showWeekNumbers.hashCode()
         result = 31 * result + monthNameFormatter.hashCode()
         result = 31 * result + shortMonthNameFormatter.hashCode()
         result = 31 * result + dayOfWeekNameFormatter.hashCode()
@@ -221,6 +237,7 @@ public class KalendarViewConfig(
         "showTodayButton=$showTodayButton, " +
         "showJumpPicker=$showJumpPicker, " +
         "showSelectionIndicator=$showSelectionIndicator, " +
+        "showWeekNumbers=$showWeekNumbers, " +
         "monthNameFormatter=$monthNameFormatter, " +
         "shortMonthNameFormatter=$shortMonthNameFormatter, " +
         "dayOfWeekNameFormatter=$dayOfWeekNameFormatter, " +

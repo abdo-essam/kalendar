@@ -16,18 +16,19 @@
 
 package com.himanshoe.kalendar.state
 
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import com.himanshoe.kalendar.KalendarMonth
-import com.himanshoe.kalendar.foundation.datetime.KalendarTimeSource
+import com.himanshoe.kalendar.testing.KalendarTestClock
+import com.himanshoe.kalendar.testing.fixedKalendarTimeSource
+import com.himanshoe.kalendar.testing.hasKalendarDay
+import com.himanshoe.kalendar.testing.isKalendarToday
+import com.himanshoe.kalendar.testing.onKalendarDay
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toInstant
 import org.junit.Rule
 import kotlin.test.Test
-import kotlin.time.Clock
-import kotlin.time.Instant
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * The two things a hoisted time source is for: a calendar whose "today" a test can pin, and a
@@ -36,58 +37,48 @@ import kotlin.time.Instant
  * Both were impossible before — every view read `Clock.System` from inside an unkeyed `remember`,
  * so "today" was whatever the machine said at first composition and stayed that way until the
  * composable left the tree.
+ *
+ * Written against `kalendar-testing`, which is also this test's point: the pinned clock and the
+ * today assertion are exactly what that module hands a consumer.
  */
 class KalendarTimeSourceUiTest {
 
     @get:Rule
     val rule = createComposeRule()
 
-    /** A clock a test can wind forward, standing in for the passage of real time. */
-    private class MutableClock(var instant: Instant) : Clock {
-        override fun now(): Instant = instant
-    }
-
-    private fun instantAt(dateTime: LocalDateTime): Instant = dateTime.toInstant(ZONE)
-
     @Test
     fun fixedClock_makesTodayDeterministic() {
-        val timeSource = KalendarTimeSource(
-            timeZone = ZONE,
-            clock = MutableClock(instantAt(LocalDateTime(2026, 3, 10, 9, 0))),
-        )
         rule.setContent {
-            ProvideKalendarTimeSource(timeSource) {
+            ProvideKalendarTimeSource(fixedKalendarTimeSource(now = LocalDateTime(2026, 3, 10, 9, 0))) {
                 KalendarMonth(selectedDate = MARCH_FIRST)
             }
         }
 
-        rule.onNodeWithContentDescription("March 10, 2026, today").assertExists()
-        rule.onNodeWithContentDescription("March 11, 2026, today").assertDoesNotExist()
+        rule.onKalendarDay(LocalDate(2026, 3, 10)).assert(isKalendarToday())
+        rule.onNode(hasKalendarDay(LocalDate(2026, 3, 11)) and isKalendarToday()).assertDoesNotExist()
     }
 
     @Test
     fun clockCrossingMidnight_movesTheTodayHighlightToTheNewDay() {
-        val clock = MutableClock(instantAt(LocalDateTime(2026, 3, 10, 23, 59)))
-        val timeSource = KalendarTimeSource(timeZone = ZONE, clock = clock)
+        val clock = KalendarTestClock(start = LocalDateTime(2026, 3, 10, 23, 59))
         rule.setContent {
-            ProvideKalendarTimeSource(timeSource) {
+            ProvideKalendarTimeSource(clock.asTimeSource()) {
                 KalendarMonth(selectedDate = MARCH_FIRST)
             }
         }
-        rule.onNodeWithContentDescription("March 10, 2026, today").assertExists()
+        rule.onKalendarDay(LocalDate(2026, 3, 10)).assert(isKalendarToday())
 
-        clock.instant = instantAt(LocalDateTime(2026, 3, 11, 0, 1))
+        clock.advanceBy(2.minutes)
         rule.mainClock.advanceTimeBy(TWO_MINUTES_MS)
         rule.waitForIdle()
 
         // Regression guard for the bug this seam removes: a calendar left open overnight used to
         // keep highlighting yesterday, because "today" was captured in an unkeyed remember.
-        rule.onNodeWithContentDescription("March 11, 2026, today").assertExists()
-        rule.onNodeWithContentDescription("March 10, 2026, today").assertDoesNotExist()
+        rule.onKalendarDay(LocalDate(2026, 3, 11)).assert(isKalendarToday())
+        rule.onNode(hasKalendarDay(LocalDate(2026, 3, 10)) and isKalendarToday()).assertDoesNotExist()
     }
 
     private companion object {
-        val ZONE = TimeZone.UTC
         val MARCH_FIRST = LocalDate(2026, 3, 1)
         const val TWO_MINUTES_MS = 120_000L
     }

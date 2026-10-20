@@ -185,8 +185,10 @@ class KalendarCallSiteThemeTest {
     @Test
     fun callSiteOverride_outsideAnyTheme_suppliesDefaultsForEverythingNotOverridden() {
         var probed: KalendarThemeTokens? = null
+        var defaultAnimations: KalendarAnimations? = null
 
         rule.setContent {
+            defaultAnimations = KalendarThemeDefaults.animations()
             KalendarTheme(tokens = KalendarTheme.tokens.copy(dimensions = compactDimensions())) {
                 AmbientProbe { probed = it }
             }
@@ -200,7 +202,7 @@ class KalendarCallSiteThemeTest {
             "an override outside a theme must fall back to the built-in strings",
         )
         assertSame(
-            KalendarThemeDefaults.animations(),
+            checkNotNull(defaultAnimations),
             probed.required().animations,
             "an override outside a theme must fall back to the built-in animations",
         )
@@ -292,7 +294,11 @@ class KalendarCallSiteThemeTest {
     @Test
     fun ambientTokens_outsideATheme_reuseTheSharedDefaults() {
         var tokens: KalendarThemeTokens? = null
-        rule.setContent { tokens = KalendarTheme.tokens }
+        var defaultAnimations: KalendarAnimations? = null
+        rule.setContent {
+            defaultAnimations = KalendarThemeDefaults.animations()
+            tokens = KalendarTheme.tokens
+        }
         rule.waitForIdle()
 
         assertSame(
@@ -301,7 +307,7 @@ class KalendarCallSiteThemeTest {
             "the default bundle must reuse KalendarThemeDefaults.dimensions()",
         )
         assertSame(
-            KalendarThemeDefaults.animations(),
+            checkNotNull(defaultAnimations),
             tokens.required().animations,
             "the default bundle must reuse KalendarThemeDefaults.animations()",
         )

@@ -78,21 +78,22 @@ public object KalendarTheme {
  * The bundle a calendar composed outside any [KalendarTheme] runs on.
  *
  * Remembered rather than rebuilt: this is the default that every unthemed call site lands on, and
- * an unstable bundle there would recompose the calendar under it on every pass. The four
- * Material-independent sets come from [KalendarThemeDefaults], which returns shared singletons, so
- * only the two Material-derived sets can invalidate it.
+ * an unstable bundle there would recompose the calendar under it on every pass. Every set comes
+ * from [KalendarThemeDefaults], which returns shared instances, so only the two Material-derived
+ * sets and the reduced-motion answer inside the animations can invalidate it.
  */
 @Composable
 private fun defaultKalendarTokens(): KalendarThemeTokens {
     val colors = KalendarThemeDefaults.colors()
     val typography = KalendarThemeDefaults.typography()
-    return remember(colors, typography) {
+    val animations = KalendarThemeDefaults.animations()
+    return remember(colors, typography, animations) {
         KalendarThemeTokens(
             colors = colors,
             typography = typography,
             shapes = KalendarThemeDefaults.shapes(),
             dimensions = KalendarThemeDefaults.dimensions(),
-            animations = KalendarThemeDefaults.animations(),
+            animations = animations,
             strings = KalendarThemeDefaults.strings(),
         )
     }
@@ -123,8 +124,9 @@ private fun defaultKalendarTokens(): KalendarThemeTokens {
  * @param typography Text styles. Defaults to [KalendarThemeDefaults.typography].
  * @param shapes Corner shapes. Defaults to [KalendarThemeDefaults.shapes].
  * @param dimensions Sizing and spacing. Defaults to [KalendarDimensions]'s own defaults.
- * @param animations Motion settings. Pass `KalendarAnimations(enabled = false)` for reduced
- *   motion or deterministic screenshot tests.
+ * @param animations Motion settings. The default follows the platform's reduced-motion setting
+ *   ([KalendarThemeDefaults.animations]); constructing [KalendarAnimations] yourself overrides
+ *   that — pass `KalendarAnimations(enabled = false)` for deterministic screenshot tests.
  * @param content The calendar views this theme applies to.
  */
 @Composable
@@ -212,9 +214,13 @@ internal fun kalendarShapes(): KalendarShapes =
 internal fun kalendarDimensions(): KalendarDimensions =
     LocalKalendarTokens.current?.dimensions ?: KalendarThemeDefaults.dimensions()
 
-/** The effective [KalendarAnimations]: the ambient [KalendarTheme]'s, or the built-in defaults. */
+/**
+ * The effective [KalendarAnimations]: the ambient [KalendarTheme]'s, or the built-in defaults.
+ *
+ * Not `@ReadOnlyComposable`, unlike its siblings: the default branch reads the platform
+ * reduced-motion setting, which some platforms observe with effects.
+ */
 @Composable
-@ReadOnlyComposable
 internal fun kalendarAnimations(): KalendarAnimations =
     LocalKalendarTokens.current?.animations ?: KalendarThemeDefaults.animations()
 

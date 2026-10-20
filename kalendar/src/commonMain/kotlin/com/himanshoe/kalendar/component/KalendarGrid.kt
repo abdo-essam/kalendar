@@ -30,10 +30,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -63,12 +65,19 @@ import androidx.compose.ui.semantics.CollectionInfo
 import androidx.compose.ui.semantics.CollectionItemInfo
 import androidx.compose.ui.semantics.collectionInfo
 import androidx.compose.ui.semantics.collectionItemInfo
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.util.fastForEachIndexed
 import com.himanshoe.kalendar.foundation.datetime.MAX_SPAN_DAYS
+import com.himanshoe.kalendar.foundation.datetime.isoWeekNumber
+import com.himanshoe.kalendar.foundation.datetime.mondayOfWeek
 import com.himanshoe.kalendar.foundation.event.KalendarEvent
 import com.himanshoe.kalendar.foundation.event.KalendarEvents
 import com.himanshoe.kalendar.foundation.grid.ALL_DAYS_OF_WEEK
@@ -77,6 +86,8 @@ import com.himanshoe.kalendar.theme.kalendarAnimations
 import com.himanshoe.kalendar.theme.kalendarColors
 import com.himanshoe.kalendar.theme.kalendarDimensions
 import com.himanshoe.kalendar.theme.kalendarShapes
+import com.himanshoe.kalendar.theme.kalendarStrings
+import com.himanshoe.kalendar.theme.kalendarTypography
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
@@ -232,6 +243,16 @@ internal val LocalKalendarSpanLanes = staticCompositionLocalOf { KalendarSpanLan
  * [visibleDaysOfWeek] — [dates] is expected to have been filtered by the same set, so a Mon–Fri
  * calendar is five columns of five labels and five dates per row.
  *
+ * When [weekNumber] is non-null the grid draws an ISO week-number gutter: the day columns are
+ * inset by [KalendarDimensions.weekNumberGutterWidth] and one gutter cell per row is overlaid at
+ * the start edge, spanning exactly the vertical extent of that row's first cell — positioned from
+ * the same layout-phase [cellBounds] read the selection indicator uses, so the gutter can never
+ * drift from the rows and costs no recomposition. Each row is labeled with the ISO week of *its
+ * Monday* ([mondayOfWeek]), not of its first date: under a Sunday `startDayOfWeek` the row's
+ * leading Sunday belongs to the previous ISO week, and the number a European user expects beside
+ * that row is the one shared by its other six days. The day columns still divide their remaining
+ * width equally, so the gutter moves the grid without reshaping it.
+ *
  * When [keyboard] is non-null the grid takes part in keyboard navigation: it draws the roving focus
  * ring at [KalendarGridKeyboardState.focusedDate], reports itself to a screen reader as a grid of
  * dated cells, and — crucially — *deactivates* focus on the cells themselves, so the calendar is one
@@ -257,6 +278,7 @@ internal fun KalendarGrid(
     dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
         KalendarHeaderDefaults.DayOfWeekLabel(dayOfWeek = dayOfWeek)
     },
+    weekNumber: (@Composable (weekNumber: Int, mondayOfWeek: LocalDate) -> Unit)? = null,
     cell: @Composable (LocalDate) -> Unit,
 ) {
     val colors = kalendarColors()
@@ -464,6 +486,13 @@ internal fun KalendarGrid(
                 columns = GridCells.Fixed(columns),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .then(
+                        if (weekNumber == null) {
+                            Modifier
+                        } else {
+                            Modifier.padding(start = dimensions.weekNumberGutterWidth)
+                        },
+                    )
                     .semantics { collectionInfo = CollectionInfo(rowCount = rowCount, columnCount = columns) },
                 horizontalArrangement = Arrangement.Center,
                 userScrollEnabled = false,
@@ -500,6 +529,25 @@ internal fun KalendarGrid(
                             },
                     ) {
                         cell(date)
+                    }
+                }
+            }
+
+            if (weekNumber != null) {
+                // The Monday each row is labeled by, from the row's actual first visible date. The
+                // dates and rotation only change together with the inputs remembered here.
+                val rowMondays = remember(dates, columns, startDayOfWeek) {
+                    List(rowCount) { row -> dates[row * columns].mondayOfWeek(startDayOfWeek) }
+                }
+                rowMondays.fastForEachIndexed { row, mondayOfRow ->
+                    Box(
+                        modifier = Modifier.weekNumberGutterCell(
+                            rowBounds = { cellBounds(dates[row * columns]) },
+                            width = dimensions.weekNumberGutterWidth,
+                        ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        weekNumber(mondayOfRow.isoWeekNumber(), mondayOfRow)
                     }
                 }
             }
@@ -552,6 +600,28 @@ private fun Modifier.overlayCell(
     .layout { measurable, _ ->
         val size = bounds()?.size ?: Size.Zero
         val placeable = measurable.measure(Constraints.fixed(size.width.toInt(), size.height.toInt()))
+        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+    }
+
+/**
+ * Sizes and positions one week-number gutter cell: [width] wide at the grid's start edge, spanning
+ * exactly the vertical extent of the row whose first cell [rowBounds] names, and measured away to
+ * nothing while that cell has not reported a position yet.
+ *
+ * The same layout-phase discipline as [overlayCell], and for the same reason: both reads happen
+ * inside the `offset` and `layout` lambdas, so the first frame's cells being positioned — or a
+ * resize moving every row — re-lays-out the gutter cells and recomposes nothing.
+ */
+private fun Modifier.weekNumberGutterCell(rowBounds: () -> Rect?, width: Dp): Modifier = this
+    .offset {
+        val row = rowBounds() ?: return@offset IntOffset.Zero
+        IntOffset(0, row.top.toInt())
+    }
+    .layout { measurable, _ ->
+        val row = rowBounds()
+        val cellWidth = if (row == null) 0 else width.roundToPx()
+        val cellHeight = row?.size?.height?.toInt() ?: 0
+        val placeable = measurable.measure(Constraints.fixed(cellWidth, cellHeight))
         layout(placeable.width, placeable.height) { placeable.place(0, 0) }
     }
 
@@ -641,6 +711,11 @@ private fun dateAtOffset(
  * this grid keeps the `weight(1f)` column placement, so alignment with the day cells is preserved —
  * [visibleDaysOfWeek] sets the column count, [dates] being expected to carry the same filter, and
  * [events] is the whole event list, from which the grid packs span-bar lanes for its cells.
+ *
+ * A non-null [weekNumber] draws the same ISO week-number gutter [KalendarGrid] does — the header
+ * row and every week row inset by [KalendarDimensions.weekNumberGutterWidth], one gutter cell
+ * centred against each row — and labels each row by the same rule: the ISO week of the row's
+ * Monday ([mondayOfWeek]), computed from the row's actual first visible date.
  */
 @Composable
 internal fun KalendarStaticGrid(
@@ -652,12 +727,14 @@ internal fun KalendarStaticGrid(
     dayOfWeekLabel: @Composable (DayOfWeek) -> Unit = { dayOfWeek ->
         KalendarHeaderDefaults.DayOfWeekLabel(dayOfWeek = dayOfWeek)
     },
+    weekNumber: (@Composable (weekNumber: Int, mondayOfWeek: LocalDate) -> Unit)? = null,
     cell: @Composable (LocalDate) -> Unit,
 ) {
     val labelDays = remember(startDayOfWeek, visibleDaysOfWeek) {
         daysOfWeekStartingAt(startDayOfWeek = startDayOfWeek, visibleDaysOfWeek = visibleDaysOfWeek)
     }
     val columns = labelDays.size
+    val gutterInset = if (weekNumber != null) kalendarDimensions().weekNumberGutterWidth else 0.dp
 
     CompositionLocalProvider(
         LocalKalendarSpanLanes provides rememberKalendarSpanLanes(
@@ -666,7 +743,7 @@ internal fun KalendarStaticGrid(
         ),
     ) {
         Column(modifier = modifier.fillMaxWidth()) {
-            Row(modifier = Modifier.fillMaxWidth()) {
+            Row(modifier = Modifier.fillMaxWidth().padding(start = gutterInset)) {
                 labelDays.forEach { day ->
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         dayOfWeekLabel(day)
@@ -674,13 +751,24 @@ internal fun KalendarStaticGrid(
                 }
             }
             dates.chunked(columns).forEach { week ->
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    for (dayIndex in 0 until columns) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            val date = week.getOrNull(dayIndex)
-                            if (date != null) {
-                                cell(date)
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(start = gutterInset)) {
+                        for (dayIndex in 0 until columns) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                val date = week.getOrNull(dayIndex)
+                                if (date != null) {
+                                    cell(date)
+                                }
                             }
+                        }
+                    }
+                    if (weekNumber != null) {
+                        val mondayOfRow = week.first().mondayOfWeek(startDayOfWeek)
+                        Box(
+                            modifier = Modifier.align(Alignment.CenterStart).width(gutterInset),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            weekNumber(mondayOfRow.isoWeekNumber(), mondayOfRow)
                         }
                     }
                 }
@@ -688,3 +776,59 @@ internal fun KalendarStaticGrid(
         }
     }
 }
+
+/**
+ * Built-in content for the ISO week-number gutter that
+ * [KalendarWeek][com.himanshoe.kalendar.KalendarWeek],
+ * [KalendarMonth][com.himanshoe.kalendar.KalendarMonth], and
+ * [KalendarTimeline][com.himanshoe.kalendar.KalendarTimeline] draw when
+ * [KalendarViewConfig.showWeekNumbers][com.himanshoe.kalendar.KalendarViewConfig.showWeekNumbers]
+ * is on.
+ */
+public object KalendarWeekNumberDefaults {
+
+    /**
+     * The default week-number gutter cell: the bare ISO-8601 week number, styled like the
+     * day-of-week column headers, announced to a screen reader through
+     * [KalendarStrings.weekNumberAccessibilityLabel][com.himanshoe.kalendar.theme.KalendarStrings.weekNumberAccessibilityLabel]
+     * rather than as an unexplained count. Compose it from a `weekNumberLabel` slot to decorate the
+     * built-in look instead of replacing it:
+     *
+     * ```kotlin
+     * KalendarMonth(
+     *     selectedDate = today,
+     *     config = KalendarViewConfig(showWeekNumbers = true),
+     *     weekNumberLabel = { weekNumber, mondayOfWeek ->
+     *         Box(modifier = Modifier.clickable { onWeekClick(mondayOfWeek) }) {
+     *             KalendarWeekNumberDefaults.Label(weekNumber = weekNumber)
+     *         }
+     *     },
+     * )
+     * ```
+     *
+     * @param weekNumber The ISO-8601 week number to show, as handed to the `weekNumberLabel` slot.
+     * @param modifier [Modifier] applied to the label.
+     */
+    @Composable
+    public fun Label(weekNumber: Int, modifier: Modifier = Modifier) {
+        val strings = kalendarStrings()
+        BasicText(
+            text = weekNumber.toString(),
+            style = kalendarTypography().dayOfWeekLabel.copy(
+                color = kalendarColors().dayLabelContent,
+                textAlign = TextAlign.Center,
+            ),
+            modifier = modifier.semantics {
+                contentDescription = strings.weekNumberAccessibilityLabel(weekNumber)
+            },
+        )
+    }
+}
+
+/**
+ * What the views hand [KalendarGrid] and [KalendarStaticGrid] as week-number content when a caller
+ * turned the gutter on without replacing its `weekNumberLabel` slot. One shared instance so the
+ * grids' `weekNumber` parameter stays equal — and the grids skippable — across recompositions.
+ */
+internal val DefaultWeekNumberContent: @Composable (weekNumber: Int, mondayOfWeek: LocalDate) -> Unit =
+    { weekNumber, _ -> KalendarWeekNumberDefaults.Label(weekNumber = weekNumber) }

@@ -26,10 +26,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Run Detekt
-        run: ./gradlew :kalendar-foundation:detekt :kalendar:detekt :kalendar-sync:detekt :sample:detekt :docsite:detekt
+        run: ./gradlew :kalendar-foundation:detekt :kalendar:detekt :kalendar-sync:detekt :kalendar-testing:detekt :sample:detekt :docsite:detekt
 
       - name: Check binary compatibility
-        run: ./gradlew :kalendar-foundation:apiCheck :kalendar:apiCheck :kalendar-sync:apiCheck
+        run: ./gradlew :kalendar-foundation:apiCheck :kalendar:apiCheck :kalendar-sync:apiCheck :kalendar-testing:apiCheck
 
       - name: Run tests
         run: ./gradlew :kalendar-foundation:desktopTest :kalendar-sync:desktopTest :kalendar:testDebugUnitTest
@@ -40,4 +40,4 @@ jobs:
       # other ~209. Those three carry the GoldenImageTests category and the build drops them off
       # macOS, so this runs everything else.
       - name: Run desktop UI tests
-        run: ./gradlew :kalendar:desktopTest
+        run: ./gradlew :kalendar:desktopTest :kalendar-testing:desktopTest

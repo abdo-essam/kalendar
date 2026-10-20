@@ -26,16 +26,14 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import com.himanshoe.kalendar.foundation.event.BasicKalendarEvent
-import com.himanshoe.kalendar.state.KalendarDateRange
 import com.himanshoe.kalendar.state.KalendarEventSource
 import com.himanshoe.kalendar.state.KalendarLoadStatus
 import com.himanshoe.kalendar.state.KalendarViewState
 import com.himanshoe.kalendar.state.rememberKalendarEventLoader
 import com.himanshoe.kalendar.state.rememberKalendarMonthState
+import com.himanshoe.kalendar.testing.KalendarTestEventSource
+import com.himanshoe.kalendar.testing.kalendarEvent
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.datetime.DateTimeUnit
@@ -54,6 +52,9 @@ import kotlin.test.assertTrue
  * The interesting cases are all the ones where "nothing is drawn" is ambiguous: a month with no
  * events and a month whose events have not arrived are the same picture until the placeholder
  * separates them, and a month whose load failed is a third thing again.
+ *
+ * The source held open and answered on command is `kalendar-testing`'s [KalendarTestEventSource] —
+ * the extraction of the hand-rolled fake this file used to carry, dogfooded here.
  */
 @Suppress("MagicNumber")
 class KalendarLoadingUiTest {
@@ -63,28 +64,11 @@ class KalendarLoadingUiTest {
 
     private val august = LocalDate(2026, 8, 15)
 
-    /**
-     * A source that answers only when a test tells it to, so "asked and waiting" is a state the test
-     * can hold the calendar in and look at.
-     */
-    private class ControlledSource : KalendarEventSource<BasicKalendarEvent> {
-
-        private val gates = mutableMapOf<KalendarDateRange, MutableStateFlow<List<BasicKalendarEvent>?>>()
-
-        override fun eventsIn(range: KalendarDateRange): Flow<List<BasicKalendarEvent>> =
-            gates.getOrPut(range) { MutableStateFlow(null) }.filterNotNull()
-
-        /** Answers every range asked for so far, which is the window and nothing else. */
-        fun deliver(events: List<BasicKalendarEvent> = emptyList()) {
-            gates.values.forEach { gate -> gate.value = events }
-        }
-    }
-
     private fun placeholders() = rule.onAllNodesWithTag(KALENDAR_LOADING_TAG).fetchSemanticsNodes().size
 
     @Test
     fun aMonthWaitingOnItsEventsIsNotDrawnLikeAMonthThatHasNone() {
-        val source = ControlledSource()
+        val source = KalendarTestEventSource<BasicKalendarEvent>()
         rule.setContent {
             val state = rememberKalendarMonthState(initialDate = august)
             KalendarMonth(
@@ -96,7 +80,7 @@ class KalendarLoadingUiTest {
 
         assertEquals(1, placeholders(), "the visible month is waiting on its events")
 
-        rule.runOnIdle { source.deliver() }
+        rule.runOnIdle { source.deliverAll() }
         rule.waitForIdle()
 
         assertEquals(0, placeholders(), "an empty answer is an answer, and draws as an empty month")
@@ -109,7 +93,7 @@ class KalendarLoadingUiTest {
      */
     @Test
     fun theGridDoesNotMoveWhenTheEventsLand() {
-        val source = ControlledSource()
+        val source = KalendarTestEventSource<BasicKalendarEvent>()
         rule.setContent {
             val state = rememberKalendarMonthState(initialDate = august)
             KalendarMonth(
@@ -123,7 +107,7 @@ class KalendarLoadingUiTest {
         val whileLoading = rule.onAllNodesWithText("15").onFirst().getUnclippedBoundsInRoot()
 
         rule.runOnIdle {
-            source.deliver(listOf(BasicKalendarEvent(date = august, eventName = "standup", id = "1")))
+            source.deliverAll(listOf(kalendarEvent(date = august, name = "standup", id = "1")))
         }
         rule.waitForIdle()
 
@@ -181,7 +165,7 @@ class KalendarLoadingUiTest {
      */
     @Test
     fun swipingOntoAPrefetchedMonthShowsNoPlaceholder() {
-        val source = ControlledSource()
+        val source = KalendarTestEventSource<BasicKalendarEvent>()
         var state: KalendarViewState? = null
         var scope: CoroutineScope? = null
         rule.setContent {
@@ -196,7 +180,7 @@ class KalendarLoadingUiTest {
         }
 
         assertEquals(1, placeholders(), "August is waiting, so a placeholder is a thing this can draw")
-        rule.runOnIdle { source.deliver() }
+        rule.runOnIdle { source.deliverAll() }
         rule.waitForIdle()
         assertEquals(0, placeholders())
 
@@ -212,7 +196,7 @@ class KalendarLoadingUiTest {
 
     @Test
     fun anAgendaWithNothingLoadedYetSaysSoRatherThanSayingEmpty() {
-        val source = ControlledSource()
+        val source = KalendarTestEventSource<BasicKalendarEvent>()
         rule.setContent {
             val state = rememberKalendarMonthState(initialDate = august)
             val agendaLoader = rememberKalendarEventLoader(state = state, source = source)
@@ -227,7 +211,7 @@ class KalendarLoadingUiTest {
         rule.onNodeWithText("still loading").assertExists()
         rule.onAllNodesWithText("no events").assertCountEquals(0)
 
-        rule.runOnIdle { source.deliver() }
+        rule.runOnIdle { source.deliverAll() }
         rule.waitForIdle()
 
         rule.onNodeWithText("no events").assertExists()

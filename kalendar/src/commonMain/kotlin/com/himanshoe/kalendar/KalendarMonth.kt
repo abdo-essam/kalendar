@@ -27,9 +27,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import com.himanshoe.kalendar.component.DefaultWeekNumberContent
 import com.himanshoe.kalendar.component.KalendarGrid
 import com.himanshoe.kalendar.component.KalendarHeaderDefaults
 import com.himanshoe.kalendar.component.KalendarMonthGridCell
+import com.himanshoe.kalendar.component.KalendarWeekNumberDefaults
 import com.himanshoe.kalendar.component.kalendarGridKeyboard
 import com.himanshoe.kalendar.component.rememberKalendarGridKeyboardState
 import com.himanshoe.kalendar.component.rememberKalendarHeaderScope
@@ -135,6 +137,10 @@ import kotlinx.datetime.plus
  * @param dayOfWeekLabel Replaces the content of each weekday column header. The grid still places
  *   one per column, so a replacement stays aligned with the day cells. Defaults to
  *   [KalendarHeaderDefaults.DayOfWeekLabel] formatted by [config].
+ * @param weekNumberLabel Replaces the content of one ISO week-number gutter cell — the hook for
+ *   tappable week numbers. Receives the row's ISO-8601 week number and the Monday that number
+ *   belongs to. Composed only while [KalendarViewConfig.showWeekNumbers] is on; defaults to
+ *   [KalendarWeekNumberDefaults.Label].
  * @param loadingContent Slot drawn over a month whose events have not arrived yet, given a
  *   [KalendarLoadingScope] with the range, its [KalendarLoadStatus] and the failure if it failed.
  *   Overlaid at the grid's own size, so it cannot move the calendar under it. Defaults to
@@ -172,6 +178,7 @@ public fun <E : KalendarEvent> KalendarMonth(
             formatter = config.dayOfWeekLabelFormatter,
         )
     },
+    weekNumberLabel: (@Composable (weekNumber: Int, mondayOfWeek: LocalDate) -> Unit)? = null,
     loadingContent: @Composable (KalendarLoadingScope) -> Unit = { loadingScope ->
         KalendarLoadingDefaults.Placeholder(scope = loadingScope)
     },
@@ -184,6 +191,7 @@ public fun <E : KalendarEvent> KalendarMonth(
     // Hoisted out of the cell lambda: `?:` on a non-capturing literal yields the same singleton
     // every recomposition, so the cell's `onEventClick` parameter stays equal and skippable.
     val dayEventClick = onDayEventClick ?: {}
+    val gridWeekNumber = if (config.showWeekNumbers) weekNumberLabel ?: DefaultWeekNumberContent else null
     val gridEventDrop: ((LocalDate, LocalDate) -> Unit)? = if (onEventDrop == null) {
         null
     } else {
@@ -244,6 +252,7 @@ public fun <E : KalendarEvent> KalendarMonth(
                         events = events,
                         visibleDaysOfWeek = config.visibleDaysOfWeek,
                         dayOfWeekLabel = dayOfWeekLabel,
+                        weekNumber = gridWeekNumber,
                     ) { date ->
                         val dateEvents = eventsByDate[date] ?: emptyList()
                         val isCurrentMonth = date.month == monthStart.month
@@ -305,6 +314,7 @@ public fun <E : KalendarEvent> KalendarMonth(
  * @param config See [KalendarMonth].
  * @param header See [KalendarMonth].
  * @param dayOfWeekLabel See [KalendarMonth].
+ * @param weekNumberLabel See [KalendarMonth].
  * @param dayContent See [KalendarMonth].
  */
 @Composable
@@ -333,6 +343,7 @@ public fun KalendarMonth(
             formatter = config.dayOfWeekLabelFormatter,
         )
     },
+    weekNumberLabel: (@Composable (weekNumber: Int, mondayOfWeek: LocalDate) -> Unit)? = null,
     dayContent: (@Composable (scope: KalendarDayScope<KalendarEvent>) -> Unit)? = null,
 ) {
     KalendarMonth<KalendarEvent>(
@@ -346,6 +357,7 @@ public fun KalendarMonth(
         config = config,
         header = header,
         dayOfWeekLabel = dayOfWeekLabel,
+        weekNumberLabel = weekNumberLabel,
         dayContent = dayContent,
     )
 }

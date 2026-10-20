@@ -65,6 +65,10 @@ import kotlinx.datetime.LocalDateTime
  *   button that opens the popover listing every event on that day.
  * @property eventOverflowLabel Formats the compact label shown when a day has more events than
  *   [KalendarViewConfig.eventIndicatorCap] dots, given the number of events not shown.
+ * @property weekNumberAccessibilityLabel What a screen reader announces for a week-number gutter
+ *   cell, given the ISO-8601 week number it shows. The gutter *shows* the bare number, which read
+ *   aloud is just an unexplained count, so this supplies the sentence behind it. Defaults to plain
+ *   English ("Week 36").
  * @property dayAccessibilityLabel Builds a day cell's base accessibility description from its date
  *   and its already-formatted month name. Defaults to US-style `"August 12, 2026"`; override it
  *   for locales that order or punctuate dates differently. [todaySuffix] and [hasEventsSuffix] are
@@ -104,6 +108,7 @@ public class KalendarStrings(
     public val resourceEmptyState: String = "No resources",
     public val showAllDayEvents: String = "Show all events",
     public val eventOverflowLabel: (hiddenEventCount: Int) -> String = { "+$it" },
+    public val weekNumberAccessibilityLabel: (weekNumber: Int) -> String = { "Week $it" },
     public val dayAccessibilityLabel: (date: LocalDate, monthName: String) -> String = defaultDayAccessibilityLabel,
     public val dayOfWeekAccessibilityLabel: (DayOfWeek) -> String = defaultDayOfWeekAccessibilityLabel,
     public val eventAccessibilityLabel: (event: KalendarEvent, start: LocalDateTime, end: LocalDateTime) -> String =
@@ -131,6 +136,7 @@ public class KalendarStrings(
         resourceEmptyState: String = this.resourceEmptyState,
         showAllDayEvents: String = this.showAllDayEvents,
         eventOverflowLabel: (hiddenEventCount: Int) -> String = this.eventOverflowLabel,
+        weekNumberAccessibilityLabel: (weekNumber: Int) -> String = this.weekNumberAccessibilityLabel,
         dayAccessibilityLabel: (date: LocalDate, monthName: String) -> String = this.dayAccessibilityLabel,
         dayOfWeekAccessibilityLabel: (DayOfWeek) -> String = this.dayOfWeekAccessibilityLabel,
         eventAccessibilityLabel: (event: KalendarEvent, start: LocalDateTime, end: LocalDateTime) -> String =
@@ -155,6 +161,7 @@ public class KalendarStrings(
         resourceEmptyState = resourceEmptyState,
         showAllDayEvents = showAllDayEvents,
         eventOverflowLabel = eventOverflowLabel,
+        weekNumberAccessibilityLabel = weekNumberAccessibilityLabel,
         dayAccessibilityLabel = dayAccessibilityLabel,
         dayOfWeekAccessibilityLabel = dayOfWeekAccessibilityLabel,
         eventAccessibilityLabel = eventAccessibilityLabel,
@@ -178,6 +185,7 @@ public class KalendarStrings(
         if (resourceEmptyState != other.resourceEmptyState) return false
         if (showAllDayEvents != other.showAllDayEvents) return false
         if (eventOverflowLabel != other.eventOverflowLabel) return false
+        if (weekNumberAccessibilityLabel != other.weekNumberAccessibilityLabel) return false
         if (dayAccessibilityLabel != other.dayAccessibilityLabel) return false
         if (dayOfWeekAccessibilityLabel != other.dayOfWeekAccessibilityLabel) return false
         if (eventAccessibilityLabel != other.eventAccessibilityLabel) return false
@@ -199,6 +207,7 @@ public class KalendarStrings(
         result = 31 * result + resourceEmptyState.hashCode()
         result = 31 * result + showAllDayEvents.hashCode()
         result = 31 * result + eventOverflowLabel.hashCode()
+        result = 31 * result + weekNumberAccessibilityLabel.hashCode()
         result = 31 * result + dayAccessibilityLabel.hashCode()
         result = 31 * result + dayOfWeekAccessibilityLabel.hashCode()
         result = 31 * result + eventAccessibilityLabel.hashCode()
@@ -220,6 +229,7 @@ public class KalendarStrings(
         "resourceEmptyState=$resourceEmptyState, " +
         "showAllDayEvents=$showAllDayEvents, " +
         "eventOverflowLabel=$eventOverflowLabel, " +
+        "weekNumberAccessibilityLabel=$weekNumberAccessibilityLabel, " +
         "dayAccessibilityLabel=$dayAccessibilityLabel, " +
         "dayOfWeekAccessibilityLabel=$dayOfWeekAccessibilityLabel, " +
         "eventAccessibilityLabel=$eventAccessibilityLabel, " +
