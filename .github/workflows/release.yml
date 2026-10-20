@@ -90,10 +90,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      # A release whose versions are already committed, or a re-run, leaves nothing to bump; an
+      # empty commit would fail the job, so the step records whether it committed instead.
       - name: Commit version bumps
+        id: bump
         run: |
           git add kalendar/gradle.properties kalendar-foundation/gradle.properties kalendar-sync/gradle.properties
-          git commit -m "Release ${{ steps.tag.outputs.tag }}"
+          if git diff --cached --quiet; then
+            echo "Versions already at the requested values; nothing to commit."
+            echo "committed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "Release ${{ steps.tag.outputs.tag }}"
+            echo "committed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Create and push tag
         run: |
@@ -132,9 +141,12 @@ jobs:
 
       - name: Generate release notes from commits
         run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          # The release commit itself is not a change worth listing, so the range stops short of
+          # it when one was made.
+          if [ "${{ steps.bump.outputs.committed }}" = "true" ]; then LAST="HEAD~1"; else LAST="HEAD"; fi
+          PREV_TAG=$(git describe --tags --abbrev=0 "$LAST^" 2>/dev/null || echo "")
           if [ -n "$PREV_TAG" ]; then
-            COMMITS=$(git log "${PREV_TAG}..HEAD~1" --pretty=format:"- %s" --no-merges)
+            COMMITS=$(git log "${PREV_TAG}..${LAST}" --pretty=format:"- %s" --no-merges)
             printf "## Modules\n\n${{ steps.summary.outputs.modules }}\n## Changes\n\n%s" "$COMMITS" > release_notes.txt
           else
             printf "## Modules\n\n${{ steps.summary.outputs.modules }}" > release_notes.txt
